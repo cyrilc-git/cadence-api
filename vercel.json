@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/scrape-analytics",
+      "schedule": "0 22 * * *"
+    }
+  ]
+}
