@@ -1,6 +1,17 @@
+import { getCredential } from './credentials';
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
 
+async function headersAsync(): Promise<Record<string,string>> {
+  const { value } = await getCredential('notion');
+  if (!value) throw new Error('NOTION_API_TOKEN introuvable.');
+  return {
+    Authorization: `Bearer ${value}`,
+    'Notion-Version': NOTION_VERSION,
+    'Content-Type': 'application/json'
+  };
+}
+// Backwards-compat sync version using env (deprecated, only used by code that hasn't been migrated)
 const headers = () => ({
   Authorization: `Bearer ${process.env.NOTION_API_TOKEN!}`,
   'Notion-Version': NOTION_VERSION,
@@ -39,6 +50,11 @@ function plain(rich: any[] | undefined): string {
   return rich.map((r: any) => r.plain_text || '').join('');
 }
 
+async function getDsIdAsync(): Promise<string> {
+  const { value } = await getCredential('notion_ds_id');
+  if (!value) throw new Error('NOTION_LINKEDIN_DS_ID introuvable.');
+  return value;
+}
 function getDsId(): string {
   const id = process.env.NOTION_LINKEDIN_DS_ID;
   if (!id) throw new Error('NOTION_LINKEDIN_DS_ID env var manquante');
@@ -47,16 +63,14 @@ function getDsId(): string {
 
 // === Status ping ===
 export async function notionStatus() {
-  if (!process.env.NOTION_API_TOKEN) {
-    return { ok: false, error: 'NOTION_API_TOKEN manquant dans Vercel env vars' };
-  }
-  if (!process.env.NOTION_LINKEDIN_DS_ID) {
-    return { ok: false, error: 'NOTION_LINKEDIN_DS_ID manquant dans Vercel env vars' };
-  }
+  const tok = await getCredential('notion');
+  if (!tok.value) return { ok: false, error: 'NOTION_API_TOKEN introuvable (ni DB ni env).' };
+  const ds = await getCredential('notion_ds_id');
+  if (!ds.value) return { ok: false, error: 'NOTION_LINKEDIN_DS_ID introuvable.' };
   try {
-    const r = await fetch(`${NOTION_API}/databases/${process.env.NOTION_LINKEDIN_DS_ID}/query`, {
+    const r = await fetch(`${NOTION_API}/databases/${ds.value}/query`, {
       method: 'POST',
-      headers: headers(),
+      headers: { Authorization: `Bearer ${tok.value}`, 'Notion-Version': NOTION_VERSION, 'Content-Type': 'application/json' },
       body: JSON.stringify({ page_size: 1 })
     });
     if (!r.ok) {

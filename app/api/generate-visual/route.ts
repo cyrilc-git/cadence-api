@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateClaudeDesignSvg } from '@/lib/anthropic';
+import { getCredential } from '@/lib/credentials';
 import { supabase } from '@/lib/supabase';
 
 export const runtime = 'nodejs';
@@ -37,9 +38,8 @@ export async function POST(req: NextRequest) {
     }
 
     // OpenAI mode
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({ error: 'OPENAI_API_KEY manquante dans Vercel env vars. Ajoutez-la dans Settings → Environment Variables puis redéployez.' }, { status: 400 });
-    }
+    const oai = await getCredential('openai');
+    if (!oai.value) return NextResponse.json({ error: 'OPENAI_API_KEY introuvable (ni DB ni env). Ajoutez-la dans Settings → Connecteurs.' }, { status: 400 });
     const realSize = DALL_E_SIZES.has(size) ? size : '1024x1024';
     const payload: any = {
       model: 'dall-e-3',
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
     };
     const r = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${oai.value}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
     const raw = await r.text();

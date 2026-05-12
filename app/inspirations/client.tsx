@@ -5,6 +5,24 @@ import StatusBadge from '@/components/StatusBadge';
 
 export default function InspirationsClient({ initial }: { initial: any[] }) {
   const [items, setItems] = useState(initial);
+  const [restoring, setRestoring] = useState(false);
+
+  async function restoreDefaults() {
+    if (!confirm('Restaurer les inspirations par défaut Cadence ? Cela ajoute uniquement les profils manquants.')) return;
+    setRestoring(true);
+    try {
+      const r = await fetch('/api/seed', { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      const list = await fetch('/api/inspirations').then(x => x.json());
+      setItems(list.items || []);
+    } catch (e: any) {
+      alert('Erreur restauration : ' + e.message);
+    } finally {
+      setRestoring(false);
+    }
+  }
+
   const [editing, setEditing] = useState<any | null>(null);
 
   async function save() {
@@ -26,12 +44,17 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-start justify-between">
+      <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-semibold text-ink-900">Inspirations</h1>
           <p className="mt-1 text-ink-500">Comptes LinkedIn qui inspirent. Jamais à copier.</p>
         </div>
-        <button onClick={() => setEditing({ name: '', score: 3, category: '' })} className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600">+ Ajouter</button>
+        <div className="flex gap-2">
+          <button onClick={restoreDefaults} disabled={restoring} className="px-4 py-2 rounded-lg ring-1 ring-ink-300 text-sm font-medium hover:bg-ink-50 disabled:opacity-50">
+            {restoring ? 'Restauration…' : '↺ Restaurer défauts Cadence'}
+          </button>
+          <button onClick={() => setEditing({ name: '', score: 3, category: '' })} className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600">+ Ajouter</button>
+        </div>
       </header>
 
       <div className="bg-warn-50 ring-1 ring-inset ring-warn-500/20 rounded-2xl p-4 text-sm text-warn-700">

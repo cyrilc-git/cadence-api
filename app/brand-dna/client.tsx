@@ -18,6 +18,24 @@ const KINDS = Object.keys(KIND_LABEL);
 
 export default function BrandDnaClient({ initial }: { initial: any[] }) {
   const [items, setItems] = useState(initial);
+  const [restoring, setRestoring] = useState(false);
+
+  async function restoreDefaults() {
+    if (!confirm('Restaurer les valeurs par défaut Cadence ? Cela ajoute uniquement les éléments manquants. Vos ajouts personnels sont préservés.')) return;
+    setRestoring(true);
+    try {
+      const r = await fetch('/api/seed', { method: 'POST' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      const list = await fetch('/api/brand-dna').then(x => x.json());
+      setItems(list.items || []);
+    } catch (e: any) {
+      alert('Erreur restauration : ' + e.message);
+    } finally {
+      setRestoring(false);
+    }
+  }
+
   const [adding, setAdding] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState('');
 
@@ -41,9 +59,14 @@ export default function BrandDnaClient({ initial }: { initial: any[] }) {
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-3xl font-semibold text-ink-900">Brand DNA</h1>
-        <p className="mt-1 text-ink-500">Votre voix, vos règles, vos interdits. Modifiable, persistant.</p>
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-semibold text-ink-900">Brand DNA</h1>
+          <p className="mt-1 text-ink-500">Votre voix, vos règles, vos interdits. Modifiable, persistant.</p>
+        </div>
+        <button onClick={restoreDefaults} disabled={restoring} className="px-4 py-2 rounded-lg ring-1 ring-ink-300 text-sm font-medium hover:bg-ink-50 disabled:opacity-50">
+          {restoring ? 'Restauration…' : '↺ Restaurer les valeurs par défaut Cadence'}
+        </button>
       </header>
 
       {items.length === 0 && (

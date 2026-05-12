@@ -1,12 +1,20 @@
+import { getCredential } from './credentials';
 const LINKEDIN_BASE = 'https://www.linkedin.com';
 const LINKEDIN_API = 'https://api.linkedin.com';
 
+
+async function lic(name: string): Promise<string> {
+  const { value } = await getCredential(name);
+  if (!value) throw new Error(`${name} introuvable.`);
+  return value;
+}
+
 export const SCOPES = ['openid', 'profile', 'email', 'w_member_social'].join(' ');
 
-export function buildAuthUrl(state: string): string {
+export async function buildAuthUrl(state: string): Promise<string> {
   const params = new URLSearchParams({
     response_type: 'code',
-    client_id: process.env.LINKEDIN_CLIENT_ID!,
+    client_id: await lic('linkedin_client_id'),
     redirect_uri: process.env.LINKEDIN_REDIRECT_URI!,
     scope: SCOPES,
     state
@@ -18,8 +26,8 @@ export async function exchangeCode(code: string) {
   const params = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
-    client_id: process.env.LINKEDIN_CLIENT_ID!,
-    client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
+    client_id: await lic('linkedin_client_id'),
+    client_secret: await lic('linkedin_client_secret'),
     redirect_uri: process.env.LINKEDIN_REDIRECT_URI!
   });
   const r = await fetch(`${LINKEDIN_BASE}/oauth/v2/accessToken`, {
