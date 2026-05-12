@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import StatusBadge from '@/components/StatusBadge';
 import PublishModal from '@/components/PublishModal';
+import VisualGenerator from '@/components/VisualGenerator';
 
 const PILIERS = [
   'Lundi · Cas client',
@@ -24,6 +25,7 @@ export default function NewPostClient({ initial }: { initial: Initial }) {
   const [anonOk, setAnonOk] = useState(false);
 
   const [proposals, setProposals] = useState<string[]>([]);
+  const [genModel, setGenModel] = useState<string | null>(null);
   const [genLoading, setGenLoading] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
 
@@ -36,7 +38,7 @@ export default function NewPostClient({ initial }: { initial: Initial }) {
   const lint = useMemo(() => analyzeAntiPatterns(text), [text]);
 
   async function handleGenerate() {
-    setGenLoading(true); setGenError(null);
+    setGenLoading(true); setGenError(null); setProposals([]); setGenModel(null);
     try {
       const r = await fetch('/api/generate-post', {
         method: 'POST',
@@ -44,8 +46,9 @@ export default function NewPostClient({ initial }: { initial: Initial }) {
         body: JSON.stringify({ pilier, brief })
       });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Erreur génération');
+      if (!r.ok) throw new Error(data.error || `Erreur ${r.status}`);
       setProposals(data.proposals || []);
+      setGenModel(data.model || null);
     } catch (e: any) {
       setGenError(e.message);
     } finally {
@@ -80,6 +83,7 @@ export default function NewPostClient({ initial }: { initial: Initial }) {
   }
 
   const pilierIsCasClient = pilier?.includes('Cas client');
+  const visualPromptDefault = text ? `Visuel d'accompagnement pour ce post LinkedIn :\n\n${text.slice(0, 300)}\n\n(Heelio design system, ${pilier})` : '';
 
   return (
     <div className="space-y-6">
@@ -89,7 +93,7 @@ export default function NewPostClient({ initial }: { initial: Initial }) {
       </header>
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* LEFT — Setup + IA */}
+        {/* LEFT — Setup + IA + Visual */}
         <section className="space-y-4">
           <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
             <Label>Pilier éditorial</Label>
@@ -109,27 +113,37 @@ export default function NewPostClient({ initial }: { initial: Initial }) {
 
             <button onClick={handleGenerate} disabled={genLoading || !brief.trim()}
               className="mt-3 w-full px-4 py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50">
-              {genLoading ? 'Génération en cours…' : '✨ Générer 3 propositions'}
+              {genLoading ? 'Génération Claude en cours… (15-30 sec)' : '✨ Générer 3 propositions'}
             </button>
-            {genError && <p className="mt-2 text-sm text-danger-700">{genError}</p>}
+            {genError && (
+              <div className="mt-3 p-3 rounded-lg bg-danger-50 ring-1 ring-inset ring-danger-500/20 text-sm text-danger-700">
+                <strong className="font-semibold">Erreur Anthropic :</strong> {genError}
+              </div>
+            )}
           </div>
 
           {proposals.length > 0 && (
             <div className="space-y-3">
-              <h3 className="font-semibold text-ink-900 text-sm">Propositions générées</h3>
+              <h3 className="font-semibold text-ink-900 text-sm flex items-center gap-2">
+                Propositions générées
+                {genModel && <StatusBadge variant="brand">{genModel}</StatusBadge>}
+              </h3>
               {proposals.map((p, i) => (
                 <div key={i} className="bg-white rounded-2xl p-4 shadow-card ring-1 ring-inset ring-ink-300/20">
                   <div className="flex items-center justify-between mb-2">
                     <StatusBadge variant="brand">Proposition {i + 1}</StatusBadge>
-                    <button onClick={() => setText(p)} className="text-xs px-3 py-1.5 rounded-lg bg-ink-100 text-ink-700 hover:bg-ink-50">
+                    <button onClick={() => setText(p)} className="text-xs px-3 py-1.5 rounded-lg bg-ink-100 text-ink-700 hover:bg-ink-200">
                       Utiliser ce texte
                     </button>
                   </div>
-                  <p className="text-sm text-ink-700 whitespace-pre-wrap line-clamp-[12]">{p}</p>
+                  <p className="text-sm text-ink-700 whitespace-pre-wrap">{p}</p>
                 </div>
               ))}
             </div>
           )}
+
+          {/* Visual generator */}
+          <VisualGenerator defaultPrompt={visualPromptDefault} notionPageId={initial?.id} />
         </section>
 
         {/* RIGHT — Editor + lint + actions */}
@@ -145,7 +159,6 @@ export default function NewPostClient({ initial }: { initial: Initial }) {
             <textarea value={text} onChange={e => setText(e.target.value)} rows={14} placeholder="Le texte exact tel qu'il sera publié sur LinkedIn." className="mt-1 w-full rounded-lg border-ink-300 px-3 py-2 text-sm font-mono focus:ring-brand-500 focus:border-brand-500" />
           </div>
 
-          {/* Lint */}
           <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
             <h3 className="font-semibold text-ink-900 text-sm">Garde-fous éditoriaux</h3>
             {lint.length === 0
@@ -163,7 +176,6 @@ export default function NewPostClient({ initial }: { initial: Initial }) {
                 </ul>}
           </div>
 
-          {/* Schedule controls */}
           <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
             <h3 className="font-semibold text-ink-900 text-sm">Programmation</h3>
             <div className="mt-3 flex gap-3">
@@ -179,7 +191,6 @@ export default function NewPostClient({ initial }: { initial: Initial }) {
             <p className="mt-2 text-xs text-ink-500">L'auto-publication tourne 1×/jour à 5h30 UTC (≈ 7h30 Paris). Pour publier à l'heure exacte, utilisez "Publier maintenant" après validation.</p>
           </div>
 
-          {/* Action buttons */}
           <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20 space-y-2">
             <button onClick={() => handleSave(false)} disabled={saveLoading || !text.trim()} className="w-full px-4 py-2.5 rounded-lg ring-1 ring-ink-300 text-ink-700 text-sm font-medium hover:bg-ink-50 disabled:opacity-50">
               {saveLoading ? 'Sauvegarde…' : 'Sauvegarder en draft'}

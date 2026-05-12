@@ -1,10 +1,10 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { PILIERS, VOIX, ANTI_PATTERNS } from './brand-config';
 
-const apiKey = process.env.ANTHROPIC_API_KEY;
 let _client: Anthropic | null = null;
 function client(): Anthropic {
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY manquante');
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY manquante côté serveur. Ajoutez-la dans Vercel → cadence-api → Settings → Environment Variables, puis redéployez.');
   if (!_client) _client = new Anthropic({ apiKey });
   return _client;
 }
@@ -50,21 +50,8 @@ const PILIER_HINTS: Record<string, string> = {
 export async function generateThreeProposals(input: {
   pilier?: string;
   brief: string;
-  inspirations?: string[]; // free text notes only
-}): Promise<{ proposals: string[]; raw: string }> {
-  if (!apiKey) {
-    // Graceful fallback when API key missing — return 3 templated propositions
-    const safeBrief = input.brief.slice(0, 300);
-    return {
-      proposals: [
-        `[ANTHROPIC_API_KEY manquante]\n\nProposition 1 (template) basée sur : ${safeBrief}`,
-        `[ANTHROPIC_API_KEY manquante]\n\nProposition 2 (template) basée sur : ${safeBrief}`,
-        `[ANTHROPIC_API_KEY manquante]\n\nProposition 3 (template) basée sur : ${safeBrief}`
-      ],
-      raw: 'API key missing — returning template'
-    };
-  }
-
+  inspirations?: string[];
+}): Promise<{ proposals: string[]; raw: string; model: string }> {
   const pilierHint = input.pilier && PILIER_HINTS[input.pilier]
     ? `\n\nPILIER : ${input.pilier}\n${PILIER_HINTS[input.pilier]}`
     : '';
@@ -76,8 +63,9 @@ export async function generateThreeProposals(input: {
 
 Produis 3 propositions distinctes, chacune respectant les règles ci-dessus. Sépare-les par "===PROP===" sur sa propre ligne.`;
 
+  const MODEL = 'claude-sonnet-4-6';
   const msg = await client().messages.create({
-    model: 'claude-sonnet-4-6',
+    model: MODEL,
     max_tokens: 2400,
     system: SYSTEM_PROMPT,
     messages: [{ role: 'user', content: userPrompt }]
@@ -93,24 +81,38 @@ Produis 3 propositions distinctes, chacune respectant les règles ci-dessus. Sé
     .filter(Boolean)
     .slice(0, 3);
 
-  return { proposals, raw };
+  if (proposals.length === 0) {
+    throw new Error('Claude a répondu sans propositions exploitables. Réessayez.');
+  }
+
+  return { proposals, raw, model: MODEL };
 }
 
-const VISUAL_SYSTEM_PROMPT = `Tu es designer SaaS B2B. Tu produis du SVG inline propre, dimensions 1200x630 (LinkedIn share).
+const VISUAL_SYSTEM_PROMPT = `Tu es designer SaaS B2B. Tu produis du SVG inline propre, dimensions 1200x630 (format LinkedIn share).
+
 Design system Heelio :
-- Couleur primaire #6366F1, foncée #4F46E5, fond #F8FAFC, texte #0F172A, gris #64748B
+- Couleur primaire #6366F1, foncée #4F46E5
+- Fond #F8FAFC, surface #FFFFFF
+- Texte principal #0F172A, secondaire #64748B
+- Succès #10B981, danger #EF4444
 - Police system-ui sans-serif
 - Coins arrondis 16px sur cartes, 10px sur boutons
 - Style épuré, beaucoup d'espace blanc, hiérarchie typo claire
 - Pas de dégradés tape-à-l'œil. Subtils ok.
 - Pas d'emojis sur les visuels produit.
+- Logo Cadence/Heelio : carré 40px arrondi 10px, gradient #6366F1 → #4F46E5, lettre "C" blanche centrée (optionnel, en coin bas)
 
-Réponds avec UNIQUEMENT le bloc <svg ...>...</svg>, rien d'autre. Pas de markdown, pas de commentaire.`;
+CONTRAINTES :
+- Le SVG doit être autonome (pas de référence externe, pas d'images bitmap)
+- Texte lisible, taille min 18px pour le corps, 32-48px pour les titres
+- viewBox="0 0 1200 630"
 
-export async function generateClaudeDesignSvg(prompt: string): Promise<string> {
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY manquante');
+Réponds avec UNIQUEMENT le bloc <svg ...>...</svg>, rien d'autre. Pas de markdown, pas de commentaire, pas de fences markdown autour.`;
+
+export async function generateClaudeDesignSvg(prompt: string): Promise<{ svg: string; model: string }> {
+  const MODEL = 'claude-sonnet-4-6';
   const msg = await client().messages.create({
-    model: 'claude-sonnet-4-6',
+    model: MODEL,
     max_tokens: 4000,
     system: VISUAL_SYSTEM_PROMPT,
     messages: [{ role: 'user', content: prompt }]
@@ -119,8 +121,7 @@ export async function generateClaudeDesignSvg(prompt: string): Promise<string> {
     .filter((c: any) => c.type === 'text')
     .map((c: any) => c.text)
     .join('\n');
-  // Extract first <svg>...</svg>
   const m = raw.match(/<svg[\s\S]*?<\/svg>/);
-  if (!m) throw new Error('Réponse Claude sans SVG valide');
-  return m[0];
+  if (!m) throw new Error('Claude n\'a pas renvoyé de SVG valide. Réessayez avec un prompt plus précis.');
+  return { svg: m[0], model: MODEL };
 }
