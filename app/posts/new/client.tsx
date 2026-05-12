@@ -13,14 +13,14 @@ const PILIERS = [
   'Vendredi · Build in public'
 ];
 
-type Initial = null | { id: string; title: string; pilier?: string; content: string };
+type Initial = null | { id?: string; title: string; pilier?: string; content: string; date?: string };
 
-export default function NewPostClient({ initial }: { initial: Initial }) {
+export default function NewPostClient({ initial, prefillBrief, prefillHook }: { initial: Initial; prefillBrief?: string; prefillHook?: string }) {
   const [pilier, setPilier] = useState(initial?.pilier || PILIERS[1]);
-  const [brief, setBrief] = useState('');
+  const [brief, setBrief] = useState(prefillBrief || '');
   const [text, setText] = useState(initial?.content || '');
   const [title, setTitle] = useState(initial?.title || '');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0,10));
+  const [date, setDate] = useState(initial?.date || new Date().toISOString().slice(0,10));
   const [time, setTime] = useState('07:30');
   const [anonOk, setAnonOk] = useState(false);
 

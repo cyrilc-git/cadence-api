@@ -2,144 +2,92 @@ import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 import { getActiveToken } from '@/lib/supabase';
 import { validateToken } from '@/lib/linkedin';
-import { listNotionPosts, notionStatus } from '@/lib/notion';
+import { notionStatus } from '@/lib/notion';
+import { connectorsStatus } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
-function envCheck(name: string): { present: boolean; hint?: string } {
-  return { present: !!process.env[name] };
-}
+const KIND_META: Record<string, { label: string; description: string; doc?: string; testRoute?: string; oauthRoute?: string }> = {
+  linkedin:  { label: 'LinkedIn',         description: 'OAuth 2.0 — publication sur votre profil', oauthRoute: '/api/auth/linkedin' },
+  notion:    { label: 'Notion',           description: 'Lecture/écriture sur la DB Linkedin (drafts, programmation, status)', testRoute: '/api/notion/status' },
+  anthropic: { label: 'Claude (Anthropic)', description: 'Génération texte 3 propositions + visuels SVG design system Heelio' },
+  openai:    { label: 'OpenAI (DALL-E)',  description: 'Visuels illustration / ads (PNG)' },
+  github:    { label: 'GitHub (sources produit)', description: 'Détecte commits, PRs, releases pour proposer des posts "nouveauté produit"', doc: 'Variables env requises: GITHUB_TOKEN (PAT read:repo), GITHUB_REPOS (owner/repo,owner/repo)' },
+  gmail:     { label: 'Gmail',            description: 'Détecte sujets récurrents pour proposer des angles', doc: 'À venir : OAuth Google' },
+  gdrive:    { label: 'Google Drive',     description: 'Détecte nouveaux docs stratégiques / présentations', doc: 'À venir : OAuth Google' },
+  onedrive:  { label: 'OneDrive',         description: 'Détecte nouveaux fichiers produits', doc: 'À venir : OAuth Microsoft' }
+};
 
 async function loadAll() {
-  const [tokenRow, notion] = await Promise.all([
+  const [tokenRow, notion, connectors] = await Promise.all([
     getActiveToken().catch(() => null),
-    notionStatus()
+    notionStatus(),
+    connectorsStatus().catch(() => [])
   ]);
-
   let li: { status: 'connected' | 'expired' | 'none'; name?: string; email?: string; expires_at?: string; error?: string } = { status: 'none' };
   if (tokenRow) {
     const v = await validateToken(tokenRow.access_token);
     const exp = new Date(tokenRow.expires_at).getTime();
-    if (v.ok && exp > Date.now()) {
-      li = { status: 'connected', name: v.name, email: v.email, expires_at: tokenRow.expires_at };
-    } else {
-      li = { status: 'expired', error: v.ok ? 'Date expiration dépassée' : `LinkedIn API ${v.status}` };
-    }
+    if (v.ok && exp > Date.now()) li = { status: 'connected', name: v.name, email: v.email, expires_at: tokenRow.expires_at };
+    else li = { status: 'expired', error: v.ok ? 'Date expiration dépassée' : `LinkedIn API ${v.status}` };
   }
-
-  const posts = notion.ok ? await listNotionPosts(5).catch(() => []) : [];
-
-  return { li, notion, posts };
+  return { li, notion, connectors };
 }
 
 export default async function SettingsPage() {
-  const { li, notion, posts } = await loadAll();
+  const { li, notion, connectors } = await loadAll();
 
-  const envs = [
-    { name: 'LINKEDIN_CLIENT_ID',           critical: true },
-    { name: 'LINKEDIN_CLIENT_SECRET',       critical: true,  secret: true },
-    { name: 'LINKEDIN_REDIRECT_URI',        critical: true },
-    { name: 'NOTION_API_TOKEN',             critical: true,  secret: true },
-    { name: 'NOTION_LINKEDIN_DS_ID',        critical: true },
-    { name: 'SUPABASE_URL',                 critical: true },
-    { name: 'SUPABASE_SERVICE_ROLE_KEY',    critical: true,  secret: true },
-    { name: 'COCKPIT_SECRET',               critical: true,  secret: true },
-    { name: 'CRON_SECRET',                  critical: true,  secret: true },
-    { name: 'ANTHROPIC_API_KEY',            critical: false, secret: true, hint: 'Pour génération texte (Claude) et visuels Heelio design' },
-    { name: 'OPENAI_API_KEY',               critical: false, secret: true, hint: 'Pour visuels DALL-E (illustrations, ads)' }
-  ];
+  // Merge live status into connectors list
+  const enriched = connectors.map(c => {
+    if (c.kind === 'linkedin') {
+      return { ...c, status: li.status === 'connected' ? 'connected' : li.status === 'expired' ? 'error' : 'disconnected', last_error: li.error, info: li.status === 'connected' ? `${li.name} · expire ${new Date(li.expires_at!).toLocaleDateString('fr-FR')}` : '' };
+    }
+    if (c.kind === 'notion') {
+      return { ...c, status: notion.ok ? 'connected' : 'error', last_error: notion.ok ? null : (('error' in notion && notion.error) || 'error') };
+    }
+    return c;
+  });
 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-3xl font-semibold text-ink-900">Settings</h1>
-        <p className="mt-1 text-ink-500">Diagnostic des connexions et des secrets.</p>
+        <h1 className="text-3xl font-semibold text-ink-900">Connecteurs</h1>
+        <p className="mt-1 text-ink-500">Centre de contrôle des sources branchées à Cadence.</p>
       </header>
 
-      {/* LinkedIn */}
-      <section className="bg-white rounded-2xl p-6 shadow-card ring-1 ring-inset ring-ink-300/20">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-ink-900">LinkedIn</h2>
-          {li.status === 'connected' && <StatusBadge variant="success">Connecté</StatusBadge>}
-          {li.status === 'expired'   && <StatusBadge variant="warn">Expiré</StatusBadge>}
-          {li.status === 'none'      && <StatusBadge variant="danger">Non connecté</StatusBadge>}
-        </div>
-        {li.status === 'connected' ? (
-          <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
-            <Row label="Compte"      value={`${li.name} (${li.email})`} />
-            <Row label="Token expire" value={new Date(li.expires_at!).toLocaleString('fr-FR')} />
-            <Row label="Scopes"      value="openid, profile, email, w_member_social" />
-          </dl>
-        ) : (
-          <p className="mt-3 text-sm text-ink-700">{li.error || 'Aucun compte LinkedIn n\'est connecté à Cadence.'}</p>
-        )}
-        <div className="mt-4">
-          <Link href="/api/auth/linkedin" className="text-sm font-medium px-4 py-2 rounded-lg bg-brand-500 text-white hover:bg-brand-600">
-            {li.status === 'connected' ? 'Reconnecter' : 'Connecter LinkedIn'}
-          </Link>
-        </div>
-      </section>
+      <div className="grid sm:grid-cols-2 gap-3">
+        {enriched.map((c: any) => {
+          const meta = KIND_META[c.kind] || { label: c.kind, description: '' };
+          return (
+            <div key={c.kind} className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <h2 className="font-semibold text-ink-900">{meta.label}</h2>
+                  <p className="text-xs text-ink-500 mt-0.5">{meta.description}</p>
+                </div>
+                {c.status === 'connected'    && <StatusBadge variant="success">Connecté</StatusBadge>}
+                {c.status === 'error'        && <StatusBadge variant="danger">Erreur</StatusBadge>}
+                {c.status === 'needs_setup'  && <StatusBadge variant="warn">À configurer</StatusBadge>}
+                {c.status === 'disconnected' && <StatusBadge variant="neutral">Déconnecté</StatusBadge>}
+              </div>
 
-      {/* Notion */}
-      <section className="bg-white rounded-2xl p-6 shadow-card ring-1 ring-inset ring-ink-300/20">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-ink-900">Notion</h2>
-          {notion.ok ? <StatusBadge variant="success">DB accessible</StatusBadge> : <StatusBadge variant="danger">Erreur</StatusBadge>}
-        </div>
-        {notion.ok ? (
-          <p className="mt-3 text-sm text-ink-700">DB Linkedin lue. {posts.length} posts récents trouvés.</p>
-        ) : (
-          <pre className="mt-3 text-xs bg-danger-50 text-danger-700 p-3 rounded-lg overflow-x-auto">{('error' in notion && notion.error) || 'unknown'}</pre>
-        )}
-        <p className="mt-3 text-xs text-ink-500">Si erreur 401/403, l'intégration Cadence n'a pas accès à la DB. Allez dans Notion → DB Linkedin → ⋯ → Connections → Cadence.</p>
-      </section>
+              {c.info && <p className="mt-2 text-sm text-ink-700">{c.info}</p>}
+              {c.last_error && <p className="mt-2 text-xs text-danger-700 break-words">{c.last_error}</p>}
+              {meta.doc && c.status === 'needs_setup' && <p className="mt-2 text-xs text-ink-500">{meta.doc}</p>}
 
-      {/* Env vars */}
-      <section className="bg-white rounded-2xl p-6 shadow-card ring-1 ring-inset ring-ink-300/20">
-        <h2 className="font-semibold text-ink-900">Variables d'environnement</h2>
-        <p className="mt-1 text-xs text-ink-500">Vérifie la présence des secrets côté serveur. Aucune valeur n'est jamais affichée.</p>
-        <table className="mt-4 w-full text-sm">
-          <thead>
-            <tr className="text-xs text-ink-500 uppercase tracking-wide">
-              <th className="text-left font-medium pb-2">Variable</th>
-              <th className="text-left font-medium pb-2">Statut</th>
-              <th className="text-left font-medium pb-2">Notes</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-ink-100">
-            {envs.map(e => {
-              const present = !!process.env[e.name];
-              return (
-                <tr key={e.name}>
-                  <td className="py-2 font-mono text-xs text-ink-900">{e.name}</td>
-                  <td className="py-2">
-                    {present
-                      ? <StatusBadge variant="success">Présent</StatusBadge>
-                      : <StatusBadge variant={e.critical ? 'danger' : 'warn'}>{e.critical ? 'Manquant' : 'Optionnel'}</StatusBadge>}
-                  </td>
-                  <td className="py-2 text-xs text-ink-500">{e.hint || (e.secret ? 'Secret (encrypted)' : '')}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </section>
+              <div className="mt-4 flex gap-2 flex-wrap">
+                {meta.oauthRoute && <Link href={meta.oauthRoute} className="text-xs px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:bg-brand-600 font-medium">{c.status === 'connected' ? 'Reconnecter' : 'Connecter'}</Link>}
+                {meta.testRoute && <a href={meta.testRoute} target="_blank" rel="noopener" className="text-xs px-3 py-1.5 rounded-lg ring-1 ring-ink-300 hover:bg-ink-50">Tester la connexion</a>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       <section className="bg-white rounded-2xl p-6 shadow-card ring-1 ring-inset ring-ink-300/20">
-        <h2 className="font-semibold text-ink-900">Auto-publication</h2>
-        <p className="mt-2 text-sm text-ink-700">
-          Le cron Vercel tourne tous les jours à 5h30 UTC. Pour des créneaux multiples, utilisez "Publier maintenant" dans l'éditeur, ou pingez <code className="text-xs">/api/cron-publish</code> depuis cron-job.org avec le Bearer <code>CRON_SECRET</code>.
-        </p>
+        <h2 className="font-semibold text-ink-900">Sécurité</h2>
+        <p className="mt-2 text-sm text-ink-700">Tous les secrets vivent dans Vercel env vars (chiffrés). Jamais exposés côté client. <Link href="/api/auth/status" target="_blank" className="text-brand-700 hover:text-brand-600">Vérifier statut LinkedIn JSON →</Link></p>
       </section>
     </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <>
-      <dt className="text-xs text-ink-500">{label}</dt>
-      <dd className="text-sm text-ink-700">{value}</dd>
-    </>
   );
 }
