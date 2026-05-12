@@ -1,9 +1,7 @@
--- Cadence — schema minimal pour V5 perso (Cyril unique user)
--- Multi-tenant viendra plus tard (V5.1 SaaS)
-
+-- Cadence Supabase schema
 create table if not exists linkedin_tokens (
   id uuid primary key default gen_random_uuid(),
-  linkedin_user_id text not null,
+  linkedin_user_id text unique not null,
   access_token text not null,
   refresh_token text,
   expires_at timestamptz not null,
@@ -11,20 +9,18 @@ create table if not exists linkedin_tokens (
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
-
-create unique index if not exists linkedin_tokens_user_idx on linkedin_tokens(linkedin_user_id);
-
--- Service role uniquement (pas de RLS user-side pour V5 perso)
 alter table linkedin_tokens enable row level security;
 
--- Logs de publi (audit + retry)
 create table if not exists publish_log (
-  id uuid primary key default gen_random_uuid(),
+  id bigserial primary key,
   notion_page_id text,
   linkedin_post_urn text,
   status text not null,
   error text,
+  meta jsonb,
   created_at timestamptz default now()
 );
+alter table publish_log enable row level security;
 
-create index if not exists publish_log_created_idx on publish_log(created_at desc);
+-- Storage bucket for visuals (run once via dashboard if not present)
+-- insert into storage.buckets (id, name, public) values ('cadence-visuals', 'cadence-visuals', true);

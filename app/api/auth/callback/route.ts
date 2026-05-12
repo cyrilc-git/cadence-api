@@ -7,12 +7,14 @@ export async function GET(req: NextRequest) {
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const error = url.searchParams.get('error');
-  if (error) return NextResponse.json({ error }, { status: 400 });
-  if (!code) return NextResponse.json({ error: 'missing_code' }, { status: 400 });
+  if (error) {
+    return NextResponse.redirect(new URL(`/?li_error=${encodeURIComponent(error)}`, req.url));
+  }
+  if (!code) return NextResponse.redirect(new URL('/?li_error=missing_code', req.url));
 
   const cookieState = req.cookies.get('oauth_state')?.value;
   if (!cookieState || cookieState !== state) {
-    return NextResponse.json({ error: 'state_mismatch' }, { status: 400 });
+    return NextResponse.redirect(new URL('/?li_error=state_mismatch', req.url));
   }
 
   try {
@@ -28,6 +30,6 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.redirect(new URL('/?connected=1', req.url));
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    return NextResponse.redirect(new URL(`/?li_error=${encodeURIComponent(e.message)}`, req.url));
   }
 }

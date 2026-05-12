@@ -1,12 +1,6 @@
 {
   "crons": [
-    {
-      "path": "/api/cron-publish",
-      "schedule": "30 5 * * *"
-    },
-    {
-      "path": "/api/scrape-analytics",
-      "schedule": "0 22 * * *"
-    }
+    { "path": "/api/cron-publish",     "schedule": "30 5 * * *" },
+    { "path": "/api/scrape-analytics", "schedule": "0 22 * * *" }
   ]
 }

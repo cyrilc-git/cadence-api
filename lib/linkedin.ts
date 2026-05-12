@@ -44,7 +44,7 @@ export async function getUserInfo(accessToken: string) {
     headers: { Authorization: `Bearer ${accessToken}` }
   });
   if (!r.ok) throw new Error(`userinfo failed: ${r.status}`);
-  return r.json() as Promise<{ sub: string; name: string; email: string }>;
+  return r.json() as Promise<{ sub: string; name: string; email: string; picture?: string }>;
 }
 
 export async function publishUgcPost(accessToken: string, authorUrn: string, text: string) {
@@ -71,4 +71,18 @@ export async function publishUgcPost(accessToken: string, authorUrn: string, tex
   if (!r.ok) throw new Error(`ugcPosts failed: ${r.status} ${await r.text()}`);
   const postUrn = r.headers.get('x-restli-id') || (await r.json())?.id;
   return { postUrn };
+}
+
+// Fast token validation: hit /v2/userinfo, return sub if alive
+export async function validateToken(accessToken: string): Promise<{ ok: true; sub: string; name: string; email: string } | { ok: false; status: number }> {
+  try {
+    const r = await fetch(`${LINKEDIN_API}/v2/userinfo`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!r.ok) return { ok: false, status: r.status };
+    const data = await r.json();
+    return { ok: true, sub: data.sub, name: data.name, email: data.email };
+  } catch {
+    return { ok: false, status: 0 };
+  }
 }

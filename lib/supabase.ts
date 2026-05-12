@@ -1,14 +1,22 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+let _client: SupabaseClient | null = null;
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  console.warn('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars');
+function client(): SupabaseClient {
+  if (_client) return _client;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY missing');
+  }
+  _client = createClient(url, key, { auth: { persistSession: false } });
+  return _client;
 }
 
-export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { persistSession: false }
+// Export a Proxy so existing code that does `supabase.from(...)` still works at runtime
+// while build-time module-load doesn't try to construct the real client.
+export const supabase: SupabaseClient = new Proxy({} as SupabaseClient, {
+  get(_t, prop) { return (client() as any)[prop]; }
 });
 
 export type LinkedInToken = {
@@ -21,18 +29,50 @@ export type LinkedInToken = {
 };
 
 export async function getActiveToken(): Promise<LinkedInToken | null> {
-  const { data } = await supabase
-    .from('linkedin_tokens')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single();
-  return data;
+  try {
+    const { data } = await client()
+      .from('linkedin_tokens')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 export async function saveToken(token: Omit<LinkedInToken, 'id'>) {
-  const { error } = await supabase
+  const { error } = await client()
     .from('linkedin_tokens')
     .upsert(token, { onConflict: 'linkedin_user_id' });
   if (error) throw error;
+}
+
+export async function recentPublishLog(limit = 10) {
+  try {
+    const { data } = await client()
+      .from('publish_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function publishedThisMonthCount(): Promise<number> {
+  try {
+    const start = new Date();
+    start.setDate(1); start.setHours(0,0,0,0);
+    const { count } = await client()
+      .from('publish_log')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'success')
+      .gte('created_at', start.toISOString());
+    return count || 0;
+  } catch {
+    return 0;
+  }
 }
