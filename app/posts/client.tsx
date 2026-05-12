@@ -65,6 +65,7 @@ export default function PostsLibraryClient({ initial }: { initial: any[] }) {
                   <div className="text-xs text-ink-500 flex items-center gap-2 mt-0.5 flex-wrap">
                     {p.pilier && <span>{p.pilier}</span>}
                     {p.scheduled_at && <span>· {new Date(p.scheduled_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })} {p.scheduled_time || ''}</span>}
+                    {p.validated ? <span className="text-success-700">· ● validé</span> : <span className="text-warn-700">· ⚠ à valider</span>}
                     {p.impressions ? <span>· {p.impressions.toLocaleString('fr-FR')} impressions</span> : null}
                     {p.likes ? <span>· {p.likes} likes</span> : null}
                   </div>
