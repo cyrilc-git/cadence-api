@@ -27,12 +27,12 @@ export async function POST(req: NextRequest) {
       }
       const seed = briefFromUser
         ? `${briefFromUser}\n\nAngle pour ${slot.label} (${slot.pilier}).`
-        : `Post pour ${slot.label} (${slot.pilier}). Choisis un angle cohérent avec ce pilier, sans recycler les sujets déjà couverts cette saison.`;
+        : `Post pour ${slot.label} (${slot.pilier}). Choisis un angle coh�rent avec ce pilier, sans recycler les sujets d�j� couverts cette saison.`;
       try {
         const r = await generateThreeProposals({ pilier: slot.pilier, brief: seed });
         const first = r.proposals[0] || '';
         if (!first) { results.push({ date: d.date, status: 'no_proposal' }); continue; }
-        const title = (first.split('\n')[0].slice(0, 80) || `${slot.label} — ${slot.pilier}`);
+        const title = (first.split('\n')[0].slice(0, 80) || `${slot.label}  ${slot.pilier}`);
         const created = await upsertDraft({ title, pilier: slot.pilier, date: d.date, time: '07:30', anonymisation_ok: false });
         await replacePageContent(created.id, first);
         results.push({ date: d.date, pilier: slot.pilier, id: created.id, status: 'created' });
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
         results.push({ date: d.date, pilier: slot.pilier, status: 'failed', error: e.message });
       }
     }
-    return NextResponse.json({ ok: true, results, note: 'Tous les drafts sont créés en NON publié ET NON validé. Aucune publication automatique sans validation explicite dans /posts/[id]/edit ou /calendar.' });
+    return NextResponse.json({ ok: true, results, note: 'Tous les drafts sont cr��s en NON publi� ET NON valid�. Aucune publication automatique sans validation explicite dans /posts/[id]/edit ou /calendar.' });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
