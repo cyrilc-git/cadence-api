@@ -5,6 +5,20 @@ import { supabase } from '@/lib/supabase';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
+const BUCKET = 'cadence-visuals';
+
+async function ensureBucket(): Promise<void> {
+  try {
+    const { data } = await supabase.storage.getBucket(BUCKET);
+    if (data) return;
+  } catch {}
+  try {
+    await supabase.storage.createBucket(BUCKET, { public: true, fileSizeLimit: 5 * 1024 * 1024 });
+  } catch {
+    // Maybe already exists — swallow
+  }
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const { prompt, mode = 'claude-design', notion_page_id } = body as { prompt?: string; mode?: 'claude-design' | 'openai'; notion_page_id?: string };
@@ -13,19 +27,19 @@ export async function POST(req: NextRequest) {
   try {
     if (mode === 'claude-design') {
       const { svg, model } = await generateClaudeDesignSvg(prompt);
+      // Ensure storage bucket
+      await ensureBucket();
       const path = `${Date.now()}-${Math.random().toString(36).slice(2,8)}.svg`;
       const { error: upErr } = await supabase.storage
-        .from('cadence-visuals')
+        .from(BUCKET)
         .upload(path, new Blob([svg], { type: 'image/svg+xml' }), { contentType: 'image/svg+xml', upsert: true });
       if (upErr) {
-        // Return the SVG inline even if storage failed (UI can render it)
         return NextResponse.json({ ok: true, mode, model, svg, format: 'svg', storage_error: upErr.message });
       }
-      const { data: urlData } = supabase.storage.from('cadence-visuals').getPublicUrl(path);
+      const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
       return NextResponse.json({ ok: true, mode, model, url: urlData.publicUrl, svg, format: 'svg', notion_page_id });
     }
 
-    // OpenAI mode (DALL-E 3) — illustrations
     if (!process.env.OPENAI_API_KEY) {
       return NextResponse.json({ error: 'OPENAI_API_KEY manquante côté serveur.' }, { status: 400 });
     }
