@@ -1,5 +1,15 @@
 'use client';
 
+
+function safeExternal(url) {
+  if (!url) return null;
+  const t = String(url).trim();
+  if (!t) return null;
+  let normalized = t;
+  if (!/^https?:\/\//i.test(normalized)) normalized = 'https://' + normalized.replace(/^\/+/, '');
+  try { const u = new URL(normalized); u.protocol = 'https:'; return u.toString(); } catch { return null; }
+}
+
 import { useState } from 'react';
 import StatusBadge from '@/components/StatusBadge';
 
@@ -8,7 +18,7 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
   const [restoring, setRestoring] = useState(false);
 
   async function restoreDefaults() {
-    if (!confirm('Restaurer les inspirations par défaut Cadence ? Cela ajoute uniquement les profils manquants.')) return;
+    if (!confirm('Restaurer les inspirations par dÃ©faut Cadence ? Cela ajoute uniquement les profils manquants.')) return;
     setRestoring(true);
     try {
       const r = await fetch('/api/seed', { method: 'POST' });
@@ -47,18 +57,18 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-semibold text-ink-900">Inspirations</h1>
-          <p className="mt-1 text-ink-500">Comptes LinkedIn qui inspirent. Jamais à copier.</p>
+          <p className="mt-1 text-ink-500">Comptes LinkedIn qui inspirent. Jamais Ã  copier.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={restoreDefaults} disabled={restoring} className="px-4 py-2 rounded-lg ring-1 ring-ink-300 text-sm font-medium hover:bg-ink-50 disabled:opacity-50">
-            {restoring ? 'Restauration…' : '↺ Restaurer défauts Cadence'}
+            {restoring ? 'Restaurationâ¦' : 'âº Restaurer dÃ©fauts Cadence'}
           </button>
           <button onClick={() => setEditing({ name: '', score: 3, category: '' })} className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600">+ Ajouter</button>
         </div>
       </header>
 
       <div className="bg-warn-50 ring-1 ring-inset ring-warn-500/20 rounded-2xl p-4 text-sm text-warn-700">
-        <strong className="font-semibold">Règle anti-plagiat.</strong> Les inspirations servent à comprendre rythme, densité, structure, angle. Cadence n'enverra jamais le nom ou le contenu d'une inspiration à l'IA — seulement les "notes de style". Toute génération suspecte sera bloquée.
+        <strong className="font-semibold">RÃ¨gle anti-plagiat.</strong> Les inspirations servent Ã  comprendre rythme, densitÃ©, structure, angle. Cadence n'enverra jamais le nom ou le contenu d'une inspiration Ã  l'IA â seulement les "notes de style". Toute gÃ©nÃ©ration suspecte sera bloquÃ©e.
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3">
@@ -67,14 +77,14 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-semibold text-ink-900 truncate">{i.name}</div>
-                {i.url && <a href={i.url} target="_blank" rel="noopener" className="text-xs text-brand-700 hover:text-brand-600">Profil LinkedIn ↗</a>}
+                {i.url && <a href={i.url} target="_blank" rel="noopener" className="text-xs text-brand-700 hover:text-brand-600">Profil LinkedIn â</a>}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <StatusBadge variant="neutral">{i.category || '—'}</StatusBadge>
-                <span className="text-xs text-ink-500">★ {i.score}/5</span>
+                <StatusBadge variant="neutral">{i.category || 'â'}</StatusBadge>
+                <span className="text-xs text-ink-500">â {i.score}/5</span>
               </div>
             </div>
-            {i.style_notes && <p className="mt-3 text-sm text-ink-700"><span className="text-ink-500 text-xs">À retenir : </span>{i.style_notes}</p>}
+            {i.style_notes && <p className="mt-3 text-sm text-ink-700"><span className="text-ink-500 text-xs">Ã retenir : </span>{i.style_notes}</p>}
             {i.do_not_copy && <p className="mt-2 text-sm text-danger-700"><span className="text-xs text-danger-700/70">Ne pas copier : </span>{i.do_not_copy}</p>}
             <div className="mt-3 flex gap-2 justify-end">
               <button onClick={() => setEditing(i)} className="text-xs px-3 py-1 rounded-lg ring-1 ring-ink-300 hover:bg-ink-50">Modifier</button>
@@ -89,11 +99,15 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
           <div className="bg-white rounded-2xl shadow-pop w-full max-w-lg p-6 space-y-3" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-ink-900">{editing.id ? 'Modifier' : 'Nouvelle'} inspiration</h3>
             <Field label="Nom"><input value={editing.name || ''} onChange={e => setEditing({ ...editing, name: e.target.value })} className="w-full px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" autoFocus /></Field>
-            <Field label="URL LinkedIn"><input value={editing.url || ''} onChange={e => setEditing({ ...editing, url: e.target.value })} placeholder="https://linkedin.com/in/…" className="w-full px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" /></Field>
-            <Field label="Catégorie"><input value={editing.category || ''} onChange={e => setEditing({ ...editing, category: e.target.value })} placeholder="Build in public, Opinion, Cas client…" className="w-full px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" /></Field>
-            <Field label={`Score (★ ${editing.score || 3} / 5)`}><input type="range" min={1} max={5} value={editing.score || 3} onChange={e => setEditing({ ...editing, score: +e.target.value })} className="w-full" /></Field>
-            <Field label="Style à retenir"><textarea value={editing.style_notes || ''} onChange={e => setEditing({ ...editing, style_notes: e.target.value })} rows={3} className="w-full px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" /></Field>
-            <Field label="Ne PAS copier"><textarea value={editing.do_not_copy || ''} onChange={e => setEditing({ ...editing, do_not_copy: e.target.value })} rows={2} className="w-full px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" placeholder="Anecdotes perso, signatures, formules récurrentes…" /></Field>
+            <Field label="URL LinkedIn">
+              <input value={editing.url || ''} onChange={e => setEditing({ ...editing, url: e.target.value })} placeholder="https://linkedin.com/in/…" className="w-full px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" />
+              {editing.url && safeExternal(editing.url) && <div className="mt-1 text-xs text-ink-500 break-all">↪ {safeExternal(editing.url)}</div>}
+              {editing.url && !safeExternal(editing.url) && <div className="mt-1 text-xs text-danger-700">URL invalide. Préfixez par https:// (ex: https://www.linkedin.com/in/votre-id/).</div>}
+            </Field>
+            <Field label="CatÃ©gorie"><input value={editing.category || ''} onChange={e => setEditing({ ...editing, category: e.target.value })} placeholder="Build in public, Opinion, Cas clientâ¦" className="w-full px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" /></Field>
+            <Field label={`Score (â ${editing.score || 3} / 5)`}><input type="range" min={1} max={5} value={editing.score || 3} onChange={e => setEditing({ ...editing, score: +e.target.value })} className="w-full" /></Field>
+            <Field label="Style Ã  retenir"><textarea value={editing.style_notes || ''} onChange={e => setEditing({ ...editing, style_notes: e.target.value })} rows={3} className="w-full px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" /></Field>
+            <Field label="Ne PAS copier"><textarea value={editing.do_not_copy || ''} onChange={e => setEditing({ ...editing, do_not_copy: e.target.value })} rows={2} className="w-full px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" placeholder="Anecdotes perso, signatures, formules rÃ©currentesâ¦" /></Field>
             <div className="flex gap-2 justify-end pt-2">
               <button onClick={() => setEditing(null)} className="px-4 py-2 rounded-lg ring-1 ring-ink-300 text-sm hover:bg-ink-50">Annuler</button>
               <button onClick={save} className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600">Sauvegarder</button>
