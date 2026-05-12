@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
 
@@ -12,21 +12,37 @@ const SOURCE_LABEL: Record<string, { label: string; variant: 'brand' | 'success'
   gdrive:    { label: 'Drive',      variant: 'warn'    }
 };
 
-export default function SuggestionsClient({ initial }: { initial: any[] }) {
-  const [items, setItems] = useState(initial);
+export default function SuggestionsClient() {
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'notion' | 'github' | 'heuristic'>('all');
 
+  async function load() {
+    setLoading(true); setError(null);
+    try {
+      const r = await fetch('/api/suggestions?status=pending', { cache: 'no-store' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Erreur chargement');
+      setItems(d.suggestions || []);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => { load(); }, []);
+
   async function refresh() {
-    setRefreshing(true);
+    setRefreshing(true); setError(null);
     try {
       const r = await fetch('/api/suggestions/refresh', { method: 'POST' });
       const d = await r.json();
-      if (!r.ok) throw new Error(d.error);
-      const list = await fetch('/api/suggestions').then(x => x.json());
-      setItems(list.suggestions || []);
+      if (!r.ok) throw new Error(d.error || 'Échec du radar');
+      await load();
     } catch (e: any) {
-      alert('Erreur radar : ' + e.message);
+      setError(e.message);
     } finally {
       setRefreshing(false);
     }
@@ -51,6 +67,8 @@ export default function SuggestionsClient({ initial }: { initial: any[] }) {
         </button>
       </header>
 
+      {error && <div className="bg-danger-50 ring-1 ring-inset ring-danger-500/20 rounded-lg p-3 text-sm text-danger-700">{error}</div>}
+
       <div className="flex items-center gap-2 flex-wrap">
         {(['all', 'notion', 'github', 'heuristic'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)}
@@ -58,10 +76,12 @@ export default function SuggestionsClient({ initial }: { initial: any[] }) {
             {f === 'all' ? 'Toutes' : SOURCE_LABEL[f]?.label || f}
           </button>
         ))}
-        <span className="ml-auto text-xs text-ink-500">{filtered.length} idée{filtered.length > 1 ? 's' : ''}</span>
+        <span className="ml-auto text-xs text-ink-500">{loading ? 'chargement…' : `${filtered.length} idée${filtered.length > 1 ? 's' : ''}`}</span>
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="bg-white rounded-2xl p-10 text-center shadow-card ring-1 ring-inset ring-ink-300/20 text-ink-500">Chargement…</div>
+      ) : filtered.length === 0 ? (
         <div className="bg-white rounded-2xl p-10 text-center shadow-card ring-1 ring-inset ring-ink-300/20">
           <p className="text-ink-700 font-medium">Pas d'idée pour l'instant.</p>
           <p className="mt-1 text-sm text-ink-500">Cliquez "Rafraîchir le radar" pour scanner vos sources.</p>
@@ -80,7 +100,7 @@ export default function SuggestionsClient({ initial }: { initial: any[] }) {
                       <span className="text-xs text-ink-500 ml-auto">Score {s.score}/100</span>
                     </div>
                     <h3 className="font-semibold text-ink-900">{s.title}</h3>
-                    {s.hook && <p className="mt-1 text-sm text-ink-700"><span className="text-ink-500">Hook :</span> "{s.hook}"</p>}
+                    {s.hook && <p className="mt-1 text-sm text-ink-700"><span className="text-ink-500">Hook : </span>"{s.hook}"</p>}
                     {s.why && <p className="mt-2 text-xs text-ink-500">{s.why}</p>}
                   </div>
                 </div>
