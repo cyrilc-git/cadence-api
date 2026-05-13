@@ -41,6 +41,7 @@ export type NotionPostSummary = {
   visuel_pret?: boolean;
   anonymisation_ok?: boolean;
   validated?: boolean;
+  late?: boolean;
   impressions?: number;
   likes?: number;
   comments?: number;
@@ -114,7 +115,7 @@ export async function listNotionPosts(limit = 50): Promise<NotionPostSummary[]> 
     }
 
     let status: NotionPostSummary['status'] = 'draft';
-    if (tagName === 'PubliÃ©') status = 'published';
+    if (tagName === 'PubliÃÂ©') status = 'published';
     else if (dateProp) status = 'scheduled';
 
     return {
@@ -128,7 +129,7 @@ export async function listNotionPosts(limit = 50): Promise<NotionPostSummary[]> 
       scheduled_time: heure || null,
       notion_url: page.url,
       linkedin_url: url,
-      visuel_pret: !!props['Visuel prÃªt']?.checkbox,
+      visuel_pret: !!props['Visuel prÃÂªt']?.checkbox,
       anonymisation_ok: !!props['Anonymisation OK']?.checkbox,
       impressions: props["Nombre d'impressions"]?.number ?? undefined,
       likes:       props['Nombre de likes']?.number ?? undefined,
@@ -139,7 +140,11 @@ export async function listNotionPosts(limit = 50): Promise<NotionPostSummary[]> 
   try {
     const ids = posts.map(p => p.id);
     const v = await getValidations(ids);
-    for (const p of posts) p.validated = !!v[p.id];
+    const now = Date.now();
+    for (const p of posts) {
+      p.validated = !!v[p.id];
+      if (p.status === 'scheduled' && p.scheduled_at && new Date(p.scheduled_at).getTime() < now) p.late = true;
+    }
   } catch {}
   return posts;
 }
@@ -161,7 +166,7 @@ export async function getNotionPost(id: string): Promise<{ summary: NotionPostSu
   }
   const tagName = props['Tags']?.select?.name as string | undefined;
   let status: NotionPostSummary['status'] = 'draft';
-  if (tagName === 'PubliÃ©') status = 'published';
+  if (tagName === 'PubliÃÂ©') status = 'published';
   else if (dateProp) status = 'scheduled';
 
   const summary: NotionPostSummary = {
@@ -175,7 +180,7 @@ export async function getNotionPost(id: string): Promise<{ summary: NotionPostSu
     scheduled_time: heure || null,
     notion_url: page.url,
     linkedin_url: props['URL']?.url || undefined,
-    visuel_pret: !!props['Visuel prÃªt']?.checkbox,
+    visuel_pret: !!props['Visuel prÃÂªt']?.checkbox,
     anonymisation_ok: !!props['Anonymisation OK']?.checkbox
   };
 
@@ -207,8 +212,8 @@ export async function upsertDraft(input: {
   if (input.date)   properties['Date de publication'] = { date: { start: input.date } };
   if (input.time)   properties['Heure de publication'] = { rich_text: [{ text: { content: input.time } }] };
   if (typeof input.anonymisation_ok === 'boolean') properties['Anonymisation OK'] = { checkbox: input.anonymisation_ok };
-  // Always non-publiÃ© on create
-  if (!input.id) properties['Tags'] = { select: { name: 'Non publiÃ©' } };
+  // Always non-publiÃÂ© on create
+  if (!input.id) properties['Tags'] = { select: { name: 'Non publiÃÂ©' } };
 
   if (input.id) {
     const r = await fetch(`${NOTION_API}/pages/${input.id}`, {
@@ -267,7 +272,7 @@ export async function searchNotionDrafts(windowMinutes: number): Promise<NotionD
     body: JSON.stringify({
       filter: {
         and: [
-          { property: 'Tags', select: { equals: 'Non publiÃ©' } },
+          { property: 'Tags', select: { equals: 'Non publiÃÂ©' } },
           { property: 'Date de publication', date: { equals: todayIso } }
         ]
       },
@@ -311,7 +316,7 @@ export async function markNotionPublished(pageId: string, postUrn: string): Prom
     headers: headers(),
     body: JSON.stringify({
       properties: {
-        'Tags': { select: { name: 'PubliÃ©' } },
+        'Tags': { select: { name: 'PubliÃÂ©' } },
         'URL': { url: linkedinUrl }
       }
     })

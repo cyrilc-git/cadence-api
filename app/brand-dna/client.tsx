@@ -19,8 +19,8 @@ export default function BrandDnaClient({ initial, initialPlan = [] }: { initial:
   const [adding, setAdding] = useState<string | null>(null);
   const [newLabel, setNewLabel] = useState('');
   const [restoring, setRestoring] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [genMsg, setGenMsg] = useState<string | null>(null);
+  const [generating, setGenerating] = useState<'day' | 'week' | 'month' | null>(null);
+  const [genResult, setGenResult] = useState<any | null>(null);
 
   async function add(kind: string) {
     if (!newLabel.trim()) return;
@@ -45,17 +45,17 @@ export default function BrandDnaClient({ initial, initialPlan = [] }: { initial:
     } catch (e: any) { alert('Erreur restauration : ' + e.message); }
     finally { setRestoring(false); }
   }
-  async function generateWeek() {
-    if (!confirm('Générer 5 brouillons (lundi → vendredi) pour la semaine prochaine ? Aucune publication. Tous en NON validé.')) return;
-    setGenerating(true); setGenMsg(null);
+  async function generate(period: 'day' | 'week' | 'month') {
+    const labels = { day: '1 brouillon (prochain jour de pilier)', week: '5 brouillons (lundi → vendredi)', month: 'jusqu\'à 20 brouillons (4 semaines)' };
+    if (!confirm(`Générer ${labels[period]} ? Tous en NON validé. Aucune publication.`)) return;
+    setGenerating(period); setGenResult(null);
     try {
-      const r = await fetch('/api/generate-week', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const r = await fetch('/api/generate-week', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period }) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
-      const created = (d.results || []).filter((x: any) => x.status === 'created').length;
-      setGenMsg(`${created} brouillon(s) créé(s) en NON validé.`);
-    } catch (e: any) { setGenMsg('Erreur : ' + e.message); }
-    finally { setGenerating(false); }
+      setGenResult(d);
+    } catch (e: any) { alert('Erreur : ' + e.message); }
+    finally { setGenerating(null); }
   }
 
   const weekdayItems = (initialPlan || []).filter((s: any) => s.weekday >= 1 && s.weekday <= 5);
@@ -73,16 +73,18 @@ export default function BrandDnaClient({ initial, initialPlan = [] }: { initial:
       </header>
 
       <section className="bg-white rounded-2xl p-6 shadow-card ring-1 ring-inset ring-ink-300/20">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
           <div>
             <h2 className="font-semibold text-ink-900">Plan éditorial de la semaine</h2>
             <p className="text-xs text-ink-500 mt-0.5">Chaque jour correspond à un pilier. Modifiable dans la section Piliers ci-dessous.</p>
           </div>
-          <button onClick={generateWeek} disabled={generating} className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50">
-            {generating ? 'Génération…' : '✨ Générer ma semaine'}
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => generate('day')}   disabled={!!generating} className="px-3 py-1.5 rounded-lg ring-1 ring-brand-500 text-brand-700 text-xs font-medium hover:bg-brand-50 disabled:opacity-50">{generating === 'day' ? 'Gén…' : 'Générer 1 jour'}</button>
+            <button onClick={() => generate('week')}  disabled={!!generating} className="px-3 py-1.5 rounded-lg bg-brand-500 text-white text-xs font-medium hover:bg-brand-600 disabled:opacity-50">{generating === 'week' ? 'Génération…' : '✨ Générer ma semaine'}</button>
+            <button onClick={() => generate('month')} disabled={!!generating} className="px-3 py-1.5 rounded-lg ring-1 ring-brand-500 text-brand-700 text-xs font-medium hover:bg-brand-50 disabled:opacity-50">{generating === 'month' ? 'Gén…' : 'Générer 1 mois'}</button>
+          </div>
         </div>
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {weekdayItems.map((slot: any) => (
             <div key={slot.weekday} className={`rounded-xl p-4 ring-1 ring-inset ${slot.pilier ? 'ring-brand-500/30 bg-brand-50/30' : 'ring-ink-300/30 bg-ink-50'}`}>
               <div className="text-xs font-semibold text-ink-500 uppercase tracking-wide">{slot.label}</div>
@@ -92,9 +94,41 @@ export default function BrandDnaClient({ initial, initialPlan = [] }: { initial:
             </div>
           ))}
         </div>
-        {genMsg && <p className="mt-3 text-sm text-ink-700">{genMsg}</p>}
-        <p className="mt-3 text-xs text-ink-500">Cliquez « Générer ma semaine » pour créer 5 brouillons (lundi → vendredi) dans Notion, programmés à 07:30. Chaque brouillon reste <strong>non validé</strong> jusqu'à votre validation explicite dans la page d'édition.</p>
+        <p className="mt-3 text-xs text-ink-500">Chaque brouillon créé reste <strong>non validé</strong> jusqu'à votre validation explicite. Le cron quotidien ne publie que les drafts validés.</p>
       </section>
+
+      {genResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-ink-900/40 backdrop-blur-sm" onClick={() => setGenResult(null)}>
+          <div className="bg-white rounded-2xl shadow-pop w-full max-w-2xl p-6 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-ink-900">{genResult.created_count} brouillon(s) créé(s)</h3>
+            <p className="text-sm text-ink-500 mt-1">{genResult.note}</p>
+            <div className="mt-4 space-y-2">
+              {genResult.results.map((r: any, i: number) => (
+                <div key={i} className="p-3 rounded-lg ring-1 ring-ink-100">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded ${r.status === 'created' ? 'bg-success-50 text-success-700' : 'bg-warn-50 text-warn-700'}`}>{r.status}</span>
+                    <span className="text-xs text-ink-500">{r.label} · {r.date}</span>
+                    {r.pilier && <span className="text-xs text-ink-500">· {r.pilier}</span>}
+                  </div>
+                  {r.title && <div className="mt-1 text-sm font-medium text-ink-900">{r.title}</div>}
+                  {r.excerpt && <div className="mt-1 text-xs text-ink-500 line-clamp-2">{r.excerpt}</div>}
+                  {r.error && <div className="mt-1 text-xs text-danger-700">{r.error}</div>}
+                  {r.status === 'created' && (
+                    <div className="mt-2 flex gap-2">
+                      {r.notion_url && <a href={r.notion_url} target="_blank" rel="noopener" className="text-xs px-2 py-1 rounded ring-1 ring-ink-300 hover:bg-ink-50">↗ Notion</a>}
+                      <a href={r.edit_url} className="text-xs px-2 py-1 rounded bg-brand-500 text-white hover:bg-brand-600">Éditer dans Cadence</a>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 flex gap-2 justify-end">
+              <a href="/calendar" className="px-4 py-2 rounded-lg ring-1 ring-ink-300 text-sm hover:bg-ink-50">Voir dans le calendrier</a>
+              <button onClick={() => setGenResult(null)} className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600">Fermer</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {KINDS.map(kind => {
         const list = items.filter(i => i.kind === kind);
