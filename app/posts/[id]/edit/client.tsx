@@ -29,7 +29,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   const [removing, setRemoving] = useState(false);
 
   async function removeFromCadence() {
-    if (!confirm('Retirer ce post de Cadence ? La page Notion reste intacte. Ce post n'apparaîtra plus comme « Créé par Cadence ».')) return;
+    if (!confirm(`Retirer ce post de Cadence ? La page Notion reste intacte. Ce post n'apparaîtra plus comme « Créé par Cadence ».`)) return;
     setRemoving(true);
     try {
       const r = await fetch(`/api/cadence-drafts/${summary.id}`, { method: 'DELETE' });
