@@ -127,3 +127,52 @@ export async function chatAppend(notion_page_id: string, role: ChatMessage['role
   if (error) throw error;
   return data;
 }
+
+
+// ========== V7.6 : Cadence source tracking ==========
+export async function markCadenceDraft(notion_page_id: string, source: string = 'cadence_app', meta: any = {}) {
+  await supabase.from('cadence_drafts').upsert({ notion_page_id, source, generation_meta: meta }).select().single().then(() => {}).catch(() => {});
+}
+export async function getCadenceDraftSources(ids: string[]): Promise<Record<string, string>> {
+  if (!ids.length) return {};
+  const { data } = await supabase.from('cadence_drafts').select('notion_page_id, source').in('notion_page_id', ids);
+  const map: Record<string, string> = {};
+  for (const r of (data || [])) map[r.notion_page_id] = r.source;
+  return map;
+}
+
+// ========== V7.6 : Notion actions log ==========
+export async function logNotionAction(action: string, notion_page_id?: string, detail?: string, url?: string) {
+  try { await supabase.from('notion_actions').insert({ action, notion_page_id, detail, url }); } catch {}
+}
+export async function recentNotionActions(limit = 10) {
+  const { data } = await supabase.from('notion_actions').select('*').order('created_at', { ascending: false }).limit(limit);
+  return data || [];
+}
+
+// ========== V7.6 : Design system ==========
+export type DesignToken = { id: string; key: string; value: string; category?: string; updated_at: string };
+export async function designSystemList(): Promise<DesignToken[]> {
+  const { data } = await supabase.from('design_system').select('*').order('category').order('key');
+  return (data || []) as DesignToken[];
+}
+export async function designSystemUpsert(item: { key: string; value: string; category?: string }) {
+  const { data, error } = await supabase.from('design_system').upsert({ ...item, updated_at: new Date().toISOString() }, { onConflict: 'key' }).select().single();
+  if (error) throw error;
+  return data;
+}
+export async function designSystemDelete(id: string) {
+  const { error } = await supabase.from('design_system').delete().eq('id', id);
+  if (error) throw error;
+}
+export async function designSystemPromptBlock(): Promise<string> {
+  const tokens = await designSystemList().catch(() => []);
+  if (!tokens.length) return '';
+  const byCat: Record<string, string[]> = {};
+  for (const t of tokens) {
+    const c = t.category || 'misc';
+    if (!byCat[c]) byCat[c] = [];
+    byCat[c].push(`- ${t.key} : ${t.value}`);
+  }
+  return Object.entries(byCat).map(([cat, lines]) => `[${cat.toUpperCase()}]\n${lines.join('\n')}`).join('\n\n');
+}

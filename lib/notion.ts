@@ -1,5 +1,5 @@
 import { getCredential } from './credentials';
-import { getValidations } from './db';
+import { getValidations, logNotionAction, markCadenceDraft, getCadenceDraftSources } from './db';
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
 
@@ -42,6 +42,7 @@ export type NotionPostSummary = {
   anonymisation_ok?: boolean;
   validated?: boolean;
   late?: boolean;
+  cadence_source?: string | null;
   impressions?: number;
   likes?: number;
   comments?: number;
@@ -115,7 +116,7 @@ export async function listNotionPosts(limit = 50): Promise<NotionPostSummary[]> 
     }
 
     let status: NotionPostSummary['status'] = 'draft';
-    if (tagName === 'PubliÃÂ©') status = 'published';
+    if (tagName === 'PubliÃÂÃÂ©') status = 'published';
     else if (dateProp) status = 'scheduled';
 
     return {
@@ -129,7 +130,7 @@ export async function listNotionPosts(limit = 50): Promise<NotionPostSummary[]> 
       scheduled_time: heure || null,
       notion_url: page.url,
       linkedin_url: url,
-      visuel_pret: !!props['Visuel prÃÂªt']?.checkbox,
+      visuel_pret: !!props['Visuel prÃÂÃÂªt']?.checkbox,
       anonymisation_ok: !!props['Anonymisation OK']?.checkbox,
       impressions: props["Nombre d'impressions"]?.number ?? undefined,
       likes:       props['Nombre de likes']?.number ?? undefined,
@@ -141,8 +142,10 @@ export async function listNotionPosts(limit = 50): Promise<NotionPostSummary[]> 
     const ids = posts.map(p => p.id);
     const v = await getValidations(ids);
     const now = Date.now();
+    const cs = await getCadenceDraftSources(ids);
     for (const p of posts) {
       p.validated = !!v[p.id];
+      p.cadence_source = cs[p.id] || null;
       if (p.status === 'scheduled' && p.scheduled_at && new Date(p.scheduled_at).getTime() < now) p.late = true;
     }
   } catch {}
@@ -166,7 +169,7 @@ export async function getNotionPost(id: string): Promise<{ summary: NotionPostSu
   }
   const tagName = props['Tags']?.select?.name as string | undefined;
   let status: NotionPostSummary['status'] = 'draft';
-  if (tagName === 'PubliÃÂ©') status = 'published';
+  if (tagName === 'PubliÃÂÃÂ©') status = 'published';
   else if (dateProp) status = 'scheduled';
 
   const summary: NotionPostSummary = {
@@ -180,7 +183,7 @@ export async function getNotionPost(id: string): Promise<{ summary: NotionPostSu
     scheduled_time: heure || null,
     notion_url: page.url,
     linkedin_url: props['URL']?.url || undefined,
-    visuel_pret: !!props['Visuel prÃÂªt']?.checkbox,
+    visuel_pret: !!props['Visuel prÃÂÃÂªt']?.checkbox,
     anonymisation_ok: !!props['Anonymisation OK']?.checkbox
   };
 
@@ -212,8 +215,8 @@ export async function upsertDraft(input: {
   if (input.date)   properties['Date de publication'] = { date: { start: input.date } };
   if (input.time)   properties['Heure de publication'] = { rich_text: [{ text: { content: input.time } }] };
   if (typeof input.anonymisation_ok === 'boolean') properties['Anonymisation OK'] = { checkbox: input.anonymisation_ok };
-  // Always non-publiÃÂ© on create
-  if (!input.id) properties['Tags'] = { select: { name: 'Non publiÃÂ©' } };
+  // Always non-publiÃÂÃÂ© on create
+  if (!input.id) properties['Tags'] = { select: { name: 'Non publiÃÂÃÂ©' } };
 
   if (input.id) {
     const r = await fetch(`${NOTION_API}/pages/${input.id}`, {
@@ -222,6 +225,7 @@ export async function upsertDraft(input: {
       body: JSON.stringify({ properties })
     });
     if (!r.ok) throw new Error(`Notion update failed: ${r.status} ${await r.text()}`);
+    await logNotionAction('page_updated', input.id, input.title);
     return { id: input.id };
   }
   const r = await fetch(`${NOTION_API}/pages`, {
@@ -234,6 +238,8 @@ export async function upsertDraft(input: {
   });
   if (!r.ok) throw new Error(`Notion create failed: ${r.status} ${await r.text()}`);
   const data = await r.json();
+  await logNotionAction('page_created', data.id, input.title, data.url);
+  await markCadenceDraft(data.id, 'cadence_app');
   return { id: data.id };
 }
 
@@ -258,6 +264,7 @@ export async function replacePageContent(pageId: string, text: string) {
     body: JSON.stringify({ children })
   });
   if (!r.ok) throw new Error(`Notion content replace failed: ${r.status} ${await r.text()}`);
+  await logNotionAction('content_replaced', pageId, `${paragraphs.length} paragraphes`);
 }
 
 // === Cron helpers (existing) ===
@@ -272,7 +279,7 @@ export async function searchNotionDrafts(windowMinutes: number): Promise<NotionD
     body: JSON.stringify({
       filter: {
         and: [
-          { property: 'Tags', select: { equals: 'Non publiÃÂ©' } },
+          { property: 'Tags', select: { equals: 'Non publiÃÂÃÂ©' } },
           { property: 'Date de publication', date: { equals: todayIso } }
         ]
       },
@@ -316,10 +323,11 @@ export async function markNotionPublished(pageId: string, postUrn: string): Prom
     headers: headers(),
     body: JSON.stringify({
       properties: {
-        'Tags': { select: { name: 'PubliÃÂ©' } },
+        'Tags': { select: { name: 'PubliÃÂÃÂ©' } },
         'URL': { url: linkedinUrl }
       }
     })
   });
   if (!r.ok) throw new Error(`Notion update failed: ${r.status} ${await r.text()}`);
+  await logNotionAction('marked_published', pageId, postUrn, linkedinUrl);
 }

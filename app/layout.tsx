@@ -4,7 +4,8 @@ import Sidebar from '@/components/Sidebar';
 
 export const metadata: Metadata = {
   title: 'Cadence — LinkedIn publishing',
-  description: 'Préparez, validez et publiez vos posts LinkedIn depuis une seule app.'
+  description: 'Préparez, validez et publiez vos posts LinkedIn depuis une seule app.',
+  icons: { icon: '/icon.svg', apple: '/apple-icon.svg' }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
