@@ -1,6 +1,4 @@
 import Link from 'next/link';
-import KpiCard from '@/components/KpiCard';
-import StatusBadge from '@/components/StatusBadge';
 import { listNotionPosts, notionStatus } from '@/lib/notion';
 import { getActiveToken, publishedThisMonthCount } from '@/lib/supabase';
 import { validateToken } from '@/lib/linkedin';
@@ -36,101 +34,159 @@ async function getDashboardData() {
   const validatedAndScheduled = scheduledFuture.filter(p => p.validated);
   const late = posts.filter(p => p.late);
   const next = scheduledFuture.slice().sort((a, b) => (a.scheduled_at || '').localeCompare(b.scheduled_at || ''))[0];
+  const recentPublished = posts.filter(p => p.status === 'published').slice(0, 3);
 
-  return { liStatus, liInfo, notion, drafts, needsValidation, validatedAndScheduled, late, next, publishedCount, suggestions: sugg };
+  return { liStatus, liInfo, notion, drafts, needsValidation, validatedAndScheduled, late, next, publishedCount, suggestions: sugg, recentPublished };
+}
+
+function StatusDot({ ok }: { ok: boolean }) {
+  return <span className={`dot ${ok ? 'bg-success-500' : 'bg-danger-500'} animate-pulse-soft`} />;
+}
+
+function MetricCard({ label, value, hint, accent = 'ink', href, icon }: { label: string; value: string | number; hint?: string; accent?: 'ink'|'brand'|'warn'|'success'|'danger'; href?: string; icon?: React.ReactNode }) {
+  const accentText = { ink: 'text-ink-900', brand: 'text-brand-700', warn: 'text-warn-700', success: 'text-success-700', danger: 'text-danger-700' }[accent];
+  const inner = (
+    <div className="card card-hover p-5 h-full">
+      <div className="flex items-start justify-between">
+        <div className="flex-1 min-w-0">
+          <div className="text-xs font-medium text-ink-500 uppercase tracking-wider">{label}</div>
+          <div className={`mt-2 text-3xl font-semibold tabular-nums ${accentText}`}>{value}</div>
+          {hint && <div className="mt-1 text-xs text-ink-500 truncate">{hint}</div>}
+        </div>
+        {icon && <div className="ml-3 text-ink-300">{icon}</div>}
+      </div>
+    </div>
+  );
+  return href ? <Link href={href} className="block focus:outline-none">{inner}</Link> : inner;
 }
 
 export default async function HomePage() {
-  const { liStatus, liInfo, notion, drafts, needsValidation, validatedAndScheduled, late, next, publishedCount, suggestions } = await getDashboardData();
+  const { liStatus, liInfo, notion, drafts, needsValidation, validatedAndScheduled, late, next, publishedCount, suggestions, recentPublished } = await getDashboardData();
   const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 
   return (
-    <div className="space-y-8">
-      <header>
-        <p className="text-sm text-ink-500">Bonjour Cyril, nous sommes le {today}.</p>
-        <h1 className="text-3xl font-semibold text-ink-900 mt-1">Dashboard</h1>
-        <p className="mt-1 text-ink-500">Votre radar de contenu et l'état de votre cadence éditoriale.</p>
+    <div className="space-y-6">
+      <header className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-xs font-medium text-ink-500 uppercase tracking-wider">{today}</p>
+          <h1 className="mt-1 text-2xl font-semibold text-ink-900 tracking-tight">Bonjour Cyril ✨</h1>
+          <p className="mt-1 text-sm text-ink-500 lead">Voici l'état de votre cadence éditoriale aujourd'hui.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link href="/posts/new" className="btn-primary">+ Nouveau post</Link>
+          <Link href="/calendar" className="btn-secondary">Voir le calendrier</Link>
+        </div>
       </header>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Link href="/settings" className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20 hover:shadow-pop transition">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-ink-900">LinkedIn</h2>
-            {liStatus === 'connected' && <StatusBadge variant="success">Connecté</StatusBadge>}
-            {liStatus === 'expired'   && <StatusBadge variant="warn">Token expiré</StatusBadge>}
-            {liStatus === 'none'      && <StatusBadge variant="danger">Non connecté</StatusBadge>}
-          </div>
-          {liStatus === 'connected'
-            ? <p className="mt-2 text-sm text-ink-500">{liInfo.name} · {liInfo.email}<br/>Token valide encore <span className="font-medium text-ink-700">{liInfo.expires_in_days} jours</span></p>
-            : <p className="mt-2 text-sm text-ink-500">{liInfo.error || 'Aucun compte LinkedIn connecté.'}</p>}
-        </Link>
-
-        <Link href="/settings" className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20 hover:shadow-pop transition">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-ink-900">Notion</h2>
-            {notion.ok ? <StatusBadge variant="success">DB accessible</StatusBadge> : <StatusBadge variant="danger">Erreur</StatusBadge>}
-          </div>
-          <p className="mt-2 text-sm text-ink-500">
-            {notion.ok ? `${needsValidation.length + validatedAndScheduled.length} posts non publiés en DB Linkedin.` : (('error' in notion && notion.error) || 'Erreur inconnue')}
-          </p>
-        </Link>
-      </section>
-
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Link href="/suggestions" className="hover:scale-[1.01] transition">
-          <KpiCard label="Suggestions actives" value={suggestions.length} hint="Idées prêtes à exploiter" accent="brand" />
-        </Link>
-        <Link href="/posts?status=needs_validation" className="hover:scale-[1.01] transition">
-          <KpiCard label="À valider" value={needsValidation.length} hint="Programmés mais non validés" accent="warn" />
-        </Link>
-        <Link href="/posts?status=scheduled" className="hover:scale-[1.01] transition">
-          <KpiCard label="Programmés" value={validatedAndScheduled.length} hint="Validés, prêts pour le cron" accent="brand" />
-        </Link>
-        <Link href="/posts?status=late" className="hover:scale-[1.01] transition">
-          <KpiCard label="En retard" value={late.length} hint="Date passée, non publiés" accent="danger" />
-        </Link>
-      </section>
-
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Link href="/posts?status=draft" className="hover:scale-[1.01] transition">
-          <KpiCard label="Brouillons" value={drafts.length} hint="Sans date de publi" />
-        </Link>
-        <Link href="/posts?status=published" className="hover:scale-[1.01] transition">
-          <KpiCard label="Publiés ce mois" value={publishedCount} hint="Depuis le 1er du mois" accent="success" />
-        </Link>
-        <Link href="/calendar" className="hover:scale-[1.01] transition">
-          <KpiCard label="Prochain post" value={next ? new Date(next.scheduled_at!).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '—'} hint={next ? `${next.scheduled_time || '07:30'} · ${next.title.slice(0, 24)}` : 'Aucun'} />
-        </Link>
-        <Link href="/posts/new" className="hover:scale-[1.01] transition">
-          <KpiCard label="+ Créer un post" value="✏️" hint="Brief auto + génération IA" accent="brand" />
-        </Link>
-      </section>
-
-      {/* Suggestions teaser */}
-      <section>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold text-ink-900">Voici ce que vous pourriez publier aujourd'hui</h2>
-          <Link href="/suggestions" className="text-xs text-brand-700 hover:text-brand-600 font-medium">Tout voir →</Link>
-        </div>
-        {suggestions.length === 0
-          ? <div className="bg-white rounded-2xl p-6 text-center shadow-card ring-1 ring-inset ring-ink-300/20">
-              <p className="text-sm text-ink-700">Aucune suggestion pour l'instant.</p>
-              <Link href="/suggestions" className="mt-3 inline-block text-sm px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:bg-brand-600">Lancer le radar</Link>
+      {/* Connection strip */}
+      <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <Link href="/sources/linkedin" className="card card-hover p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm" style={{ backgroundColor: '#0A66C2' }}>in</div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-ink-900 text-sm">LinkedIn</span>
+              <StatusDot ok={liStatus === 'connected'} />
             </div>
-          : <div className="grid gap-3">
+            <div className="text-xs text-ink-500 truncate">
+              {liStatus === 'connected'
+                ? `${liInfo.name} · token valide ${liInfo.expires_in_days}j`
+                : (liInfo.error || 'Non connecté')}
+            </div>
+          </div>
+          <svg className="w-4 h-4 text-ink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M9 6l6 6-6 6"/></svg>
+        </Link>
+        <Link href="/sources/notion" className="card card-hover p-4 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-white border border-ink-200 flex items-center justify-center text-ink-900 font-bold text-lg">N</div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-ink-900 text-sm">Notion</span>
+              <StatusDot ok={notion.ok} />
+            </div>
+            <div className="text-xs text-ink-500 truncate">
+              {notion.ok ? `${needsValidation.length + validatedAndScheduled.length} posts non publiés en DB` : (('error' in notion && notion.error) || 'Erreur')}
+            </div>
+          </div>
+          <svg className="w-4 h-4 text-ink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M9 6l6 6-6 6"/></svg>
+        </Link>
+      </section>
+
+      {/* KPI Grid */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MetricCard label="Suggestions" value={suggestions.length} hint="Idées prêtes" accent="brand" href="/suggestions" />
+        <MetricCard label="À valider"   value={needsValidation.length}      hint="Bloque le cron" accent="warn"  href="/posts?status=needs_validation" />
+        <MetricCard label="Programmés"  value={validatedAndScheduled.length} hint="Validés pour cron" accent="brand" href="/posts?status=scheduled" />
+        <MetricCard label="En retard"   value={late.length}                  hint="Date passée" accent="danger" href="/posts?status=late" />
+      </section>
+
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <MetricCard label="Brouillons"        value={drafts.length}             hint="Sans date"     href="/posts?status=draft" />
+        <MetricCard label="Publiés ce mois"  value={publishedCount}            hint="Depuis le 1er" accent="success" href="/posts?status=published" />
+        <MetricCard
+          label="Prochain post"
+          value={next ? new Date(next.scheduled_at!).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : '—'}
+          hint={next ? `${next.scheduled_time || '07:30'} · ${next.title.slice(0, 24)}` : 'Aucun'}
+          href="/calendar"
+        />
+        <MetricCard label="Nouveau post" value="✏️" hint="Génération IA assistée" accent="brand" href="/posts/new" />
+      </section>
+
+      {/* Two-column : Radar teaser + Recent published */}
+      <section className="grid lg:grid-cols-3 gap-5">
+        <div className="lg:col-span-2 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-ink-900 flex items-center gap-2">
+              <svg className="w-4 h-4 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>
+              Voici ce que vous pourriez publier aujourd'hui
+            </h2>
+            <Link href="/suggestions" className="text-xs text-brand-700 hover:text-brand-800 font-medium">Tout voir →</Link>
+          </div>
+          {suggestions.length === 0 ? (
+            <div className="card p-8 text-center">
+              <p className="text-sm text-ink-700">Aucune suggestion pour l'instant.</p>
+              <Link href="/suggestions" className="btn-primary mt-3">Lancer le radar</Link>
+            </div>
+          ) : (
+            <div className="grid gap-2">
               {suggestions.slice(0, 3).map(s => (
-                <Link key={s.id} href={`/posts/new?suggest=${s.id}&pilier=${encodeURIComponent(s.pilier || '')}&hook=${encodeURIComponent(s.hook || '')}&brief=${encodeURIComponent(s.title)}`}
-                  className="bg-white rounded-2xl p-4 shadow-card ring-1 ring-inset ring-ink-300/20 hover:shadow-pop transition block">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <StatusBadge variant="brand">{s.source}</StatusBadge>
+                <Link
+                  key={s.id}
+                  href={`/posts/new?suggest=${s.id}&pilier=${encodeURIComponent(s.pilier || '')}&hook=${encodeURIComponent(s.hook || '')}&brief=${encodeURIComponent(s.title)}`}
+                  className="card card-hover p-4 block"
+                >
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="chip chip-brand">{s.source}</span>
                     {s.pilier && <span className="text-xs text-ink-500">· {s.pilier}</span>}
-                    <span className="text-xs text-ink-500 ml-auto">{s.score}/100</span>
+                    <span className="ml-auto text-2xs font-semibold tabular-nums text-ink-500">{s.score}/100</span>
                   </div>
-                  <div className="mt-1 font-medium text-ink-900 truncate">{s.title}</div>
-                  {s.why && <div className="mt-1 text-xs text-ink-500">{s.why}</div>}
+                  <div className="font-medium text-ink-900 leading-snug">{s.title}</div>
+                  {s.why && <div className="mt-1 text-xs text-ink-500 line-clamp-2">{s.why}</div>}
                 </Link>
               ))}
-            </div>}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold text-ink-900">Derniers publiés</h2>
+            <Link href="/posts?status=published" className="text-xs text-brand-700 hover:text-brand-800 font-medium">Tout voir →</Link>
+          </div>
+          {recentPublished.length === 0 ? (
+            <div className="card p-6 text-center text-xs text-ink-500">Aucun post publié pour l'instant.</div>
+          ) : (
+            <div className="space-y-2">
+              {recentPublished.map(p => (
+                <Link key={p.id} href={`/posts/${p.id}/edit`} className="card card-hover p-3 block">
+                  <div className="text-2xs uppercase tracking-wider font-semibold text-success-700 flex items-center gap-1">
+                    <span className="dot bg-success-500" />
+                    {p.scheduled_at ? new Date(p.scheduled_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : ''}
+                  </div>
+                  <div className="mt-1 text-sm font-medium text-ink-900 line-clamp-2">{p.title}</div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );

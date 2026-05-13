@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import LinkedInPreview, { toBold, toItalic } from '@/components/LinkedInPreview';
 import PublishModal from '@/components/PublishModal';
 import VisualGenerator from '@/components/VisualGenerator';
@@ -9,11 +9,36 @@ const QUICK_ACTIONS = [
   { label: 'Améliorer le hook',          prompt: 'Améliore le hook : rends-le plus accrocheur, < 80 caractères, factuel, sans clickbait.' },
   { label: 'Raccourcir',                 prompt: "Raccourcis ce post à 600-700 caractères en préservant l'essentiel et un exemple chiffré." },
   { label: 'Rendre plus concret',        prompt: 'Rends ce post plus concret : ajoute un exemple chiffré, un cas anonymisé, des paragraphes plus courts.' },
-  { label: 'Adapter au vouvoiement',     prompt: 'Vérifie le vouvoiement strict. Corrige tout tutoiement.' },
-  { label: 'Améliorer la mise en forme', prompt: 'Améliore la mise en forme LinkedIn : paragraphes courts, hook fort, mots-clés en gras Unicode si pertinent (𝗯𝗼𝗹𝗱), pas de tiret long, hashtags ciblés à la fin.' },
+  { label: 'Vouvoiement strict',         prompt: 'Vérifie le vouvoiement strict. Corrige tout tutoiement.' },
+  { label: 'Mise en forme LinkedIn',     prompt: 'Améliore la mise en forme LinkedIn : paragraphes courts, hook fort, mots-clés en gras Unicode si pertinent, pas de tiret long, hashtags ciblés à la fin.' },
   { label: 'Nettoyer style IA',          prompt: 'Retire tout style IA reconnaissable : phrases creuses, formules signature, mots interdits.' },
-  { label: 'Proposer une illustration',  prompt: "Propose un brief d'illustration pour ce post : style design system Heelio (couleurs #6366F1, #4F46E5, fond #F8FAFC), format 1200x630." }
+  { label: 'Brief illustration',         prompt: "Propose un brief d'illustration pour ce post : style design system Heelio (couleurs bleues #2563EB, fond #F8FAFC), format 1200x630." }
 ];
+
+type Status = 'draft' | 'needs_validation' | 'scheduled' | 'published' | 'late';
+
+function deriveStatus(summary: any, validated: boolean): Status {
+  if (summary.published_at) return 'published';
+  if (!summary.scheduled_at) return 'draft';
+  if (new Date(summary.scheduled_at) < new Date()) return 'late';
+  return validated ? 'scheduled' : 'needs_validation';
+}
+
+const STATUS_META: Record<Status, { label: string; cls: string; dot: string }> = {
+  draft:            { label: 'Brouillon',      cls: 'chip-neutral', dot: 'bg-ink-400' },
+  needs_validation: { label: 'À valider',      cls: 'chip-warn',    dot: 'bg-warn-500' },
+  scheduled:        { label: 'Programmé',      cls: 'chip-brand',   dot: 'bg-brand-500' },
+  published:        { label: 'Publié',         cls: 'chip-success', dot: 'bg-success-500' },
+  late:             { label: 'En retard',      cls: 'chip-danger',  dot: 'bg-danger-500' },
+};
+
+function formatDateTime(iso?: string | null): string {
+  if (!iso) return '(date à définir)';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  } catch { return iso; }
+}
 
 export default function EditClient({ initial, validated: initialValidated }: { initial: { summary: any; content: string }; validated: boolean }) {
   const { summary } = initial;
@@ -21,56 +46,36 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   const [versions, setVersions] = useState<string[]>([initial.content]);
   const [validated, setValidated] = useState(initialValidated);
   const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [chat, setChat] = useState<{ role: string; content: string }[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [publishOpen, setPublishOpen] = useState(false);
   const [removing, setRemoving] = useState(false);
+  const [focusMode, setFocusMode] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
-  async function removeFromCadence() {
-    if (!confirm(`Retirer ce post de Cadence ? La page Notion reste intacte. Ce post n'apparaîtra plus comme « Créé par Cadence ».`)) return;
-    setRemoving(true);
-    try {
-      const r = await fetch(`/api/cadence-drafts/${summary.id}`, { method: 'DELETE' });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error);
-      alert('Retiré de Cadence. La page Notion existe toujours.');
-      window.location.href = '/posts';
-    } catch (e: any) { alert('Erreur : ' + e.message); }
-    finally { setRemoving(false); }
-  }
+  const lastSavedTextRef = useRef(initial.content);
+  const lastSavedValidatedRef = useRef(initialValidated);
+  const autosaveTimer = useRef<number | null>(null);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
 
+  const status = deriveStatus(summary, validated);
+  const sMeta = STATUS_META[status];
+  const isDirty = text !== lastSavedTextRef.current || validated !== lastSavedValidatedRef.current;
+
+  // Ticker for "Sauvegardé il y a X sec"
   useEffect(() => {
-    fetch(`/api/chat?notion_page_id=${summary.id}`).then(r => r.json()).then(d => setChat(d.messages || [])).catch(() => {});
-  }, [summary.id]);
+    const id = setInterval(() => setTick(t => t + 1), 5000);
+    return () => clearInterval(id);
+  }, []);
 
-  async function runChat(prompt: string) {
-    setChatLoading(true); setChatInput('');
-    try {
-      const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notion_page_id: summary.id, draft: text, instruction: prompt }) });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error);
-      setChat(c => [...c, { role: 'user', content: prompt }, { role: 'assistant', content: d.rewrite }]);
-    } catch (e: any) {
-      setChat(c => [...c, { role: 'user', content: prompt }, { role: 'assistant', content: 'Erreur : ' + e.message }]);
-    } finally { setChatLoading(false); }
-  }
-  function applyRewrite(rewrite: string) { setVersions(v => [...v, rewrite]); setText(rewrite); }
-  function revert() {
-    if (versions.length < 2) return;
-    const v = [...versions]; v.pop(); setVersions(v); setText(v[v.length - 1]);
-  }
-  function applyTransform(transform: (s: string) => string) {
-    const ta = document.getElementById('post-text-editor') as HTMLTextAreaElement | null;
-    if (!ta) return;
-    const start = ta.selectionStart, end = ta.selectionEnd;
-    if (start === end) return;
-    setText(text.slice(0, start) + transform(text.slice(start, end)) + text.slice(end));
-  }
-
-  async function save() {
-    setSaving(true); setSaveMsg(null);
+  // Save function (called by autosave + manual)
+  const save = useCallback(async (silent = false) => {
+    if (!isDirty && silent) return;
+    setSaving(true); setSaveError(null);
     try {
       const r = await fetch('/api/notion/posts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -79,93 +84,219 @@ export default function EditClient({ initial, validated: initialValidated }: { i
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       await fetch(`/api/notion/post/${summary.id}/validate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ validated }) });
-      setSaveMsg(`Sauvegardé ${validated ? '✓ (validé pour cron)' : '(non validé)'}`);
-    } catch (e: any) { setSaveMsg('Erreur : ' + e.message); }
-    finally { setSaving(false); }
+      lastSavedTextRef.current = text;
+      lastSavedValidatedRef.current = validated;
+      setLastSavedAt(Date.now());
+    } catch (e: any) {
+      setSaveError(e.message);
+    } finally { setSaving(false); }
+  }, [isDirty, summary.id, summary.title, summary.pilier, summary.scheduled_at, summary.scheduled_time, text, validated]);
+
+  // Autosave : 3s after last change
+  useEffect(() => {
+    if (!isDirty) return;
+    if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+    autosaveTimer.current = window.setTimeout(() => save(true), 3000);
+    return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
+  }, [text, validated, isDirty, save]);
+
+  // Cmd/Ctrl+S to save immediately
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); save(false); }
+      if (e.key === 'Escape' && focusMode) setFocusMode(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [save, focusMode]);
+
+  // Chat history load
+  useEffect(() => {
+    fetch(`/api/chat?notion_page_id=${summary.id}`).then(r => r.json()).then(d => setChat(d.messages || [])).catch(() => {});
+  }, [summary.id]);
+
+  async function runChat(prompt: string) {
+    setChatLoading(true); setChatInput('');
+    setChat(c => [...c, { role: 'user', content: prompt }]);
+    try {
+      const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notion_page_id: summary.id, draft: text, instruction: prompt }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      setChat(c => [...c, { role: 'assistant', content: d.rewrite }]);
+    } catch (e: any) {
+      setChat(c => [...c, { role: 'assistant', content: 'Erreur : ' + e.message }]);
+    } finally { setChatLoading(false); }
+  }
+  function applyRewrite(rewrite: string) { setVersions(v => [...v, rewrite]); setText(rewrite); }
+  function revert() {
+    if (versions.length < 2) return;
+    const v = [...versions]; v.pop(); setVersions(v); setText(v[v.length - 1]);
+  }
+  function applyTransform(transform: (s: string) => string) {
+    const ta = taRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    if (start === end) return;
+    setText(text.slice(0, start) + transform(text.slice(start, end)) + text.slice(end));
+  }
+
+  async function removeFromCadence() {
+    if (!confirm(`Retirer ce post de Cadence ? La page Notion reste intacte.`)) return;
+    setRemoving(true);
+    try {
+      const r = await fetch(`/api/cadence-drafts/${summary.id}`, { method: 'DELETE' });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      window.location.href = '/posts';
+    } catch (e: any) { alert('Erreur : ' + e.message); }
+    finally { setRemoving(false); }
   }
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <p className="text-xs text-ink-500">{summary.pilier || ''}</p>
-          <h1 className="text-2xl font-semibold text-ink-900">{summary.title || 'Sans titre'}</h1>
-          <p className="mt-1 text-xs text-ink-500">
-            {summary.scheduled_at ? new Date(summary.scheduled_at).toLocaleString('fr-FR') : '(pas de date)'}
-            {validated ? <span className="ml-2 text-success-700">â validé</span> : <span className="ml-2 text-warn-700">⚠ non validé</span>}
-          </p>
+    <div className={focusMode ? 'fixed inset-0 z-40 bg-white overflow-y-auto p-8 animate-fade-in' : 'space-y-6'}>
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`chip ${sMeta.cls}`}><span className={`dot ${sMeta.dot}`} /> {sMeta.label}</span>
+            {summary.pilier && <span className="text-2xs uppercase tracking-wider font-semibold text-ink-500">{summary.pilier}</span>}
+          </div>
+          <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">{summary.title || 'Sans titre'}</h1>
+          <p className="mt-1 text-sm text-ink-500">{formatDateTime(summary.scheduled_at)}</p>
         </div>
-        <div className="flex gap-2">
-          <a href={summary.notion_url} target="_blank" rel="noopener" className="text-xs px-3 py-1.5 rounded-lg ring-1 ring-ink-300 hover:bg-ink-50">Ouvrir dans Notion</a>
-          {summary.linkedin_url && <a href={summary.linkedin_url} target="_blank" rel="noopener" className="text-xs px-3 py-1.5 rounded-lg ring-1 ring-ink-300 hover:bg-ink-50">Voir sur LinkedIn</a>}
+        <div className="flex items-center gap-2">
+          <SaveIndicator saving={saving} lastSavedAt={lastSavedAt} isDirty={isDirty} error={saveError} tick={tick} />
+          <button onClick={() => setFocusMode(f => !f)} className="btn-ghost" title="Mode focus (Esc pour quitter)">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d={focusMode ? 'M4 14h6v6 M20 10h-6V4 M14 10l7-7 M3 21l7-7' : 'M15 3h6v6 M9 21H3v-6 M21 3l-7 7 M3 21l7-7'}/></svg>
+            {focusMode ? 'Quitter focus' : 'Focus'}
+          </button>
+          <a href={summary.notion_url} target="_blank" rel="noopener" className="btn-ghost" title="Ouvrir dans Notion">Notion ↗</a>
+          {summary.linkedin_url && <a href={summary.linkedin_url} target="_blank" rel="noopener" className="btn-ghost">LinkedIn ↗</a>}
         </div>
       </header>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <section className="space-y-4">
-          <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
-            <div className="flex items-center gap-2 flex-wrap mb-2">
-              <button onClick={() => applyTransform(toBold)}   className="text-xs px-2 py-1 rounded ring-1 ring-ink-300 hover:bg-ink-50" title="Sélection en gras Unicode">𝗕</button>
-              <button onClick={() => applyTransform(toItalic)} className="text-xs px-2 py-1 rounded ring-1 ring-ink-300 hover:bg-ink-50" title="Sélection en italique Unicode">𝘐</button>
-              <button onClick={() => setText(text.replace(/[—–]/g, ','))} className="text-xs px-2 py-1 rounded ring-1 ring-ink-300 hover:bg-ink-50">Retirer tirets longs</button>
-              <button onClick={() => setText(text.replace(/\n+/g, '\n\n').trim())} className="text-xs px-2 py-1 rounded ring-1 ring-ink-300 hover:bg-ink-50">Aérer paragraphes</button>
-              <span className="ml-auto text-xs text-ink-500">{text.length} / 1300</span>
+      <div className={focusMode ? 'max-w-3xl mx-auto' : 'grid lg:grid-cols-2 gap-6'}>
+        <section className="space-y-5">
+          {/* Editor card */}
+          <div className="card p-5">
+            <div className="flex items-center gap-1.5 flex-wrap mb-3">
+              <button onClick={() => applyTransform(toBold)}   className="btn-ghost text-base font-bold w-8 h-8" title="Sélection en gras Unicode">𝗕</button>
+              <button onClick={() => applyTransform(toItalic)} className="btn-ghost text-base italic w-8 h-8" title="Sélection en italique Unicode">𝘐</button>
+              <span className="w-px h-5 bg-ink-200 mx-1" />
+              <button onClick={() => setText(text.replace(/[—–]/g, ','))} className="btn-ghost text-xs">Retirer tirets longs</button>
+              <button onClick={() => setText(text.replace(/\n+/g, '\n\n').trim())} className="btn-ghost text-xs">Aérer</button>
+              <span className="ml-auto text-xs text-ink-500 tabular-nums">
+                <span className={text.length > 1300 ? 'text-danger-500 font-semibold' : ''}>{text.length}</span> <span className="text-ink-400">/ 1300</span>
+              </span>
             </div>
-            <textarea id="post-text-editor" value={text} onChange={e => setText(e.target.value)} rows={16} className="w-full rounded-lg border-ink-300 px-3 py-2 text-sm font-mono focus:ring-brand-500 focus:border-brand-500" />
+            <textarea
+              ref={taRef}
+              value={text}
+              onChange={e => setText(e.target.value)}
+              rows={focusMode ? 24 : 16}
+              spellCheck
+              className="input font-mono text-[14px] leading-relaxed resize-none"
+              placeholder="Commencez à écrire votre post…"
+            />
           </div>
 
-          <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
-            <h3 className="font-semibold text-ink-900 text-sm">Améliorer avec l'IA</h3>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {QUICK_ACTIONS.map(a => (
-                <button key={a.label} onClick={() => runChat(a.prompt)} disabled={chatLoading} className="text-xs px-3 py-1.5 rounded-lg ring-1 ring-ink-300 hover:bg-brand-50 hover:ring-brand-500/30 disabled:opacity-50">{a.label}</button>
-              ))}
-            </div>
-            <div className="mt-3 flex gap-2">
-              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && chatInput && runChat(chatInput)} placeholder="Ou tapez une instruction libre…" className="flex-1 px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" />
-              <button onClick={() => chatInput && runChat(chatInput)} disabled={chatLoading || !chatInput} className="px-3 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50">{chatLoading ? '…' : 'Envoyer'}</button>
-            </div>
-            <div className="mt-4 max-h-96 overflow-y-auto space-y-3">
-              {chat.length === 0 && <p className="text-xs text-ink-500 italic">Aucun message. Cliquez sur une suggestion ci-dessus pour démarrer.</p>}
-              {chat.map((m, i) => (
-                <div key={i} className={`rounded-lg p-3 text-sm ring-1 ring-inset ${m.role === 'user' ? 'ring-ink-300/40 bg-ink-50' : 'ring-brand-500/20 bg-brand-50/30'}`}>
-                  <div className="text-[10px] uppercase tracking-wide font-semibold text-ink-500 mb-1">{m.role === 'user' ? 'Vous' : 'Cadence IA'}</div>
-                  <div className="whitespace-pre-wrap text-ink-700">{m.content}</div>
-                  {m.role === 'assistant' && (
-                    <button onClick={() => applyRewrite(m.content)} className="mt-2 text-xs px-2 py-1 rounded-lg bg-brand-500 text-white hover:bg-brand-600">Appliquer cette version</button>
+          {!focusMode && (
+            <>
+              {/* AI assistant card */}
+              <div className="card p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-ink-900 text-sm">Améliorer avec l'IA</h3>
+                  {versions.length > 1 && (
+                    <button onClick={revert} className="btn-ghost text-xs">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M3 7v6h6 M21 17a9 9 0 00-15-6.7L3 13"/></svg>
+                      Version précédente ({versions.length - 1})
+                    </button>
                   )}
                 </div>
-              ))}
+                <div className="flex flex-wrap gap-1.5">
+                  {QUICK_ACTIONS.map(a => (
+                    <button key={a.label} onClick={() => runChat(a.prompt)} disabled={chatLoading} className="text-xs px-2.5 py-1.5 rounded-lg border border-ink-200 bg-white hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700 disabled:opacity-50 transition">
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3 flex gap-2">
+                  <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && chatInput && runChat(chatInput)} placeholder="Ou une instruction libre…" className="input text-sm flex-1" />
+                  <button onClick={() => chatInput && runChat(chatInput)} disabled={chatLoading || !chatInput} className="btn-primary">{chatLoading ? '…' : 'Envoyer'}</button>
+                </div>
+                {chat.length > 0 && (
+                  <div className="mt-4 max-h-96 overflow-y-auto space-y-3 pr-1">
+                    {chat.map((m, i) => (
+                      <div key={i} className={`rounded-xl p-3 text-sm border ${m.role === 'user' ? 'border-ink-200 bg-ink-50' : 'border-brand-200 bg-brand-50/40'}`}>
+                        <div className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-1">{m.role === 'user' ? 'Vous' : 'Cadence IA'}</div>
+                        <div className="whitespace-pre-wrap text-ink-800">{m.content}</div>
+                        {m.role === 'assistant' && !m.content.startsWith('Erreur') && (
+                          <button onClick={() => applyRewrite(m.content)} className="mt-2 text-xs px-3 py-1 rounded-lg bg-brand-600 text-white hover:bg-brand-700 transition">Appliquer</button>
+                        )}
+                      </div>
+                    ))}
+                    {chatLoading && <div className="text-xs text-ink-500 italic animate-pulse-soft">Cadence IA réfléchit…</div>}
+                  </div>
+                )}
+              </div>
+
+              <VisualGenerator
+                defaultPrompt={`Visuel d'accompagnement pour ce post LinkedIn :\n\n${text.slice(0, 300)}\n\n(Style : ${summary.pilier || 'Heelio'})`}
+                notionPageId={summary.id}
+                onPick={setImageUrl}
+              />
+            </>
+          )}
+        </section>
+
+        {!focusMode && (
+          <section className="space-y-5 lg:sticky lg:top-6 lg:self-start">
+            <div className="card p-5">
+              <h3 className="font-semibold text-ink-900 text-sm mb-3">Aperçu LinkedIn</h3>
+              <LinkedInPreview text={text} image={imageUrl || undefined} />
             </div>
-            {versions.length > 1 && (
-              <button onClick={revert} className="mt-3 text-xs px-3 py-1.5 rounded-lg ring-1 ring-ink-300 hover:bg-ink-50">â¶ Revenir à la version précédente ({versions.length - 1})</button>
-            )}
-          </div>
-        <VisualGenerator defaultPrompt={`Visuel d'accompagnement pour ce post LinkedIn :\n\n${text.slice(0, 300)}\n\n(Style ${summary.pilier || 'Heelio'})`} notionPageId={summary.id} />
-        </section>
 
-        <section className="space-y-4">
-          <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
-            <h3 className="font-semibold text-ink-900 text-sm mb-3">Aperçu LinkedIn</h3>
-            <LinkedInPreview text={text} />
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20 space-y-2">
-            <label className="flex items-start gap-3 cursor-pointer select-none p-2 rounded-lg ring-1 ring-ink-100 bg-warn-50/30">
-              <input type="checkbox" checked={validated} onChange={e => setValidated(e.target.checked)} className="mt-1 w-4 h-4 rounded border-ink-300 text-brand-500" />
-              <span className="text-sm text-ink-700">
-                <strong className="block text-ink-900">Validé pour publication automatique</strong>
-                <span className="text-xs text-ink-500">Si coché, le cron quotidien publiera ce post à l'heure programmée. Sinon il reste en draft.</span>
-              </span>
-            </label>
-            <button onClick={save} disabled={saving} className="w-full px-4 py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50">{saving ? 'Sauvegarde…' : 'Sauvegarder'}</button>
-            <button onClick={() => setPublishOpen(true)} disabled={!text.trim()} className="w-full px-4 py-2.5 rounded-lg ring-1 ring-brand-500 text-brand-700 text-sm font-medium hover:bg-brand-50 disabled:opacity-50">Publier maintenant…</button>
-            {saveMsg && <p className="text-sm text-ink-700">{saveMsg}</p>}
-          </div>
-        </section>
+            <div className="card p-5 space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer select-none p-3 rounded-xl border border-warn-100 bg-warn-50/40 hover:bg-warn-50 transition">
+                <input type="checkbox" checked={validated} onChange={e => setValidated(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-ink-300 text-brand-500" />
+                <span className="text-sm text-ink-700">
+                  <strong className="block text-ink-900 mb-0.5">Validé pour publication automatique</strong>
+                  <span className="text-xs text-ink-500">Si coché, le cron quotidien publiera ce post à l'heure programmée. Sinon il reste en brouillon.</span>
+                </span>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => save(false)} disabled={saving} className="btn-secondary">{saving ? 'Sauvegarde…' : 'Sauvegarder'}</button>
+                <button onClick={() => setPublishOpen(true)} disabled={!text.trim() || isDirty} title={isDirty ? 'Sauvegardez avant de publier' : undefined} className="btn-primary">Publier…</button>
+              </div>
+              {summary.cadence_source === 'cadence' && (
+                <button onClick={removeFromCadence} disabled={removing} className="btn-danger w-full justify-center">
+                  {removing ? 'Suppression…' : 'Retirer de Cadence (Notion reste intact)'}
+                </button>
+              )}
+            </div>
+          </section>
+        )}
       </div>
 
       <PublishModal open={publishOpen} onClose={() => setPublishOpen(false)} text={text} notionPageId={summary.id} />
     </div>
   );
+}
+
+function SaveIndicator({ saving, lastSavedAt, isDirty, error, tick }: { saving: boolean; lastSavedAt: number | null; isDirty: boolean; error: string | null; tick: number }) {
+  void tick; // tick is consumed via parent re-render
+  if (error) return <span className="text-xs text-danger-700 flex items-center gap-1"><span className="dot bg-danger-500" /> {error}</span>;
+  if (saving) return <span className="text-xs text-ink-500 flex items-center gap-1 animate-pulse-soft"><span className="dot bg-brand-500" /> Sauvegarde…</span>;
+  if (isDirty) return <span className="text-xs text-ink-500 flex items-center gap-1"><span className="dot bg-warn-500" /> Modifications non sauvegardées</span>;
+  if (!lastSavedAt) return <span className="text-xs text-ink-400">Aucune modification</span>;
+  return <span className="text-xs text-success-700 flex items-center gap-1"><span className="dot bg-success-500" /> {formatRelative(lastSavedAt)}</span>;
+}
+
+function formatRelative(t: number): string {
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 5) return "Sauvegardé à l'instant";
+  if (s < 60) return `Sauvegardé il y a ${s} sec`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `Sauvegardé il y a ${m} min`;
+  const h = Math.floor(m / 60);
+  return `Sauvegardé il y a ${h} h`;
 }

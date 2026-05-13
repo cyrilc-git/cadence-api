@@ -4,15 +4,141 @@
 
 :root {
   color-scheme: light;
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 8px rgba(15, 23, 42, 0.04);
+  --shadow-elev: 0 4px 16px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('https://rsms.me/inter/font-files/InterVariable.woff2') format('woff2');
 }
 
 html, body {
-  background: #F8FAFC;
-  color: #0F172A;
+  background: #F7F8FA;
+  color: #0B1220;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'ss01';
 }
 
 /* Subtle scrollbar */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
-*::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 999px; }
-*::-webkit-scrollbar-thumb:hover { background: #CBD5E1; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #E2E8F0; border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: #CBD5E1; border: 2px solid transparent; background-clip: padding-box; }
+
+/* Smooth focus rings */
+:focus-visible {
+  outline: 2px solid #2563EB;
+  outline-offset: 2px;
+}
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
+  border-radius: 8px;
+}
+
+/* Card pattern */
+.card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 14px;
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 200ms ease, border-color 200ms ease, transform 200ms ease;
+}
+.card-hover:hover {
+  border-color: #CBD5E1;
+  box-shadow: var(--shadow-elev);
+}
+
+/* Skeleton loader */
+.skeleton {
+  background: linear-gradient(90deg, #F1F5F9 0%, #E2E8F0 50%, #F1F5F9 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+  border-radius: 6px;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Typography helpers */
+.lead { font-size: 1rem; line-height: 1.55; color: #475569; }
+.dim  { color: #64748B; }
+
+/* Buttons base */
+.btn-primary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px 14px; border-radius: 10px;
+  background: linear-gradient(180deg, #2563EB 0%, #1D4ED8 100%);
+  color: #FFFFFF; font-weight: 600; font-size: 14px;
+  border: 1px solid #1D4ED8;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.12) inset, 0 1px 2px rgba(15,23,42,0.10);
+  transition: transform 120ms ease, box-shadow 200ms ease, filter 200ms ease;
+}
+.btn-primary:hover { filter: brightness(1.05); box-shadow: 0 2px 4px rgba(29, 78, 216, 0.30); }
+.btn-primary:active { transform: translateY(1px); }
+.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btn-secondary {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px 14px; border-radius: 10px;
+  background: #FFFFFF;
+  color: #1E293B; font-weight: 600; font-size: 14px;
+  border: 1px solid #E2E8F0;
+  transition: border-color 200ms ease, background 200ms ease;
+}
+.btn-secondary:hover { border-color: #CBD5E1; background: #F8FAFC; }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 6px 10px; border-radius: 8px;
+  color: #475569; font-weight: 500; font-size: 13px;
+  transition: background 200ms ease, color 200ms ease;
+}
+.btn-ghost:hover { background: #F1F5F9; color: #1E293B; }
+
+.btn-danger {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 8px;
+  background: #FEF2F2; color: #B91C1C; font-weight: 500; font-size: 13px;
+  border: 1px solid #FEE2E2;
+  transition: background 200ms ease;
+}
+.btn-danger:hover { background: #FEE2E2; }
+
+/* Inputs */
+.input {
+  width: 100%; padding: 9px 12px; border-radius: 10px;
+  background: #FFFFFF; border: 1px solid #E2E8F0;
+  font-size: 14px; color: #0F172A;
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+.input:focus { border-color: #93C5FD; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12); outline: none; }
+.input::placeholder { color: #94A3B8; }
+
+/* Status chips */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 500;
+  border: 1px solid;
+}
+.chip-success { background: #ECFDF5; color: #047857; border-color: #A7F3D0; }
+.chip-warn    { background: #FFFBEB; color: #B45309; border-color: #FCD34D; }
+.chip-danger  { background: #FEF2F2; color: #B91C1C; border-color: #FECACA; }
+.chip-brand   { background: #EFF6FF; color: #1E40AF; border-color: #BFDBFE; }
+.chip-neutral { background: #F8FAFC; color: #475569; border-color: #E2E8F0; }
+
+/* Animations */
+.animate-fade-in { animation: fadeIn 240ms ease-out; }
+.animate-slide-up { animation: slideUp 280ms cubic-bezier(0.16, 1, 0.3, 1); }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Dot indicators */
+.dot { display: inline-block; width: 6px; height: 6px; border-radius: 999px; }

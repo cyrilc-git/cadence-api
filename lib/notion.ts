@@ -187,6 +187,12 @@ export async function getNotionPost(id: string): Promise<{ summary: NotionPostSu
     anonymisation_ok: !!props['Anonymisation OK']?.checkbox
   };
 
+  // Enrich with cadence_source flag
+  try {
+    const cs = await getCadenceDraftSources([summary.id]);
+    summary.cadence_source = cs[summary.id] || null;
+  } catch {/* silent */}
+
   const blocksRes = await fetch(`${NOTION_API}/blocks/${id}/children?page_size=100`, { headers: headers() });
   const blocksJson = await blocksRes.json();
   const content = (blocksJson.results || [])
