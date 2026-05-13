@@ -131,7 +131,7 @@ export async function chatAppend(notion_page_id: string, role: ChatMessage['role
 
 // ========== V7.6 : Cadence source tracking ==========
 export async function markCadenceDraft(notion_page_id: string, source: string = 'cadence_app', meta: any = {}) {
-  await supabase.from('cadence_drafts').upsert({ notion_page_id, source, generation_meta: meta }).select().single().then(() => {}).catch(() => {});
+  try { await supabase.from('cadence_drafts').upsert({ notion_page_id, source, generation_meta: meta }); } catch {}
 }
 export async function getCadenceDraftSources(ids: string[]): Promise<Record<string, string>> {
   if (!ids.length) return {};
