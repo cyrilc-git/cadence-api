@@ -4,7 +4,7 @@ import { publishUgcPost } from '@/lib/linkedin';
 import { searchNotionDrafts, markNotionPublished } from '@/lib/notion';
 import { isValidated } from '@/lib/db';
 
-// Cron : tourne 1�/jour (Hobby plan). Publie UNIQUEMENT les drafts valid�s.
+// Cron : tourne 1×/jour (Hobby plan). Publie UNIQUEMENT les drafts validés.
 const WINDOW_MINUTES = 60 * 24;
 
 export async function GET(req: NextRequest) {
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
         continue;
       }
       if (!(await isValidated(draft.id))) {
-        results.push({ id: draft.id, status: 'skipped_not_validated', reason: 'Le draft n est pas marqu� comme valid�. Le cron ne publie que les drafts explicitement valid�s.' });
+        results.push({ id: draft.id, status: 'skipped_not_validated', reason: 'Le draft n est pas marqué comme validé. Le cron ne publie que les drafts explicitement validés.' });
         continue;
       }
       const authorUrn = `urn:li:person:${token.linkedin_user_id}`;
