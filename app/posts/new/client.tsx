@@ -94,10 +94,10 @@ export default function NewPostClient({ initial, prefillBrief, prefillHook, sugg
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">{initial ? 'Modifier le post' : 'Nouveau post'}</h1>
+          <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">{initial?.id ? 'Modifier le post' : 'Nouveau post'}</h1>
           <p className="mt-1 text-sm text-ink-500 lead">Pilier, brief auto-suggéré, génération IA, validation, programmation.</p>
         </div>
-        {!initial && !prefillBrief && (
+        {!initial?.id && !prefillBrief && (
           <a href="/suggestions" className="btn-secondary text-xs">
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>
             Voir le Radar
@@ -105,7 +105,7 @@ export default function NewPostClient({ initial, prefillBrief, prefillHook, sugg
         )}
       </header>
 
-      {prefillBrief && !initial && (
+      {prefillBrief && !initial?.id && (
         <div className="card p-4 border-brand-100 bg-gradient-to-br from-brand-50/40 to-white animate-slide-up">
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 rounded-lg bg-brand-100 flex items-center justify-center text-brand-700 text-base shrink-0">✨</div>
