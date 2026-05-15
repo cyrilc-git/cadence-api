@@ -1,9 +1,9 @@
 import { designSystemList } from '@/lib/db';
-import StyleVisuelClient from './client';
+import DesignVisuelClient from './client';
 
 export const dynamic = 'force-dynamic';
 
-export default async function StyleVisuelPage() {
+export default async function DesignVisuelPage() {
   const tokens = await designSystemList().catch(() => []);
-  return <StyleVisuelClient initial={tokens} />;
+  return <DesignVisuelClient initial={tokens} />;
 }

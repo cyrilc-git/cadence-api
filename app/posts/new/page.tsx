@@ -40,5 +40,5 @@ export default async function NewPostPage({ searchParams }: { searchParams: Reco
   if (searchParams.date) {
     initial = { ...(initial || { title: '', content: '' }), date: searchParams.date };
   }
-  return <NewPostClient initial={initial} prefillBrief={suggestBrief} prefillHook={suggestHook} suggestSource={suggestSource} suggestId={suggestId} suggestScore={suggestScore} />;
+  return <NewPostClient initial={initial} prefillBrief={suggestBrief} prefillHook={suggestHook} suggestSource={suggestSource} suggestId={suggestId} suggestScore={suggestScore} suggestPilier={suggestPilier || null} />;
 }

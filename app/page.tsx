@@ -66,10 +66,11 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-end justify-between gap-4 flex-wrap">
+      <header className="relative flex items-end justify-between gap-4 flex-wrap">
+        <div className="absolute -top-6 -left-6 w-40 h-40 bg-brand-100/40 rounded-full blur-3xl pointer-events-none -z-10" aria-hidden />
         <div>
           <p className="text-xs font-medium text-ink-500 uppercase tracking-wider">{today}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-ink-900 tracking-tight">Bonjour Cyril ✨</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-ink-900 tracking-tight">Bonjour Cyril <span className="inline-block animate-fade-in">✨</span></h1>
           <p className="mt-1 text-sm text-ink-500 lead">Voici l'état de votre cadence éditoriale aujourd'hui.</p>
         </div>
         <div className="flex items-center gap-2">

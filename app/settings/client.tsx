@@ -80,7 +80,7 @@ export default function SettingsClient({ li, notionOk, notionError, connectors, 
           <div className="font-semibold text-ink-900 text-sm">Notion · Mapping</div>
           <div className="text-xs text-ink-500 mt-1">DB actuelle, colonnes détectées, log des actions Notion</div>
         </Link>
-        <Link href="/style-visuel" className="bg-white rounded-2xl p-4 shadow-card ring-1 ring-inset ring-ink-300/20 hover:shadow-pop transition block">
+        <Link href="/design-visuel" className="bg-white rounded-2xl p-4 shadow-card ring-1 ring-inset ring-ink-300/20 hover:shadow-pop transition block">
           <div className="font-semibold text-ink-900 text-sm">Style visuel de la marque</div>
           <div className="text-xs text-ink-500 mt-1">Couleurs, polices, prompts utilisés par Claude SVG</div>
         </Link>

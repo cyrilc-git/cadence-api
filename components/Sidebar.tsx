@@ -4,20 +4,23 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
-type NavItem = { href: string; label: string; icon: IconName; group?: 'main' | 'editorial' | 'config' };
+type NavItem = { href: string; label: string; icon: IconName; group?: 'cockpit' | 'content' | 'config' };
 
 const NAV: NavItem[] = [
-  { href: '/',                label: 'Dashboard',         icon: 'home',  group: 'main' },
-  { href: '/suggestions',     label: 'Radar',             icon: 'spark', group: 'main' },
-  { href: '/calendar',        label: 'Calendrier',        icon: 'cal',   group: 'main' },
-  { href: '/posts',           label: 'Bibliothèque',      icon: 'doc',   group: 'main' },
-  { href: '/posts/new',       label: 'Nouveau post',      icon: 'plus',  group: 'main' },
-  { href: '/brand-dna',       label: 'Ligne éditoriale',  icon: 'star',  group: 'editorial' },
-  { href: '/inspirations',    label: 'Inspirations',      icon: 'eye',   group: 'editorial' },
-  { href: '/style-visuel',    label: 'Style visuel',      icon: 'palette', group: 'editorial' },
-  { href: '/analytics',       label: 'Analytics',         icon: 'chart', group: 'editorial' },
-  { href: '/sources',         label: 'Sources',           icon: 'plug',  group: 'config' },
-  { href: '/settings',        label: 'Paramètres',        icon: 'gear',  group: 'config' }
+  // Cockpit : pilotage quotidien
+  { href: '/',                label: 'Dashboard',         icon: 'home',    group: 'cockpit' },
+  { href: '/suggestions',     label: 'Radar',             icon: 'spark',   group: 'cockpit' },
+  { href: '/calendar',        label: 'Calendrier',        icon: 'cal',     group: 'cockpit' },
+  // Contenu : production
+  { href: '/posts',           label: 'Bibliothèque',      icon: 'doc',     group: 'content' },
+  { href: '/posts/new',       label: 'Nouveau post',      icon: 'plus',    group: 'content' },
+  { href: '/inspirations',    label: 'Inspirations',      icon: 'eye',     group: 'content' },
+  // Configuration
+  { href: '/sources',         label: 'Sources',           icon: 'plug',    group: 'config' },
+  { href: '/brand-dna',       label: 'Ligne éditoriale',  icon: 'star',    group: 'config' },
+  { href: '/design-visuel',   label: 'Design visuel',     icon: 'palette', group: 'config' },
+  { href: '/analytics',       label: 'Analytics',         icon: 'chart',   group: 'config' },
+  { href: '/settings',        label: 'Paramètres',        icon: 'gear',    group: 'config' }
 ];
 
 type IconName = 'home'|'doc'|'plus'|'cal'|'star'|'eye'|'chart'|'spark'|'plug'|'gear'|'palette';
@@ -41,9 +44,9 @@ function Icon({ name }: { name: IconName }) {
 }
 
 const SECTIONS: { key: string; label: string; group: NavItem['group'] }[] = [
-  { key: 'main',      label: 'Cockpit',    group: 'main' },
-  { key: 'editorial', label: 'Éditorial',  group: 'editorial' },
-  { key: 'config',    label: 'Réglages',   group: 'config' }
+  { key: 'cockpit', label: 'Cockpit',       group: 'cockpit' },
+  { key: 'content', label: 'Contenu',       group: 'content' },
+  { key: 'config',  label: 'Configuration', group: 'config' }
 ];
 
 export default function Sidebar() {

@@ -16,7 +16,7 @@ const PILIERS = [
 
 type Initial = null | { id?: string; title: string; pilier?: string; content: string; date?: string };
 
-export default function NewPostClient({ initial, prefillBrief, prefillHook, suggestSource, suggestId, suggestScore }: { initial: Initial; prefillBrief?: string; prefillHook?: string; suggestSource?: string | null; suggestId?: string | null; suggestScore?: number | null }) {
+export default function NewPostClient({ initial, prefillBrief, prefillHook, suggestSource, suggestId, suggestScore, suggestPilier }: { initial: Initial; prefillBrief?: string; prefillHook?: string; suggestSource?: string | null; suggestId?: string | null; suggestScore?: number | null; suggestPilier?: string | null }) {
   const [pilier, setPilier] = useState(initial?.pilier || PILIERS[2]);
   const [brief, setBrief] = useState(prefillBrief || '');
   const [text, setText] = useState(initial?.content || '');
@@ -92,10 +92,42 @@ export default function NewPostClient({ initial, prefillBrief, prefillHook, sugg
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-3xl font-semibold text-ink-900">{initial ? 'Modifier le post' : 'Nouveau post'}</h1>
-        <p className="mt-1 text-ink-500">Pilier, brief, génération IA, validation manuelle, programmation.</p>
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">{initial ? 'Modifier le post' : 'Nouveau post'}</h1>
+          <p className="mt-1 text-sm text-ink-500 lead">Pilier, brief auto-suggéré, génération IA, validation, programmation.</p>
+        </div>
+        {!initial && !prefillBrief && (
+          <a href="/suggestions" className="btn-secondary text-xs">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>
+            Voir le Radar
+          </a>
+        )}
       </header>
+
+      {prefillBrief && !initial && (
+        <div className="card p-4 border-brand-100 bg-gradient-to-br from-brand-50/40 to-white animate-slide-up">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-brand-100 flex items-center justify-center text-brand-700 text-base shrink-0">✨</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-2xs uppercase tracking-wider font-semibold text-brand-700">Cadence vous propose</span>
+                {suggestSource && <span className="chip chip-brand text-2xs">{suggestSource}</span>}
+                {suggestScore && <span className="text-2xs text-ink-500">· score {suggestScore}/100</span>}
+                {suggestPilier && <span className="text-2xs text-ink-500">· {suggestPilier}</span>}
+              </div>
+              <div className="mt-1 text-sm font-medium text-ink-900 leading-snug">{prefillBrief}</div>
+              {prefillHook && <div className="mt-1.5 text-xs text-ink-600 italic">« {prefillHook} »</div>}
+            </div>
+            {suggestId && (
+              <a href={'/posts/new?skip=' + suggestId} className="btn-ghost text-2xs whitespace-nowrap">
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M21 12a9 9 0 11-3-6.7L21 8"/></svg>
+                Changer d'idée
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-6">
         <section className="space-y-4">
