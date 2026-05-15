@@ -35,6 +35,10 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
   const [posts, setPosts] = useState(initialPosts);
   const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; });
   const [view, setView] = useState<'month' | 'week'>('month');
+  // V8.1 — auto-switch to week on mobile
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 640) setView('week');
+  }, []);
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<{ created: number; pilierList: string[] } | null>(null);
   const [genStage, setGenStage] = useState<string | null>(null);

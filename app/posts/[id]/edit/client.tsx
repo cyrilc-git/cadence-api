@@ -141,6 +141,8 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   }
 
   const [removeDialog, setRemoveDialog] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [compareIndex, setCompareIndex] = useState<number | null>(null);
 
   async function performRemove(alsoArchiveNotion: boolean) {
     setRemoveDialog(false);
@@ -159,7 +161,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   }
 
   return (
-    <div className={focusMode ? 'fixed inset-0 z-40 bg-white overflow-y-auto p-8 animate-fade-in' : 'space-y-6'}>
+    <div className={focusMode ? 'fixed inset-0 z-40 bg-white overflow-y-auto p-8 animate-fade-in' : 'space-y-6 pb-24 lg:pb-0'}>
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 mb-1">
@@ -212,10 +214,16 @@ export default function EditClient({ initial, validated: initialValidated }: { i
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-ink-900 text-sm">Améliorer avec l'IA</h3>
                   {versions.length > 1 && (
-                    <button onClick={revert} className="btn-ghost text-xs">
-                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M3 7v6h6 M21 17a9 9 0 00-15-6.7L3 13"/></svg>
-                      Version précédente ({versions.length - 1})
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button onClick={revert} className="btn-ghost text-xs" title="Revenir à la version précédente">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M3 7v6h6 M21 17a9 9 0 00-15-6.7L3 13"/></svg>
+                        Annuler
+                      </button>
+                      <button onClick={() => setVersionsOpen(true)} className="btn-ghost text-xs">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M12 8v4l3 3 M3 12a9 9 0 1018 0 9 9 0 00-18 0z M3 5v4h4"/></svg>
+                        Versions ({versions.length})
+                      </button>
+                    </div>
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -281,7 +289,65 @@ export default function EditClient({ initial, validated: initialValidated }: { i
         )}
       </div>
 
-      {removeDialog && (
+      {/* V8.1 — Mobile sticky action bar */}
+      {!focusMode && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-ink-200 shadow-elev px-4 py-3 flex items-center gap-2 animate-slide-up">
+          <SaveIndicator saving={saving} lastSavedAt={lastSavedAt} isDirty={isDirty} error={saveError} tick={tick} />
+          <span className="ml-auto" />
+          <button onClick={() => save(false)} disabled={saving} className="btn-secondary text-xs flex-1">{saving ? '…' : 'Sauver'}</button>
+          <button onClick={() => setPublishOpen(true)} disabled={!text.trim() || isDirty} className="btn-primary text-xs flex-1">Publier…</button>
+        </div>
+      )}
+
+      {/* V8.1 — Versions modal with diff preview */}
+      {versionsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-ink-900/40 backdrop-blur-sm animate-fade-in" onClick={() => setVersionsOpen(false)}>
+          <div className="card max-w-3xl w-full p-6 max-h-[85vh] overflow-y-auto animate-slide-up" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-lg font-semibold text-ink-900">Historique des versions</h3>
+                <p className="text-xs text-ink-500">Sélectionnez une version pour la comparer avec l'actuelle ou la restaurer.</p>
+              </div>
+              <button onClick={() => setVersionsOpen(false)} className="btn-ghost">×</button>
+            </div>
+            <div className="space-y-2">
+              {versions.slice().reverse().map((v, idx) => {
+                const realIdx = versions.length - 1 - idx;
+                const isCurrent = realIdx === versions.length - 1;
+                return (
+                  <div key={realIdx} className={`card p-3 ${isCurrent ? 'border-brand-300 bg-brand-50/30' : 'border-ink-100'}`}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`chip ${isCurrent ? 'chip-brand' : 'chip-neutral'} text-2xs`}>
+                          {isCurrent ? '✦ Version actuelle' : `v${realIdx + 1}`}
+                        </span>
+                        <span className="text-2xs text-ink-500">{v.length} caractères</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {!isCurrent && (
+                          <>
+                            <button onClick={() => setCompareIndex(compareIndex === realIdx ? null : realIdx)} className="btn-ghost text-2xs">
+                              {compareIndex === realIdx ? 'Masquer diff' : 'Diff vs actuel'}
+                            </button>
+                            <button onClick={() => { setText(v); setVersions(versions.slice(0, realIdx + 1)); setVersionsOpen(false); }} className="btn-secondary text-2xs">Restaurer</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {compareIndex === realIdx ? (
+                      <DiffView a={v} b={text} />
+                    ) : (
+                      <div className="text-xs text-ink-700 whitespace-pre-wrap line-clamp-4 font-mono">{v}</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+            {removeDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-ink-900/40 backdrop-blur-sm animate-fade-in" onClick={() => setRemoveDialog(false)}>
           <div className="card max-w-md w-full p-6 animate-slide-up" onClick={e => e.stopPropagation()}>
             <h3 className="text-lg font-semibold text-ink-900">Retirer ce post ?</h3>
@@ -334,4 +400,25 @@ function formatRelative(t: number): string {
   if (m < 60) return `Sauvegardé il y a ${m} min`;
   const h = Math.floor(m / 60);
   return `Sauvegardé il y a ${h} h`;
+}
+
+
+function DiffView({ a, b }: { a: string; b: string }) {
+  // Simple line-level diff : removed (red), added (green), unchanged (gray)
+  const linesA = a.split('\n');
+  const linesB = b.split('\n');
+  const setB = new Set(linesB);
+  const setA = new Set(linesA);
+  return (
+    <div className="text-2xs font-mono space-y-0.5 max-h-60 overflow-y-auto">
+      {linesA.map((line, i) => (
+        <div key={'a' + i} className={setB.has(line) ? 'text-ink-500' : 'bg-danger-50 text-danger-700 px-1 rounded'}>
+          {setB.has(line) ? '  ' : '- '}{line || ' '}
+        </div>
+      ))}
+      {linesB.filter(l => !setA.has(l)).map((line, i) => (
+        <div key={'b' + i} className="bg-success-50 text-success-700 px-1 rounded">+ {line || ' '}</div>
+      ))}
+    </div>
+  );
 }

@@ -181,6 +181,9 @@ export default function SuggestionsClient() {
                     <SourceBadge source={s.source} />
                     {s.pilier && <span className="chip chip-brand">{s.pilier}</span>}
                     {(s.format || s.payload?.format) && FORMAT_LABELS[(s.format || s.payload?.format) as string] && <span className="chip chip-neutral">{FORMAT_LABELS[(s.format || s.payload?.format) as string]}</span>}
+                    {/* V8.1 — novelty / saturation chips */}
+                    {s.payload?.novelty != null && s.payload.novelty > 0.7 && <span className="chip chip-success" title={`Score nouveauté ${Math.round(s.payload.novelty * 100)}%`}>✨ Nouveau</span>}
+                    {s.payload?.saturation > 2 && <span className="chip chip-warn" title={`${s.payload.saturation} posts récents similaires`}>⚠ Déjà couvert</span>}
                     {s.created_at && <span className="ml-auto text-2xs text-ink-400">{timeAgo(s.created_at)}</span>}
                   </div>
                   <h3 className="font-semibold text-ink-900 text-base leading-snug">{s.title}</h3>
@@ -192,6 +195,11 @@ export default function SuggestionsClient() {
                   {s.why && (
                     <p className="mt-2 text-xs text-ink-500">
                       <span className="font-semibold text-ink-600">Pourquoi : </span>{s.why}
+                    </p>
+                  )}
+                  {s.payload?.saturation > 2 && s.payload?.nearest_title && (
+                    <p className="mt-1.5 text-xs text-warn-700">
+                      <span className="font-semibold">Attention :</span> sujet déjà traité récemment ({s.payload.saturation} posts similaires). Le plus proche : « {s.payload.nearest_title.slice(0, 80)} »
                     </p>
                   )}
                   {(s.visual_idea || s.payload?.visual_idea) && (

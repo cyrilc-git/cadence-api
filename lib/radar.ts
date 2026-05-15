@@ -1,5 +1,7 @@
-import { suggestionUpsert, Suggestion } from './db';
+import { suggestionUpsert, suggestionsList, Suggestion } from './db';
 import { listNotionPosts, getNotionPost } from './notion';
+import { noveltyScore } from './embeddings';
+import { supabase } from './supabase';
 
 // === Notion deep radar ===
 // V8 : reads actual content of recent posts, detects recyclables, surfaces drafts.
@@ -229,7 +231,30 @@ export async function radarHeuristics(): Promise<number> {
 
 export async function runAllRadars() {
   const [n, g, h] = await Promise.all([radarFromNotion(), radarFromGitHub(), radarHeuristics()]);
-  return { notion: n, github: g, heuristic: h, total: n + g + h };
+  let enriched = 0;
+  try { enriched = await enrichSuggestionsWithNovelty(40); } catch (e) { /* silent */ }
+  return { notion: n, github: g, heuristic: h, total: n + g + h, enriched };
+}
+
+export async function enrichSuggestionsWithNovelty(limit = 40): Promise<number> {
+  const pending = await suggestionsList('pending', limit).catch(() => []);
+  let touched = 0;
+  for (const s of pending) {
+    const existing = (s as any).payload || {};
+    if (existing.novelty != null && existing.enriched_at && (Date.now() - new Date(existing.enriched_at).getTime() < 1000 * 60 * 60 * 24 * 7)) continue;
+    const text = `${s.title}\n${(s as any).hook || ''}\n${(s as any).angle || ''}`.trim();
+    if (!text) continue;
+    try {
+      const { novelty, saturation, nearest } = await noveltyScore(text);
+      let score = s.score;
+      if (saturation > 2) score = Math.max(20, score - 15);
+      else if (novelty > 0.7) score = Math.min(100, score + 5);
+      const newPayload = { ...existing, novelty, saturation, nearest_title: nearest?.title || null, enriched_at: new Date().toISOString() };
+      const { error } = await supabase.from('suggestions').update({ score, payload: newPayload }).eq('id', s.id);
+      if (!error) touched++;
+    } catch { /* continue */ }
+  }
+  return touched;
 }
 
 // === Helpers ===

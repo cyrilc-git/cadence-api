@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
 
 const CADENCE_REQUIRED = [
   { name: 'Name', type: 'title', purpose: 'Titre interne du post' },
@@ -61,6 +62,9 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
           </div>
         )}
       </section>
+
+      {/* Editorial memory — V8.1 */}
+      <EditorialMemoryCard />
 
       {/* Required columns check */}
       <section className="card p-5">
@@ -149,5 +153,79 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
         )}
       </section>
     </div>
+  );
+}
+
+
+function EditorialMemoryCard() {
+  const [stats, setStats] = useState<{ indexed_total: number; notion_posts_total: number; coverage_pct: number } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [indexing, setIndexing] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [lastResult, setLastResult] = useState<string | null>(null);
+
+  async function refresh() {
+    setLoading(true);
+    try {
+      const r = await fetch('/api/embeddings/status', { cache: 'no-store' });
+      if (r.ok) setStats(await r.json());
+    } finally { setLoading(false); }
+  }
+
+  useEffect(() => { refresh(); }, []);
+
+  async function indexNow() {
+    if (!confirm('Indexer vos posts Notion ? Cadence va lire le contenu et créer des embeddings via OpenAI (~$0.001 pour 100 posts).')) return;
+    setIndexing(true); setLastResult(null);
+    try {
+      let total = 0, indexed = 0;
+      for (let pass = 0; pass < 5; pass++) {
+        setProgress(`Pass ${pass + 1}/5 — indexation par lots de 30…`);
+        const r = await fetch('/api/embeddings/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 30 }) });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error);
+        total = d.total_in_db || total;
+        indexed += d.indexed || 0;
+        if ((d.indexed || 0) === 0) break; // nothing more to do
+      }
+      setLastResult(`${indexed} nouveaux posts indexés, ${total} au total dans la mémoire.`);
+      await refresh();
+    } catch (e: any) {
+      setLastResult('Erreur : ' + e.message);
+    } finally { setIndexing(false); setProgress(null); }
+  }
+
+  const pct = stats?.coverage_pct ?? 0;
+  return (
+    <section className="card p-5 bg-gradient-to-br from-brand-50/40 to-white border-brand-100">
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center text-brand-700 text-base">🧠</div>
+        <div className="flex-1 min-w-0">
+          <h2 className="font-semibold text-ink-900">Mémoire éditoriale</h2>
+          <p className="text-xs text-ink-500 mt-0.5">Cadence indexe vos posts (titre + contenu) en vecteurs sémantiques. Ça permet : éviter les répétitions, détecter les sujets non couverts, scorer la nouveauté d'une idée, faire de la recherche sémantique.</p>
+          {loading ? (
+            <div className="mt-3 skeleton h-4 w-32" />
+          ) : stats ? (
+            <div className="mt-3 flex items-center gap-3">
+              <div className="flex-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-semibold text-ink-900 tabular-nums">{stats.indexed_total}</span>
+                  <span className="text-xs text-ink-500">/ {stats.notion_posts_total} posts indexés ({pct}%)</span>
+                </div>
+                <div className="mt-1 h-1.5 bg-ink-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-brand-500 to-brand-700 transition-all duration-500" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+              <button onClick={indexNow} disabled={indexing} className="btn-primary text-xs">
+                {indexing ? (<><span className="dot bg-white animate-pulse-soft" /> Indexation…</>) : 'Indexer maintenant'}
+              </button>
+            </div>
+          ) : null}
+          {progress && <div className="mt-2 text-2xs text-ink-500">{progress}</div>}
+          {lastResult && <div className="mt-2 text-xs text-success-700">{lastResult}</div>}
+        </div>
+      </div>
+      <p className="mt-3 text-2xs text-ink-400">Modèle : OpenAI text-embedding-3-small (1536 dims, indexé HNSW pgvector). Coût : ~$0.02 / million de tokens, pas d'OpenAI = pas d'embedding.</p>
+    </section>
   );
 }
