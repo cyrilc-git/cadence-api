@@ -43,6 +43,7 @@ export type NotionPostSummary = {
   validated?: boolean;
   late?: boolean;
   cadence_source?: string | null;
+  cover_url?: string | null;
   impressions?: number;
   likes?: number;
   comments?: number;
@@ -132,6 +133,7 @@ export async function listNotionPosts(limit = 50): Promise<NotionPostSummary[]> 
       linkedin_url: url,
       visuel_pret: !!props['Visuel prêt']?.checkbox,
       anonymisation_ok: !!props['Anonymisation OK']?.checkbox,
+      cover_url: page.cover?.external?.url || page.cover?.file?.url || null,
       impressions: props["Nombre d'impressions"]?.number ?? undefined,
       likes:       props['Nombre de likes']?.number ?? undefined,
       comments:    props['Nombre de commentaires']?.number ?? undefined,
@@ -184,7 +186,8 @@ export async function getNotionPost(id: string): Promise<{ summary: NotionPostSu
     notion_url: page.url,
     linkedin_url: props['URL']?.url || undefined,
     visuel_pret: !!props['Visuel prêt']?.checkbox,
-    anonymisation_ok: !!props['Anonymisation OK']?.checkbox
+    anonymisation_ok: !!props['Anonymisation OK']?.checkbox,
+    cover_url: page.cover?.external?.url || page.cover?.file?.url || null
   };
 
   // Enrich with cadence_source flag

@@ -194,8 +194,11 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
                       const t = tone(p.pilier);
                       const st = statusOf(p);
                       return (
-                        <Link key={p.id} href={`/posts/${p.id}/edit`} className={`block text-2xs px-1.5 py-1 rounded-md border ${t.bg} ${t.text} ${t.ring} truncate hover:shadow-xs transition`}>
-                          <span className="flex items-center gap-1">
+                        <Link key={p.id} href={`/posts/${p.id}/edit`} className={`block text-2xs rounded-md border ${t.bg} ${t.text} ${t.ring} hover:shadow-xs transition overflow-hidden`}>
+                          {p.cover_url && (
+                            <div className="h-10 bg-cover bg-center" style={{ backgroundImage: `url(${p.cover_url})` }} />
+                          )}
+                          <span className="flex items-center gap-1 px-1.5 py-1 truncate">
                             {st === 'published' && <span title="Publié" className="text-success-700">✓</span>}
                             {st === 'late' && <span title="En retard" className="text-danger-500">⚠</span>}
                             {st === 'scheduled' && <span title="Programmé" className="dot bg-brand-500" />}
