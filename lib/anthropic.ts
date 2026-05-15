@@ -111,11 +111,22 @@ Produis 3 propositions distinctes, chacune respectant strictement les règles ci
   return { proposals, raw, model: MODEL };
 }
 
-const VISUAL_SYSTEM_PROMPT = `Tu es designer SaaS B2B. Tu produis du SVG inline propre, dimensions 1200x630.
-Design system Heelio : couleur primaire #6366F1, foncée #4F46E5, fond #F8FAFC, surface #FFFFFF, texte #0F172A, secondaire #64748B, succès #10B981, danger #EF4444.
-Police system-ui sans-serif. Coins arrondis 16px sur cartes, 10px sur boutons. Style épuré, espace blanc, hiérarchie typo claire. Pas de dégradés tape-à-l'Åil. Pas d'emojis sur les visuels produit.
-SVG autonome (pas de référence externe). Texte lisible (min 18px corps, 32-48px titres). viewBox="0 0 1200 630".
-Réponds avec UNIQUEMENT le bloc <svg ...>...</svg>, rien d'autre.`;
+const VISUAL_SYSTEM_PROMPT_BASE = `Tu es designer SaaS B2B premium (style Lemlist / Linear / Notion).
+Tu produis du SVG inline propre, viewBox="0 0 1200 630".
+
+DESIGN SYSTEM CADENCE PAR DÉFAUT (peut être surchargé par les tokens utilisateur fournis dans le prompt) :
+- couleurs : primaire #2563EB, foncée #1D4ED8, fond #F8FAFC, surface #FFFFFF, texte #0F172A, secondaire #64748B, succès #10B981, danger #EF4444
+- police : system-ui sans-serif (équivalent Inter)
+- coins arrondis : 16px cartes, 10px boutons
+- style épuré, espace blanc, hiérarchie typo claire
+- pas de dégradés tape-à-l\'oeil, pas d\'emojis sur les visuels produit
+- texte lisible (min 18px corps, 32-48px titres)
+
+RÈGLES OBLIGATOIRES :
+- SVG autonome (aucune référence externe, aucun <image href> distant)
+- Si des tokens DESIGN SYSTEM utilisateur sont fournis ci-dessous, les utiliser EN PRIORITÉ sur les valeurs par défaut
+- Si une URL Figma est mentionnée, l\'utiliser comme référence stylistique (sans la fetch)
+- Réponds avec UNIQUEMENT le bloc <svg ...>...</svg>, rien d\'autre.`;
 
 export async function generateClaudeDesignSvg(prompt: string): Promise<{ svg: string; model: string }> {
   const c = await client();
