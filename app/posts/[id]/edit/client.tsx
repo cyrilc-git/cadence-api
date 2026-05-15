@@ -140,13 +140,19 @@ export default function EditClient({ initial, validated: initialValidated }: { i
     setText(text.slice(0, start) + transform(text.slice(start, end)) + text.slice(end));
   }
 
-  async function removeFromCadence() {
-    if (!confirm(`Retirer ce post de Cadence ? La page Notion reste intacte.`)) return;
+  const [removeDialog, setRemoveDialog] = useState(false);
+
+  async function performRemove(alsoArchiveNotion: boolean) {
+    setRemoveDialog(false);
     setRemoving(true);
     try {
-      const r = await fetch(`/api/cadence-drafts/${summary.id}`, { method: 'DELETE' });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error);
+      // Always remove the cadence_drafts marker (idempotent — does nothing if none)
+      await fetch(`/api/cadence-drafts/${summary.id}`, { method: 'DELETE' }).catch(() => {});
+      if (alsoArchiveNotion) {
+        const r = await fetch(`/api/notion/post/${summary.id}/archive`, { method: 'POST' });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'archive failed');
+      }
       window.location.href = '/posts';
     } catch (e: any) { alert('Erreur : ' + e.message); }
     finally { setRemoving(false); }
@@ -267,15 +273,44 @@ export default function EditClient({ initial, validated: initialValidated }: { i
                 <button onClick={() => save(false)} disabled={saving} className="btn-secondary">{saving ? 'Sauvegarde…' : 'Sauvegarder'}</button>
                 <button onClick={() => setPublishOpen(true)} disabled={!text.trim() || isDirty} title={isDirty ? 'Sauvegardez avant de publier' : undefined} className="btn-primary">Publier…</button>
               </div>
-              {summary.cadence_source === 'cadence' && (
-                <button onClick={removeFromCadence} disabled={removing} className="btn-danger w-full justify-center">
-                  {removing ? 'Suppression…' : 'Retirer de Cadence (Notion reste intact)'}
-                </button>
-              )}
+              <button onClick={() => setRemoveDialog(true)} disabled={removing} className="btn-danger w-full justify-center">
+                {removing ? 'Suppression…' : (summary.cadence_source === 'cadence' ? 'Retirer de Cadence…' : 'Retirer de la liste…')}
+              </button>
             </div>
           </section>
         )}
       </div>
+
+      {removeDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-ink-900/40 backdrop-blur-sm animate-fade-in" onClick={() => setRemoveDialog(false)}>
+          <div className="card max-w-md w-full p-6 animate-slide-up" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-ink-900">Retirer ce post ?</h3>
+            <p className="mt-2 text-sm text-ink-600">Choisissez l'option qui vous convient :</p>
+            <div className="mt-4 space-y-2">
+              <button
+                onClick={() => performRemove(false)}
+                className="w-full text-left p-3 rounded-xl border border-ink-200 hover:border-brand-300 hover:bg-brand-50/30 transition"
+              >
+                <div className="font-semibold text-sm text-ink-900">Retirer seulement de Cadence</div>
+                <div className="text-xs text-ink-500 mt-0.5">La page Notion existe toujours. Vous pouvez la rouvrir manuellement dans Notion. Cadence ne la verra plus comme « Créée par Cadence ».</div>
+              </button>
+              <button
+                onClick={() => {
+                  if (!confirm('Confirmer ? La page Notion sera archivée (réversible côté Notion mais le post disparaîtra de toutes les vues Cadence).')) return;
+                  performRemove(true);
+                }}
+                className="w-full text-left p-3 rounded-xl border border-danger-100 hover:border-danger-300 hover:bg-danger-50/30 transition"
+              >
+                <div className="font-semibold text-sm text-danger-700">Archiver aussi dans Notion</div>
+                <div className="text-xs text-ink-500 mt-0.5">La page Notion est archivée (= déplacée à la corbeille Notion). Vous pouvez la restaurer depuis Notion si besoin. Cadence ne la verra plus.</div>
+              </button>
+            </div>
+            <div className="mt-4 flex justify-end pt-3 border-t border-ink-100">
+              <button onClick={() => setRemoveDialog(false)} className="btn-ghost">Annuler</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <PublishModal open={publishOpen} onClose={() => setPublishOpen(false)} text={text} notionPageId={summary.id} />
     </div>

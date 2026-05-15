@@ -1,38 +1,128 @@
 import { suggestionUpsert, Suggestion } from './db';
-import { listNotionPosts } from './notion';
+import { listNotionPosts, getNotionPost } from './notion';
 
-// === Notion radar ===
-// Look at recently updated Notion posts that are still drafts → propose to expand
+// === Notion deep radar ===
+// V8 : reads actual content of recent posts, detects recyclables, surfaces drafts.
 export async function radarFromNotion(): Promise<number> {
   let count = 0;
   try {
-    const posts = await listNotionPosts(50);
-    for (const p of posts) {
-      if (p.status === 'published') continue;
+    const posts = await listNotionPosts(80);
+    const now = Date.now();
+    const SIX_MONTHS = 1000 * 60 * 60 * 24 * 180;
+
+    // 1. Drafts récents (< 30 jours, pas encore validés/programmés) — exploiter
+    const recentDrafts = posts.filter(p => p.status === 'draft' || (p.status === 'scheduled' && !p.validated));
+    for (const p of recentDrafts.slice(0, 8)) {
       if (!p.title || p.title === 'Sans titre') continue;
-      const score = 60 + (p.pilier ? 10 : 0) + (p.scheduled_at ? 10 : 0);
+      const score = 65 + (p.pilier ? 8 : 0) + (p.scheduled_at ? 8 : 0) + (p.cadence_source ? 5 : 0);
+      const fmt = inferFormat(p.pilier);
       await suggestionUpsert({
         source: 'notion',
-        source_ref: p.id,
+        source_ref: `draft-${p.id}`,
         title: p.title,
-        hook: p.title,
+        hook: shortHook(p.title),
+        angle: p.pilier ? `Angle ${p.pilier.toLowerCase()}, à étoffer` : 'Angle à préciser',
         pilier: p.pilier,
         score,
         why: p.scheduled_at
-          ? `Programmé le ${new Date(p.scheduled_at).toLocaleDateString('fr-FR')} — à rédiger / valider`
-          : 'Draft Notion sans date — angle prêt à exploiter',
-        payload: { notion_url: p.notion_url, scheduled_at: p.scheduled_at }
+          ? `Programmé le ${new Date(p.scheduled_at).toLocaleDateString('fr-FR')} mais non validé — à finaliser`
+          : 'Brouillon Notion sans date — angle prêt à exploiter',
+        payload: {
+          notion_url: p.notion_url,
+          scheduled_at: p.scheduled_at,
+          format: fmt,
+          visual_idea: visualIdeaFor(p.pilier),
+          cadence_source: p.cadence_source || null,
+          notion_page_id: p.id
+        }
+      });
+      count++;
+    }
+
+    // 2. Posts publiés > 6 mois — recyclable
+    const recyclables = posts.filter(p => p.status === 'published' && p.scheduled_at && new Date(p.scheduled_at).getTime() < now - SIX_MONTHS);
+    for (const p of recyclables.slice(0, 6)) {
+      // Try to deep-read the content
+      let excerpt = '';
+      let theme = '';
+      try {
+        const full = await getNotionPost(p.id);
+        if (full?.content) {
+          excerpt = full.content.split('\n').filter(Boolean).slice(0, 3).join(' ').slice(0, 280);
+          theme = extractTheme(full.content);
+        }
+      } catch {/* silent */}
+
+      const monthsAgo = Math.round((now - new Date(p.scheduled_at!).getTime()) / (1000 * 60 * 60 * 24 * 30));
+      // Variant 1 : version courte
+      await suggestionUpsert({
+        source: 'notion',
+        source_ref: `recycle-short-${p.id}`,
+        title: `Recycler en version courte : « ${truncate(p.title, 60)} »`,
+        hook: theme ? `« ${theme} » — relu après 6 mois` : shortHook(p.title),
+        angle: 'Réécriture serrée, format 600-700 chars, ton plus assertif',
+        pilier: p.pilier,
+        score: 78,
+        why: `Publié il y a ${monthsAgo} mois (${p.impressions || 0} impressions). Vos lecteurs récents ne l'ont pas vu.`,
+        payload: { notion_url: p.notion_url, recycle_from: p.id, variant: 'short', excerpt, format: 'text', visual_idea: visualIdeaFor(p.pilier), original_published_at: p.scheduled_at }
+      });
+      count++;
+
+      // Variant 2 : carrousel
+      await suggestionUpsert({
+        source: 'notion',
+        source_ref: `recycle-carrousel-${p.id}`,
+        title: `Recycler en carrousel : « ${truncate(p.title, 50)} »`,
+        hook: 'Le même message en 6 slides illustrées',
+        angle: 'Découpage en 6 cartes : problème → contexte → 3 leçons → CTA',
+        pilier: p.pilier || 'Mardi · Pédagogie',
+        score: 72,
+        why: `Performe historiquement sur ce thème. Le carrousel élargit la portée organique.`,
+        payload: { notion_url: p.notion_url, recycle_from: p.id, variant: 'carrousel', excerpt, format: 'carousel', visual_idea: 'Carrousel 6 slides, palette Heelio bleu, 1 idée par slide.' }
+      });
+      count++;
+
+      // Variant 3 : opinion
+      await suggestionUpsert({
+        source: 'notion',
+        source_ref: `recycle-opinion-${p.id}`,
+        title: `Recycler en opinion : « ${truncate(p.title, 50)} »`,
+        hook: theme ? `Ce que j'ai appris en relisant mon post sur « ${theme} »` : 'Mon avis a évolué sur ce sujet',
+        angle: 'Hot take basé sur 6 mois de recul, exemple récent',
+        pilier: 'Jeudi · Opinion',
+        score: 75,
+        why: 'Recyclage en pilier opinion = nouvelle perspective sur un sujet déjà validé par votre audience.',
+        payload: { notion_url: p.notion_url, recycle_from: p.id, variant: 'opinion', excerpt, format: 'text', visual_idea: 'Aucun visuel — texte pur en opinion' }
+      });
+      count++;
+    }
+
+    // 3. Top performant récent (impressions > 1000) — capitaliser
+    const topPerformers = posts
+      .filter(p => p.status === 'published' && (p.impressions || 0) > 1000 && p.scheduled_at && new Date(p.scheduled_at).getTime() > now - SIX_MONTHS)
+      .sort((a, b) => (b.impressions || 0) - (a.impressions || 0))
+      .slice(0, 3);
+    for (const p of topPerformers) {
+      await suggestionUpsert({
+        source: 'notion',
+        source_ref: `winner-followup-${p.id}`,
+        title: `Suite au top post : « ${truncate(p.title, 50)} »`,
+        hook: 'Vous avez aimé ce post — voici la suite',
+        angle: 'Approfondir un aspect précis du post original. Format démonstration.',
+        pilier: p.pilier || 'Mercredi · Produit',
+        score: 82,
+        why: `${p.impressions} impressions sur le post original — votre audience est engagée sur ce thème.`,
+        payload: { notion_url: p.notion_url, followup_from: p.id, format: 'demo', visual_idea: visualIdeaFor(p.pilier), original_impressions: p.impressions }
       });
       count++;
     }
   } catch (e) {
-    // swallow
+    console.error('radarFromNotion error:', e);
   }
   return count;
 }
 
 // === GitHub radar ===
-// Read recent commits / PRs / releases from configured repos (env GITHUB_REPOS comma-separated owner/repo)
 export async function radarFromGitHub(): Promise<number> {
   const token = process.env.GITHUB_TOKEN;
   const repos = (process.env.GITHUB_REPOS || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -40,7 +130,6 @@ export async function radarFromGitHub(): Promise<number> {
   let count = 0;
   for (const repo of repos) {
     try {
-      // Last 5 commits
       const r = await fetch(`https://api.github.com/repos/${repo}/commits?per_page=5`, {
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
       });
@@ -49,21 +138,22 @@ export async function radarFromGitHub(): Promise<number> {
       for (const c of commits) {
         const msg = (c.commit?.message || '').split('\n')[0];
         if (!msg) continue;
-        // Skip chore / merge
         if (/^(chore|merge|docs|test)/i.test(msg)) continue;
         const score = /^(feat|feature)/i.test(msg) ? 80 : /^fix/i.test(msg) ? 65 : 50;
+        const isFeat = /^(feat|feature)/i.test(msg);
         await suggestionUpsert({
           source: 'github',
           source_ref: `${repo}@${c.sha}`,
           title: msg.slice(0, 120),
-          pilier: 'Mercredi · Produit',
+          hook: isFeat ? `On vient de sortir : ${msg.replace(/^(feat|feature)[^:]*:\s*/i, '')}` : msg,
+          angle: isFeat ? 'Démo nouveauté : screenshot avant/après ou GIF court' : 'Build in public : ce qui a changé concrètement',
+          pilier: isFeat ? 'Mercredi · Produit' : 'Vendredi · Build in public',
           score,
-          why: `Commit récent dans ${repo} — angle "nouveauté produit"`,
-          payload: { repo, sha: c.sha, url: c.html_url, author: c.commit?.author?.name }
+          why: `Commit récent dans ${repo} — angle "nouveauté produit" frais (${new Date(c.commit?.author?.date).toLocaleDateString('fr-FR')})`,
+          payload: { repo, sha: c.sha, url: c.html_url, author: c.commit?.author?.name, format: isFeat ? 'demo' : 'text', visual_idea: isFeat ? 'Capture annotée du nouveau flow' : null }
         });
         count++;
       }
-      // Last release
       const rel = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
         headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
       });
@@ -73,10 +163,12 @@ export async function radarFromGitHub(): Promise<number> {
           source: 'github',
           source_ref: `${repo}-release-${r2.id}`,
           title: `${r2.name || r2.tag_name} — annonce release`,
+          hook: `${r2.name || r2.tag_name} est en ligne. Voici ce qui change pour vous.`,
+          angle: 'Release notes condensées en 1 paragraphe + 3 highlights',
           pilier: 'Mercredi · Produit',
           score: 90,
           why: `Release "${r2.tag_name}" publiée le ${new Date(r2.published_at).toLocaleDateString('fr-FR')}`,
-          payload: { repo, url: r2.html_url, tag: r2.tag_name, body: (r2.body || '').slice(0, 500) }
+          payload: { repo, url: r2.html_url, tag: r2.tag_name, body: (r2.body || '').slice(0, 500), format: 'demo', visual_idea: `Carte produit : "${r2.tag_name}" en gros, 3 bullets à droite, palette Heelio.` }
         });
         count++;
       }
@@ -86,24 +178,88 @@ export async function radarFromGitHub(): Promise<number> {
 }
 
 // === Heuristic radar ===
-// Generic angles to seed when sources are empty
 export async function radarHeuristics(): Promise<number> {
   const SEEDS: Array<Partial<Suggestion>> = [
-    { source: 'heuristic', source_ref: 'dso-explainer',     title: 'Le DSO en 60 secondes', hook: 'Votre DSO grimpe ? Votre trésorerie fond.', pilier: 'Mardi · Pédagogie', score: 70, why: 'Sujet de prédilection des DAF — pédagogie simple, exemple chiffré' },
-    { source: 'heuristic', source_ref: 'erreur-1-treso',    title: 'L\'erreur n°1 des dirigeants sur la trésorerie', hook: 'Ce que je vois chez 8 PME sur 10.', pilier: 'Jeudi · Opinion', score: 75, why: 'Hot take, fort engagement' },
-    { source: 'heuristic', source_ref: 'cas-client-anon',   title: 'Cas client : -50% DSO en 3 mois', hook: 'Une PME services qui a divisé son DSO par 2.', pilier: 'Lundi · Cas client', score: 80, why: 'Format storytelling anonymisé, à valider Anonymisation OK' },
-    { source: 'heuristic', source_ref: 'build-public-mois', title: 'Build in public : MRR du mois', hook: 'Voici les chiffres bruts du mois.', pilier: 'Vendredi · Build in public', score: 72, why: 'Rituel hebdo "transparence", génère du commit' },
-    { source: 'heuristic', source_ref: 'feature-week',      title: 'La feature de la semaine en démo', hook: 'Cette semaine on a sorti X. Voici à quoi ça sert.', pilier: 'Mercredi · Produit', score: 78, why: 'Démo produit, visuel Claude Design idéal' }
+    {
+      source: 'heuristic', source_ref: 'dso-explainer',
+      title: 'Le DSO en 60 secondes', hook: 'Votre DSO grimpe ? Votre trésorerie fond.',
+      angle: 'Pédagogie chiffrée : qu\'est-ce que le DSO, comment le calculer, pourquoi ça compte',
+      pilier: 'Mardi · Pédagogie', score: 70,
+      why: 'Sujet de prédilection des DAF — pédagogie simple, exemple chiffré',
+      payload: { format: 'pedagogie', visual_idea: 'Schéma DSO : flèche temps, encaissement = jours, encadré DSO 30j vs 60j' }
+    },
+    {
+      source: 'heuristic', source_ref: 'erreur-1-treso',
+      title: "L'erreur n°1 des dirigeants sur la trésorerie",
+      hook: 'Ce que je vois chez 8 PME sur 10.',
+      angle: 'Hot take : la confusion P&L vs trésorerie, exemple concret',
+      pilier: 'Jeudi · Opinion', score: 75,
+      why: 'Hot take, fort engagement', payload: { format: 'opinion', visual_idea: null }
+    },
+    {
+      source: 'heuristic', source_ref: 'cas-client-anon',
+      title: 'Cas client : -50% DSO en 3 mois',
+      hook: 'Une PME services qui a divisé son DSO par 2.',
+      angle: 'Storytelling 3 actes : symptôme → diagnostic → résultat',
+      pilier: 'Lundi · Cas client', score: 80,
+      why: 'Format storytelling anonymisé, à valider Anonymisation OK',
+      payload: { format: 'cas', visual_idea: 'Avant/après en chiffres : DSO 65j → 32j, encaissement +180k€' }
+    },
+    {
+      source: 'heuristic', source_ref: 'build-public-mois',
+      title: 'Build in public : MRR du mois',
+      hook: 'Voici les chiffres bruts du mois.',
+      angle: 'Transparence : MRR, churn, CAC, leçon du mois',
+      pilier: 'Vendredi · Build in public', score: 72,
+      why: 'Rituel hebdo "transparence", génère du commit', payload: { format: 'build', visual_idea: 'Card chiffres mensuels, sparkline 6 mois' }
+    },
+    {
+      source: 'heuristic', source_ref: 'feature-week',
+      title: 'La feature de la semaine en démo',
+      hook: 'Cette semaine on a sorti X. Voici à quoi ça sert.',
+      angle: 'Démo produit : besoin → solution → bénéfice mesurable',
+      pilier: 'Mercredi · Produit', score: 78,
+      why: 'Démo produit, visuel Claude Design idéal', payload: { format: 'demo', visual_idea: 'Capture annotée du nouveau flow Heelio, 3 numéros' }
+    }
   ];
   let count = 0;
-  for (const s of SEEDS) {
-    await suggestionUpsert(s as any);
-    count++;
-  }
+  for (const s of SEEDS) { await suggestionUpsert(s as any); count++; }
   return count;
 }
 
 export async function runAllRadars() {
   const [n, g, h] = await Promise.all([radarFromNotion(), radarFromGitHub(), radarHeuristics()]);
   return { notion: n, github: g, heuristic: h, total: n + g + h };
+}
+
+// === Helpers ===
+function inferFormat(pilier?: string): string {
+  if (!pilier) return 'text';
+  if (/Cas client|Cas dirigeant/i.test(pilier)) return 'cas';
+  if (/Pédagogie/i.test(pilier)) return 'pedagogie';
+  if (/Produit|démo|nouveauté/i.test(pilier)) return 'demo';
+  if (/Opinion/i.test(pilier)) return 'opinion';
+  if (/Build in public/i.test(pilier)) return 'build';
+  return 'text';
+}
+function visualIdeaFor(pilier?: string): string | null {
+  if (!pilier) return null;
+  if (/Cas client/i.test(pilier)) return 'Avant/après en chiffres, palette Heelio bleu';
+  if (/Pédagogie/i.test(pilier)) return 'Schéma 3 étapes simple, flèches, design system Heelio';
+  if (/Produit/i.test(pilier)) return 'Capture stylisée + 3 annotations numérotées';
+  if (/Opinion/i.test(pilier)) return null; // opinion pure = pas de visuel
+  if (/Build in public/i.test(pilier)) return 'Sparkline + chiffres clés du mois';
+  return null;
+}
+function shortHook(title: string): string {
+  return title.length > 80 ? title.slice(0, 77) + '…' : title;
+}
+function truncate(s: string, n: number): string { return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+function extractTheme(content: string): string {
+  // Naive theme extraction: first noun-ish capitalized word > 4 chars
+  const words = content.split(/\s+/).filter(w => w.length >= 5 && /^[A-ZÀ-Ÿa-zà-ÿ]/.test(w));
+  if (!words.length) return '';
+  // Try to find first uppercase-starting French noun
+  const cap = words.find(w => /^[A-ZÀ-Ÿ]/.test(w));
+  return (cap || words[0]).replace(/[,.!?;:]$/, '').slice(0, 30);
 }

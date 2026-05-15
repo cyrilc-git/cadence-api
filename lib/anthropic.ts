@@ -120,9 +120,16 @@ Réponds avec UNIQUEMENT le bloc <svg ...>...</svg>, rien d'autre.`;
 export async function generateClaudeDesignSvg(prompt: string): Promise<{ svg: string; model: string }> {
   const c = await client();
   const dsBlock = await designSystemPromptBlock().catch(() => '');
-  const fullPrompt = dsBlock ? `DESIGN SYSTEM CADENCE\n${dsBlock}\n\nDEMANDE\n${prompt}` : prompt;
+  const userBlock = dsBlock
+    ? `DESIGN SYSTEM UTILISATEUR (PRIORITAIRE — surcharge les défauts)\n${dsBlock}\n\nDEMANDE\n${prompt}`
+    : `DEMANDE\n${prompt}`;
   const MODEL = 'claude-sonnet-4-6';
-  const msg = await c.messages.create({ model: MODEL, max_tokens: 4000, system: VISUAL_SYSTEM_PROMPT, messages: [{ role: 'user', content: fullPrompt }] });
+  const msg = await c.messages.create({
+    model: MODEL,
+    max_tokens: 4000,
+    system: VISUAL_SYSTEM_PROMPT_BASE,
+    messages: [{ role: 'user', content: userBlock }]
+  });
   const raw = msg.content.filter((x: any) => x.type === 'text').map((x: any) => x.text).join('\n');
   const m = raw.match(/<svg[\s\S]*?<\/svg>/);
   if (!m) throw new Error('Claude n\'a pas renvoyé de SVG valide.');

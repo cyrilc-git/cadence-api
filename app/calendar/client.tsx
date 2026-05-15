@@ -37,6 +37,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
   const [view, setView] = useState<'month' | 'week'>('month');
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<{ created: number; pilierList: string[] } | null>(null);
+  const [genStage, setGenStage] = useState<string | null>(null);
   const [hover, setHover] = useState<{ key: string; items: any[] } | null>(null);
 
   const byDate = useMemo(() => {
@@ -60,15 +61,36 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
   async function generateWeek() {
     if (!confirm('Générer 5 brouillons (lundi → vendredi) pour la semaine prochaine ? Drafts NON validés.')) return;
     setGenerating(true); setGenResult(null);
+    setGenStage('Lancement…');
     try {
       const r = await fetch('/api/generate-week', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       const created = (d.results || []).filter((x: any) => x.status === 'created');
+      // Optimistic staged insert : show each card appearing one by one
+      for (let i = 0; i < created.length; i++) {
+        const c = created[i];
+        setGenStage(`Création ${i + 1}/${created.length} — ${c.pilier?.split('· ')[1] || c.pilier || c.label}`);
+        const optimistic = {
+          id: c.id || `optimistic-${Date.now()}-${i}`,
+          title: c.title || c.label,
+          pilier: c.pilier,
+          scheduled_at: c.date ? new Date(c.date + 'T07:30:00').toISOString() : null,
+          scheduled_time: '07:30',
+          status: 'scheduled',
+          validated: false,
+          late: false,
+          cadence_source: 'cadence',
+          cover_url: null
+        };
+        setPosts(prev => prev.find(p => p.id === optimistic.id) ? prev : [...prev, optimistic]);
+        await new Promise(res => setTimeout(res, 350));
+      }
+      setGenStage(null);
       setGenResult({ created: created.length, pilierList: created.map((c: any) => c.pilier) });
-      // Live refresh
-      setTimeout(refresh, 1200);
-    } catch (e: any) { alert('Erreur : ' + e.message); }
+      // Final refresh from server (replaces optimistic by real data with cover_url etc.)
+      setTimeout(refresh, 800);
+    } catch (e: any) { alert('Erreur : ' + e.message); setGenStage(null); }
     finally { setGenerating(false); }
   }
 
@@ -138,6 +160,13 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
           </button>
         </div>
       </header>
+
+      {genStage && (
+        <div className="card p-3 flex items-center gap-3 border-brand-200 bg-brand-50/40 animate-fade-in">
+          <span className="dot bg-brand-500 animate-pulse-soft" />
+          <span className="text-sm text-ink-700 flex-1">{genStage}</span>
+        </div>
+      )}
 
       {/* KPI strip */}
       <div className="card p-3 grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">

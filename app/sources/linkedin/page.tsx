@@ -1,64 +1,51 @@
 import Link from 'next/link';
-import StatusBadge from '@/components/StatusBadge';
+import LinkedInImportClient from './client';
+
+export const dynamic = 'force-dynamic';
 
 export default function ImportLinkedInPage() {
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-3xl font-semibold text-ink-900">Importer mon historique LinkedIn</h1>
-        <p className="mt-1 text-ink-500">Récupérer vos posts publiés pour enrichir Bibliothèque, Analytics et le radar Suggestions.</p>
+      <header className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">Importer mon historique LinkedIn</h1>
+          <p className="mt-1 text-sm text-ink-500 lead">Récupérez vos posts publiés pour enrichir Bibliothèque, Analytics et le radar Suggestions.</p>
+        </div>
+        <Link href="/sources" className="btn-ghost text-xs">← Sources</Link>
       </header>
 
-      <section className="bg-warn-50 ring-1 ring-inset ring-warn-500/20 rounded-2xl p-5 text-sm">
-        <h2 className="font-semibold text-ink-900">État actuel</h2>
-        <p className="mt-2 text-warn-700">Aucun import effectué. L'API LinkedIn officielle restreint sévèrement la récupération de l'historique pour les comptes personnels.</p>
+      <section className="card p-5">
+        <h2 className="font-semibold text-ink-900">3 méthodes possibles</h2>
+        <div className="mt-4 grid sm:grid-cols-3 gap-3 text-xs">
+          <div className="card p-3 border-success-100 bg-success-50/30">
+            <span className="chip chip-success"><span className="dot bg-success-500" /> Déjà actif</span>
+            <div className="mt-2 font-semibold text-ink-900">API officielle</div>
+            <p className="mt-1 text-ink-500">Posts créés via votre OAuth Cadence (depuis l'autorisation). Pas d'historique antérieur.</p>
+          </div>
+          <div className="card p-3 border-brand-100 bg-brand-50/30">
+            <span className="chip chip-brand"><span className="dot bg-brand-500" /> Recommandé V8</span>
+            <div className="mt-2 font-semibold text-ink-900">Export ZIP officiel</div>
+            <p className="mt-1 text-ink-500">Téléchargez votre archive LinkedIn (Settings → Data Privacy → Get a copy of your data). Uploadez ici le <code className="font-mono bg-white px-1 rounded">Shares.csv</code>.</p>
+          </div>
+          <div className="card p-3 border-warn-100 bg-warn-50/30">
+            <span className="chip chip-warn"><span className="dot bg-warn-500" /> Plus tard</span>
+            <div className="mt-2 font-semibold text-ink-900">Tiers Shield/Inlytics</div>
+            <p className="mt-1 text-ink-500">~10€/mois. Stats par post + tendances. Intégration future.</p>
+          </div>
+        </div>
       </section>
 
-      <section className="bg-white rounded-2xl p-6 shadow-card ring-1 ring-inset ring-ink-300/20">
-        <h2 className="font-semibold text-ink-900">Ce qui est possible</h2>
-        <table className="mt-4 w-full text-sm">
-          <thead><tr className="text-xs text-ink-500 uppercase tracking-wide">
-            <th className="text-left font-medium pb-2">Méthode</th>
-            <th className="text-left font-medium pb-2">Données récupérables</th>
-            <th className="text-left font-medium pb-2">Statut</th>
-          </tr></thead>
-          <tbody className="divide-y divide-ink-100">
-            <tr>
-              <td className="py-2 font-medium">API LinkedIn officielle (UGC Posts)</td>
-              <td className="py-2 text-xs text-ink-500">Posts créés via votre OAuth uniquement (depuis l'autorisation Cadence). Pas d'historique antérieur.</td>
-              <td className="py-2"><StatusBadge variant="success">Déjà actif</StatusBadge></td>
-            </tr>
-            <tr>
-              <td className="py-2 font-medium">Export ZIP officiel LinkedIn</td>
-              <td className="py-2 text-xs text-ink-500">Téléchargement personnel (Settings → Data Privacy → Get a copy of your data). Texte des posts + dates + URL. Pas de stats.</td>
-              <td className="py-2"><StatusBadge variant="neutral">Manuel ZIP</StatusBadge></td>
-            </tr>
-            <tr>
-              <td className="py-2 font-medium">Scrape via session cookie personnelle</td>
-              <td className="py-2 text-xs text-ink-500">Posts + impressions + likes + commentaires + reposts. Uniquement votre compte. Zone grise.</td>
-              <td className="py-2"><StatusBadge variant="warn">À implémenter</StatusBadge></td>
-            </tr>
-            <tr>
-              <td className="py-2 font-medium">Tiers (Shield Analytics, Inlytics…)</td>
-              <td className="py-2 text-xs text-ink-500">~10â¬/mois. Stats LinkedIn par post + tendances.</td>
-              <td className="py-2"><StatusBadge variant="neutral">Externe payant</StatusBadge></td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
+      <LinkedInImportClient />
 
-      <section className="bg-white rounded-2xl p-6 shadow-card ring-1 ring-inset ring-ink-300/20">
-        <h2 className="font-semibold text-ink-900">Plan d'import (à venir)</h2>
-        <ol className="mt-3 list-decimal list-inside text-sm text-ink-700 space-y-2">
-          <li>Téléchargez votre archive LinkedIn depuis l'export ZIP officiel.</li>
-          <li>Uploadez le fichier <code>Shares.csv</code> ici (UI à venir V7.7).</li>
-          <li>Cadence parse, dédoublonne, et enrichit Notion avec source = <code>linkedin_archive</code>.</li>
-          <li>Aucun post existant n'est modifié sans validation explicite.</li>
+      <section className="card p-4 bg-brand-50/40 border-brand-100 text-xs text-ink-700">
+        <h3 className="font-semibold text-ink-900 text-sm">Comment obtenir votre export</h3>
+        <ol className="mt-2 list-decimal list-inside space-y-1">
+          <li>Allez sur <a href="https://www.linkedin.com/mypreferences/d/download-my-data" target="_blank" rel="noopener" className="text-brand-700 hover:underline">linkedin.com/mypreferences/d/download-my-data</a></li>
+          <li>Cochez « Posts » (ou tout) puis « Request archive »</li>
+          <li>LinkedIn vous envoie un email sous 10 min à 24h avec le ZIP</li>
+          <li>Décompressez et uploadez ici le fichier <code className="font-mono bg-white px-1 rounded">Shares.csv</code></li>
         </ol>
-        <button disabled className="mt-4 px-4 py-2 rounded-lg bg-ink-200 text-ink-500 text-sm font-medium cursor-not-allowed">Importer l'archive ZIP (V7.7)</button>
       </section>
-
-      <div className="text-xs text-ink-500"><Link href="/sources" className="text-brand-700 hover:text-brand-600">← Retour aux connecteurs</Link></div>
     </div>
   );
 }

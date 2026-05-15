@@ -16,7 +16,26 @@ const PILIERS = [
 
 type Initial = null | { id?: string; title: string; pilier?: string; content: string; date?: string };
 
-export default function NewPostClient({ initial, prefillBrief, prefillHook, suggestSource, suggestId, suggestScore, suggestPilier }: { initial: Initial; prefillBrief?: string; prefillHook?: string; suggestSource?: string | null; suggestId?: string | null; suggestScore?: number | null; suggestPilier?: string | null }) {
+type Recyclable = { id: string; title: string; pilier?: string; impressions?: number; published_at: string };
+export default function NewPostClient({
+  initial, prefillBrief, prefillHook,
+  suggestSource, suggestId, suggestScore, suggestPilier,
+  suggestAngle, suggestWhy, suggestVisualIdea,
+  filterSource, recyclables = []
+}: {
+  initial: Initial;
+  prefillBrief?: string;
+  prefillHook?: string;
+  suggestSource?: string | null;
+  suggestId?: string | null;
+  suggestScore?: number | null;
+  suggestPilier?: string | null;
+  suggestAngle?: string | null;
+  suggestWhy?: string | null;
+  suggestVisualIdea?: string | null;
+  filterSource?: string | null;
+  recyclables?: Recyclable[];
+}) {
   const [pilier, setPilier] = useState(initial?.pilier || PILIERS[2]);
   const [brief, setBrief] = useState(prefillBrief || '');
   const [text, setText] = useState(initial?.content || '');
@@ -106,27 +125,22 @@ export default function NewPostClient({ initial, prefillBrief, prefillHook, sugg
       </header>
 
       {prefillBrief && !initial?.id && (
-        <div className="card p-4 border-brand-100 bg-gradient-to-br from-brand-50/40 to-white animate-slide-up">
-          <div className="flex items-start gap-3">
-            <div className="w-9 h-9 rounded-lg bg-brand-100 flex items-center justify-center text-brand-700 text-base shrink-0">✨</div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-2xs uppercase tracking-wider font-semibold text-brand-700">Cadence vous propose</span>
-                {suggestSource && <span className="chip chip-brand text-2xs">{suggestSource}</span>}
-                {suggestScore && <span className="text-2xs text-ink-500">· score {suggestScore}/100</span>}
-                {suggestPilier && <span className="text-2xs text-ink-500">· {suggestPilier}</span>}
-              </div>
-              <div className="mt-1 text-sm font-medium text-ink-900 leading-snug">{prefillBrief}</div>
-              {prefillHook && <div className="mt-1.5 text-xs text-ink-600 italic">« {prefillHook} »</div>}
-            </div>
-            {suggestId && (
-              <a href={'/posts/new?skip=' + suggestId} className="btn-ghost text-2xs whitespace-nowrap">
-                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M21 12a9 9 0 11-3-6.7L21 8"/></svg>
-                Changer d'idée
-              </a>
-            )}
-          </div>
-        </div>
+        <SuggestionBanner
+          source={suggestSource}
+          id={suggestId}
+          score={suggestScore}
+          pilier={suggestPilier}
+          brief={prefillBrief}
+          hook={prefillHook}
+          angle={suggestAngle}
+          why={suggestWhy}
+          visualIdea={suggestVisualIdea}
+          filterSource={filterSource}
+          recyclables={recyclables}
+        />
+      )}
+      {!prefillBrief && !initial?.id && recyclables.length > 0 && (
+        <RecyclablesPicker recyclables={recyclables} />
       )}
 
       <div className="grid lg:grid-cols-2 gap-6">
@@ -231,6 +245,91 @@ export default function NewPostClient({ initial, prefillBrief, prefillHook, sugg
       </div>
 
       <PublishModal open={publishOpen} onClose={() => setPublishOpen(false)} text={text} notionPageId={initial?.id} />
+    </div>
+  );
+}
+
+function SuggestionBanner({ source, id, score, pilier, brief, hook, angle, why, visualIdea, filterSource, recyclables }: { source?: string|null; id?: string|null; score?: number|null; pilier?: string|null; brief?: string; hook?: string; angle?: string|null; why?: string|null; visualIdea?: string|null; filterSource?: string|null; recyclables: Recyclable[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [showRecyclables, setShowRecyclables] = useState(false);
+  const sources = ['notion', 'github', 'heuristic'];
+  return (
+    <div className="card p-4 border-brand-100 bg-gradient-to-br from-brand-50/40 to-white animate-slide-up">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-lg bg-brand-100 flex items-center justify-center text-brand-700 text-base shrink-0">✨</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-2xs uppercase tracking-wider font-semibold text-brand-700">Cadence vous propose</span>
+            {source && <span className="chip chip-brand text-2xs">{source}</span>}
+            {score != null && <span className="text-2xs text-ink-500">· score {score}/100</span>}
+            {pilier && <span className="text-2xs text-ink-500">· {pilier}</span>}
+            {filterSource && <span className="chip chip-neutral text-2xs">filtré sur {filterSource}</span>}
+          </div>
+          <div className="mt-1 text-sm font-medium text-ink-900 leading-snug">{brief}</div>
+          {hook && <div className="mt-1.5 text-xs text-ink-600 italic">« {hook} »</div>}
+          {expanded && (
+            <div className="mt-3 space-y-2 pt-3 border-t border-brand-100 text-xs animate-slide-up">
+              {why && <div><span className="font-semibold text-ink-700">Pourquoi maintenant : </span><span className="text-ink-600">{why}</span></div>}
+              {angle && <div><span className="font-semibold text-ink-700">Angle suggéré : </span><span className="text-ink-600">{angle}</span></div>}
+              {visualIdea && <div><span className="font-semibold text-ink-700">Idée de visuel : </span><span className="text-ink-600">{visualIdea}</span></div>}
+              {!why && !angle && !visualIdea && <div className="text-ink-500 italic">Cette suggestion ne contient pas d\'explication détaillée. C\'est probablement une suggestion heuristique.</div>}
+            </div>
+          )}
+          <div className="mt-3 flex items-center gap-1 flex-wrap">
+            <button onClick={() => setExpanded(e => !e)} className="btn-ghost text-2xs">
+              {expanded ? '↑ Masquer' : '↓ Voir pourquoi'}
+            </button>
+            {id && <a href={'/posts/new?skip=' + id + (filterSource ? '&source=' + filterSource : '')} className="btn-ghost text-2xs">↻ Changer d\'idée</a>}
+            <button onClick={() => setShowSourcePicker(s => !s)} className="btn-ghost text-2xs">⊕ Changer de source</button>
+            {recyclables.length > 0 && <button onClick={() => setShowRecyclables(s => !s)} className="btn-ghost text-2xs">⟲ Depuis un ancien post</button>}
+          </div>
+          {showSourcePicker && (
+            <div className="mt-2 p-2 rounded-lg border border-ink-200 bg-white animate-slide-up">
+              <div className="text-2xs font-semibold text-ink-500 mb-1.5">Choisir une source</div>
+              <div className="flex flex-wrap gap-1">
+                <a href="/posts/new" className={`text-2xs px-2 py-1 rounded-md border transition ${!filterSource ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-ink-200 hover:bg-ink-50'}`}>Toutes</a>
+                {sources.map(s => (
+                  <a key={s} href={'/posts/new?source=' + s} className={`text-2xs px-2 py-1 rounded-md border transition ${filterSource === s ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-ink-200 hover:bg-ink-50'}`}>{s}</a>
+                ))}
+              </div>
+            </div>
+          )}
+          {showRecyclables && recyclables.length > 0 && (
+            <div className="mt-2 p-2 rounded-lg border border-ink-200 bg-white animate-slide-up max-h-72 overflow-y-auto">
+              <div className="text-2xs font-semibold text-ink-500 mb-1.5">Anciens posts à recycler ({recyclables.length})</div>
+              <div className="space-y-1">
+                {recyclables.map(r => (
+                  <a key={r.id} href={'/posts/new?from=' + r.id + '&recycle=1'} className="block p-2 rounded-md hover:bg-ink-50 text-xs transition">
+                    <div className="font-medium text-ink-900 truncate">{r.title}</div>
+                    <div className="text-2xs text-ink-500 mt-0.5">{r.pilier || '—'} · publié le {new Date(r.published_at).toLocaleDateString('fr-FR')}{r.impressions ? ' · ' + r.impressions.toLocaleString('fr-FR') + ' impressions' : ''}</div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecyclablesPicker({ recyclables }: { recyclables: Recyclable[] }) {
+  return (
+    <div className="card p-4 border-ink-200 animate-slide-up">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="font-semibold text-ink-900 text-sm">Aucune suggestion fraîche pour l\'instant</h3>
+        <a href="/suggestions" className="btn-ghost text-2xs">Lancer le radar</a>
+      </div>
+      <p className="text-xs text-ink-500 mb-3">En attendant, voici {recyclables.length} ancien{recyclables.length > 1 ? 's' : ''} post{recyclables.length > 1 ? 's' : ''} qui pourrai{recyclables.length > 1 ? 'ent' : 't'} être recyclé{recyclables.length > 1 ? 's' : ''} :</p>
+      <div className="space-y-1">
+        {recyclables.slice(0, 5).map(r => (
+          <a key={r.id} href={'/posts/new?from=' + r.id + '&recycle=1'} className="block p-2 rounded-lg border border-ink-100 hover:border-brand-200 hover:bg-brand-50/30 transition">
+            <div className="text-sm font-medium text-ink-900">{r.title}</div>
+            <div className="text-2xs text-ink-500 mt-0.5">{r.pilier || '—'} · publié le {new Date(r.published_at).toLocaleDateString('fr-FR')}{r.impressions ? ' · ' + r.impressions.toLocaleString('fr-FR') + ' impressions' : ''}</div>
+          </a>
+        ))}
+      </div>
     </div>
   );
 }

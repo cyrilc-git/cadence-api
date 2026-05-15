@@ -180,7 +180,7 @@ export default function SuggestionsClient() {
                   <div className="flex items-center gap-2 flex-wrap mb-1.5">
                     <SourceBadge source={s.source} />
                     {s.pilier && <span className="chip chip-brand">{s.pilier}</span>}
-                    {s.format && FORMAT_LABELS[s.format] && <span className="chip chip-neutral">{FORMAT_LABELS[s.format]}</span>}
+                    {(s.format || s.payload?.format) && FORMAT_LABELS[(s.format || s.payload?.format) as string] && <span className="chip chip-neutral">{FORMAT_LABELS[(s.format || s.payload?.format) as string]}</span>}
                     {s.created_at && <span className="ml-auto text-2xs text-ink-400">{timeAgo(s.created_at)}</span>}
                   </div>
                   <h3 className="font-semibold text-ink-900 text-base leading-snug">{s.title}</h3>
@@ -194,9 +194,9 @@ export default function SuggestionsClient() {
                       <span className="font-semibold text-ink-600">Pourquoi : </span>{s.why}
                     </p>
                   )}
-                  {s.visual_idea && (
+                  {(s.visual_idea || s.payload?.visual_idea) && (
                     <p className="mt-1.5 text-xs text-ink-500">
-                      <span className="font-semibold text-ink-600">Visuel : </span>{s.visual_idea}
+                      <span className="font-semibold text-ink-600">Visuel : </span>{(s.visual_idea || s.payload?.visual_idea)}
                     </p>
                   )}
                 </div>

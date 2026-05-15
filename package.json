@@ -1,13 +1,14 @@
 {
   "name": "cadence-api",
-  "version": "0.7.9",
+  "version": "0.8.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "qa": "node scripts/qa.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.3",
@@ -22,6 +23,7 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
-    "typescript": "^5.5.3"
+    "typescript": "^5.5.3",
+    "playwright": "^1.48.0"
   }
 }
