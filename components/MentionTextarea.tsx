@@ -185,7 +185,7 @@ function Avatar({ entity }: { entity: Entity }) {
 
 // Compute the caret pixel coordinates inside a textarea using a hidden mirror div.
 // Standard trick — works cross-browser.
-function caretCoords(textarea: HTMLTextAreaElement, position: number): { top: number; left: number } {
+export function caretCoords(textarea: HTMLTextAreaElement, position: number): { top: number; left: number } {
   const div = document.createElement('div');
   const style = getComputedStyle(textarea);
   const props = ['boxSizing','width','height','overflowX','overflowY','borderTopWidth','borderRightWidth','borderBottomWidth','borderLeftWidth','paddingTop','paddingRight','paddingBottom','paddingLeft','fontStyle','fontVariant','fontWeight','fontStretch','fontSize','fontFamily','lineHeight','letterSpacing','wordSpacing','textTransform','whiteSpace','tabSize','MozTabSize','direction','textAlign','textIndent'];
