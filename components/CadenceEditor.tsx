@@ -1,17 +1,7 @@
 'use client';
 
 // V8.6 — CadenceEditor : composant unique pour toutes les surfaces d'écriture LinkedIn dans Cadence.
-// Wrapping de :
-//   - MentionTextarea (V8.2) — dropdown @ pour mentions LinkedIn
-//   - SlashMenu (V8.4) — dropdown / pour commandes IA
-//   - BubbleToolbar (V8.4) — toolbar B/I au survol de sélection
-//   - Word count + char count + reading time (V8.3)
-//   - Slash command execution (calls /api/chat then onResult)
-//
-// Élimine la duplication entre /posts/new et /posts/[id]/edit.
-//
-// Usage :
-//   <CadenceEditor value={text} onChange={setText} bare autosave={...} draftId={summary.id} onResult={applyRewrite} />
+// V8.9 — vrai streaming SSE depuis /api/chat/stream (remplace pseudo-streaming), abort/cancel, undo une étape.
 
 import { useEffect, useRef, useState } from 'react';
 import MentionTextarea, { caretCoords } from './MentionTextarea';
@@ -21,26 +11,18 @@ import { toBold, toItalic } from './LinkedInPreview';
 export type CadenceEditorProps = {
   value: string;
   onChange: (next: string) => void;
-  /** Notion page id (or 'new-post') — sent to /api/chat for context */
   draftId?: string;
-  /** Called after a slash command IA rewrite is received. Use to push to undo/redo stack. */
   onResult?: (rewrite: string) => void;
   rows?: number;
   placeholder?: string;
-  /** If true : strip borders/padding/bg (fullscreen editor mode). */
   bare?: boolean;
   className?: string;
-  /** Optional ref to the underlying textarea (for keyboard shortcuts, focus, etc.) */
   textareaRef?: React.MutableRefObject<HTMLTextAreaElement | null>;
-  /** If true : show 'Cadence réfléchit…' chip during IA call. */
   showAiIndicator?: boolean;
-  /** Optional brief : if provided AND text is short, show a floating chip 'Écrire la version complète' */
   brief?: string;
-  /** Pilier context for full-version generation */
   pilier?: string;
 };
 
-// Strip mention markers for char/word count (display name only counts on LinkedIn)
 function strippedText(text: string): string {
   return text.replace(/@\[([^\]]+)\]\(urn:li:(?:person|organization|school):[^)\s]+\)/g, (_, d) => d);
 }
@@ -63,17 +45,17 @@ export default function CadenceEditor({
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const ref = textareaRef || localRef;
 
-  // Slash menu state
   const [slashOpen, setSlashOpen] = useState(false);
   const [slashQuery, setSlashQuery] = useState('');
   const [slashAnchor, setSlashAnchor] = useState<{ top: number; left: number } | null>(null);
   const [slashTrigger, setSlashTrigger] = useState(0);
 
-  // Bubble toolbar state
   const [bubble, setBubble] = useState<{ top: number; left: number } | null>(null);
-
-  // IA in-flight indicator
   const [aiBusy, setAiBusy] = useState(false);
+
+  // V8.9 — undo state (snapshot pré-IA) + abort controller
+  const [preIaText, setPreIaText] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   function handleTextChange(next: string) {
     onChange(next);
@@ -91,19 +73,89 @@ export default function CadenceEditor({
     }
   }
 
-  // V8.7 — pseudo-streaming for IA rewrites (sensation 'Cadence tape en direct')
-  async function pseudoStream(target: string, startText: string = '', steps: number = 18, stepMs: number = 35) {
-    for (let i = 1; i <= steps; i++) {
-      const len = Math.ceil((target.length * i) / steps);
-      onChange(startText + target.slice(0, len));
-      await new Promise(r => setTimeout(r, stepMs));
+  // V8.9 — vrai streaming SSE depuis /api/chat/stream, fallback /api/chat si erreur
+  async function streamRewrite(draft: string, instruction: string): Promise<string | null> {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let acc = '';
+    try {
+      const r = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notion_page_id: draftId, draft, instruction }),
+        signal: controller.signal
+      });
+      if (!r.ok || !r.body) throw new Error(`stream http ${r.status}`);
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      while (true) {
+        const { value: chunk, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(chunk, { stream: true });
+        let idx;
+        while ((idx = buf.indexOf('\n\n')) !== -1) {
+          const raw = buf.slice(0, idx).trim();
+          buf = buf.slice(idx + 2);
+          if (!raw.startsWith('data:')) continue;
+          const json = raw.slice(5).trim();
+          if (!json) continue;
+          try {
+            const evt = JSON.parse(json);
+            if (evt.type === 'delta' && evt.text) {
+              acc += evt.text;
+              onChange(acc);
+            } else if (evt.type === 'done' && typeof evt.full === 'string') {
+              onChange(evt.full);
+              return evt.full;
+            } else if (evt.type === 'error') {
+              throw new Error(evt.message || 'stream error');
+            }
+          } catch (parseErr) { /* skip malformed */ }
+        }
+      }
+      return acc || null;
+    } catch (e: any) {
+      if (controller.signal.aborted) return null;
+      // Fallback non-stream
+      try {
+        const r = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notion_page_id: draftId, draft, instruction })
+        });
+        const d = await r.json();
+        if (r.ok && d.rewrite) { onChange(d.rewrite); return d.rewrite; }
+        console.warn('chat fallback error:', d.error || r.status);
+      } catch (e2: any) {
+        console.warn('chat fallback error:', e2.message);
+      }
+      return null;
+    } finally {
+      abortRef.current = null;
     }
-    onChange(startText + target);
   }
 
-  // V8.7 — generate a full LinkedIn post from the brief and replace the editor content
+  function cancelStream() {
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setAiBusy(false);
+    // Si annulé, restaurer la version pré-IA
+    if (preIaText !== null) {
+      onChange(preIaText);
+      setPreIaText(null);
+    }
+  }
+
+  function undoRewrite() {
+    if (preIaText === null) return;
+    onChange(preIaText);
+    setPreIaText(null);
+  }
+
   async function writeFullVersion() {
     if (!brief?.trim()) return;
+    setPreIaText(value);
     setAiBusy(true);
     try {
       const r = await fetch('/api/generate-post', {
@@ -112,13 +164,15 @@ export default function CadenceEditor({
       });
       const d = await r.json();
       if (r.ok && d.proposals?.[0]) {
-        await pseudoStream(d.proposals[0]);
+        onChange(d.proposals[0]);
         onResult?.(d.proposals[0]);
       } else if (d.error) {
         console.warn('writeFullVersion error:', d.error);
+        setPreIaText(null);
       }
     } catch (e: any) {
       console.warn('writeFullVersion error:', e.message);
+      setPreIaText(null);
     } finally { setAiBusy(false); }
   }
 
@@ -127,30 +181,17 @@ export default function CadenceEditor({
     const ta = ref.current;
     if (!ta) return;
     const caret = ta.selectionStart;
-    // Remove "/cmd" from the text
     const cleaned = value.slice(0, slashTrigger) + value.slice(caret);
     onChange(cleaned);
+    setPreIaText(cleaned);
     setAiBusy(true);
     try {
-      const r = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notion_page_id: draftId, draft: cleaned || value, instruction: cmd.prompt })
-      });
-      const d = await r.json();
-      if (r.ok && d.rewrite) {
-        // V8.7 — pseudo-streaming pour effet 'Cadence tape en direct'
-        await pseudoStream(d.rewrite);
-        onResult?.(d.rewrite);
-      } else {
-        console.warn('CadenceEditor IA error:', d.error || r.status);
-      }
-    } catch (e: any) {
-      console.warn('CadenceEditor IA error:', e.message);
+      const result = await streamRewrite(cleaned || value, cmd.prompt);
+      if (result) onResult?.(result);
+      else setPreIaText(null);
     } finally { setAiBusy(false); }
   }
 
-  // Bubble toolbar : update position on selection change
   useEffect(() => {
     const ta = ref.current;
     if (!ta) return;
@@ -172,6 +213,18 @@ export default function CadenceEditor({
       document.removeEventListener('selectionchange', update);
     };
   }, [ref]);
+
+  // V8.9 — Escape pour annuler génération en cours
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && aiBusy) {
+        e.preventDefault();
+        cancelStream();
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [aiBusy]);
 
   function applyTransform(transform: (s: string) => string) {
     const ta = ref.current;
@@ -196,25 +249,36 @@ export default function CadenceEditor({
         className={bareClass}
       />
 
-      {/* V8.7 — floating chip 'Écrire version complète' when text is short and a brief is available */}
       {brief && value.length < 200 && !aiBusy && (
         <button
           onClick={writeFullVersion}
           className="absolute top-2 right-2 chip chip-brand text-2xs hover:shadow-sm transition cursor-pointer animate-fade-in z-20"
           title="Cadence rédige une version complète du brief"
         >
-          ✨ Écrire la version complète
+          Écrire la version complète
         </button>
       )}
 
-      {/* IA in-flight indicator */}
+      {/* V8.9 — chip 'Cadence écrit…' avec bouton Annuler (Esc) */}
       {aiBusy && showAiIndicator && (
-        <div className="absolute top-2 right-2 chip chip-brand text-2xs animate-pulse-soft pointer-events-none z-20">
-          <span className="dot bg-brand-500" /> Cadence rédige…
+        <div className="absolute top-2 right-2 inline-flex items-center gap-1.5 chip chip-brand text-2xs animate-fade-in z-20">
+          <span className="dot bg-brand-500 animate-pulse-soft" />
+          <span>Cadence écrit…</span>
+          <button onClick={cancelStream} className="ml-1 hover:underline cursor-pointer" title="Annuler (Esc)">Annuler</button>
         </div>
       )}
 
-      {/* Bubble toolbar (B/I) */}
+      {/* V8.9 — bouton Undo une étape après IA (60s) */}
+      {!aiBusy && preIaText !== null && (
+        <button
+          onClick={undoRewrite}
+          className="absolute top-2 right-2 chip text-2xs bg-white border border-ink-200 hover:border-ink-400 transition cursor-pointer animate-fade-in z-20"
+          title="Restaurer la version d'avant IA"
+        >
+          ↶ Annuler la dernière IA
+        </button>
+      )}
+
       {bubble && (
         <div
           className="absolute z-30 card p-1 flex items-center gap-0.5 shadow-pop animate-fade-in"
@@ -226,7 +290,6 @@ export default function CadenceEditor({
         </div>
       )}
 
-      {/* Slash menu */}
       <SlashMenu
         open={slashOpen}
         anchor={slashAnchor}
