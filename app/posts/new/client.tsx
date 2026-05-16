@@ -1,9 +1,12 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import StatusBadge from '@/components/StatusBadge';
 import PublishModal from '@/components/PublishModal';
 import VisualGenerator from '@/components/VisualGenerator';
+import MentionTextarea, { caretCoords } from '@/components/MentionTextarea';
+import SlashMenu, { detectSlashQuery, SlashCommand } from '@/components/SlashMenu';
+
 
 const PILIERS = [
   'Lundi · Cas client',
@@ -69,6 +72,52 @@ export default function NewPostClient({
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
+
+  // V8.5 — slash menu + mention textarea ref
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const [slashOpen, setSlashOpen] = useState(false);
+  const [slashQuery, setSlashQuery] = useState('');
+  const [slashAnchor, setSlashAnchor] = useState<{ top: number; left: number } | null>(null);
+  const [slashTrigger, setSlashTrigger] = useState(0);
+  const [aiBusy, setAiBusy] = useState(false);
+
+  function onTextChange(next: string) {
+    setText(next);
+    const ta = taRef.current;
+    if (!ta) { setSlashOpen(false); return; }
+    const caret = ta.selectionStart;
+    const detection = detectSlashQuery(next, caret);
+    if (detection) {
+      setSlashOpen(true);
+      setSlashQuery(detection.query);
+      setSlashTrigger(detection.trigger);
+      try { setSlashAnchor(caretCoords(ta, detection.trigger)); } catch {/* silent */}
+    } else {
+      setSlashOpen(false);
+    }
+  }
+
+  async function applySlashCommand(cmd: SlashCommand) {
+    setSlashOpen(false);
+    const ta = taRef.current;
+    if (!ta) return;
+    const caret = ta.selectionStart;
+    const cleaned = text.slice(0, slashTrigger) + text.slice(caret);
+    setText(cleaned);
+    setAiBusy(true);
+    try {
+      const r = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notion_page_id: initial?.id || 'new-post', draft: cleaned || (initial?.content || ''), instruction: cmd.prompt })
+      });
+      const d = await r.json();
+      if (r.ok && d.rewrite) setText(d.rewrite);
+      else alert(d.error || 'Erreur IA');
+    } catch (e: any) {
+      alert('Erreur IA : ' + e.message);
+    } finally { setAiBusy(false); }
+  }
 
   const charCount = text.length;
   const lint = useMemo(() => analyzeAntiPatterns(text), [text]);
@@ -202,7 +251,24 @@ export default function NewPostClient({
               <Label>Texte du post LinkedIn</Label>
               <span className={`text-xs ${charCount > 1300 ? 'text-danger-700' : charCount > 900 ? 'text-warn-700' : 'text-ink-500'}`}>{charCount} / 1300</span>
             </div>
-            <textarea value={text} onChange={e => setText(e.target.value)} rows={14} placeholder="Le texte exact tel qu'il sera publié sur LinkedIn." className="mt-1 w-full rounded-lg border-ink-300 px-3 py-2 text-sm font-mono focus:ring-brand-500 focus:border-brand-500" />
+            <div className="relative">
+              <MentionTextarea
+                textareaRef={taRef}
+                value={text}
+                onChange={onTextChange}
+                rows={14}
+                placeholder="Tapez / pour les commandes, @ pour mentionner."
+                className="mt-1 text-[15px] leading-[1.55] resize-none font-sans"
+              />
+              {aiBusy && <div className="absolute top-2 right-2 chip chip-brand text-2xs animate-pulse-soft"><span className="dot bg-brand-500" /> Cadence réfléchit…</div>}
+              <SlashMenu
+                open={slashOpen}
+                anchor={slashAnchor}
+                query={slashQuery}
+                onSelect={applySlashCommand}
+                onClose={() => setSlashOpen(false)}
+              />
+            </div>
           </div>
 
           <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
