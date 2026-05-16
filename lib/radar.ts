@@ -1,6 +1,7 @@
 import { suggestionUpsert, suggestionsList, Suggestion } from './db';
 import { listNotionPosts, getNotionPost } from './notion';
 import { noveltyScore } from './embeddings';
+import { whyNowFor } from './radar-insights';
 import { supabase } from './supabase';
 
 // === Notion deep radar ===
@@ -256,7 +257,13 @@ export async function enrichSuggestionsWithNovelty(limit = 40): Promise<number> 
       if (saturation > 2) score = Math.max(20, score - 15);
       else if (novelty > 0.7) score = Math.min(100, score + 5);
       const newPayload = { ...existing, novelty, saturation, nearest_title: nearest?.title || null, enriched_at: new Date().toISOString() };
-      const { error } = await supabase.from('suggestions').update({ score, payload: newPayload }).eq('id', s.id);
+      // V8.9 — enrichir le 'why' avec faits concrets (pilier silence, topic frais, etc.)
+      let newWhy = s.why;
+      try {
+        const factual = await whyNowFor({ title: s.title, pilier: s.pilier, payload: newPayload });
+        if (factual) newWhy = factual + ' · ' + (s.why || '');
+      } catch { /* silent */ }
+      const { error } = await supabase.from('suggestions').update({ score, payload: newPayload, why: newWhy }).eq('id', s.id);
       if (!error) touched++;
     } catch { /* continue */ }
   }
