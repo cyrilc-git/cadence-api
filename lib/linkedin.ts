@@ -1,4 +1,5 @@
 import { getCredential } from './credentials';
+import { toLinkedInPayload } from './mentions';
 const LINKEDIN_BASE = 'https://www.linkedin.com';
 const LINKEDIN_API = 'https://api.linkedin.com';
 
@@ -56,12 +57,16 @@ export async function getUserInfo(accessToken: string) {
 }
 
 export async function publishUgcPost(accessToken: string, authorUrn: string, text: string) {
+  // V8.2 — mention-aware publish : convert internal markers @[Display](urn:...) into LinkedIn UGC attributes
+  const { text: plainText, attributes } = toLinkedInPayload(text);
+  const shareCommentary: any = { text: plainText };
+  if (attributes.length > 0) shareCommentary.attributes = attributes;
   const body = {
     author: authorUrn,
     lifecycleState: 'PUBLISHED',
     specificContent: {
       'com.linkedin.ugc.ShareContent': {
-        shareCommentary: { text },
+        shareCommentary,
         shareMediaCategory: 'NONE'
       }
     },

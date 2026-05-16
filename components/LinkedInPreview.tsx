@@ -23,19 +23,46 @@ export function toBold(s: string): string { return s.split('').map(c => UC_BOLD[
 export function toItalic(s: string): string { return s.split('').map(c => UC_ITAL[c] || c).join(''); }
 
 function renderText(text: string, dark: boolean): React.ReactNode {
-  const lines = text.split(/(\n)/);
-  return lines.map((p, li) => {
-    if (p === '\n') return <br key={li} />;
-    const parts = p.split(/(#[a-zA-ZÀ-ÿ0-9_]+)/g);
+  // V8.2 — first pass : extract mentions @[Display](urn:li:type:id) and replace by <Mention>
+  // Then handle hashtags + line breaks.
+  const MENTION_RE = /@\[([^\]]+)\]\((urn:li:(person|organization|school):[^)\s]+)\)/g;
+  const HASH_RE = /(#[a-zA-ZÀ-ÿ0-9_]+)/g;
+  const blueClass = dark ? 'text-[#7bb6ff] font-medium' : 'text-[#0a66c2] font-medium';
+
+  const lines = text.split('\n');
+  return lines.map((line, li) => {
+    // Split by mentions
+    const segments: React.ReactNode[] = [];
+    let last = 0;
+    MENTION_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = MENTION_RE.exec(line)) !== null) {
+      if (m.index > last) segments.push(...renderHashtags(line.slice(last, m.index), HASH_RE, blueClass, 's' + li + '_' + segments.length));
+      const display = m[1];
+      const urn = m[2];
+      const isPerson = urn.startsWith('urn:li:person:');
+      const url = isPerson ? `https://www.linkedin.com/in/${urn.split(':').pop()}/` : `https://www.linkedin.com/company/${urn.split(':').pop()}/`;
+      segments.push(
+        <a key={'m' + li + '_' + m.index} href={url} target="_blank" rel="noopener" className={blueClass + ' hover:underline'}>{display}</a>
+      );
+      last = MENTION_RE.lastIndex;
+    }
+    if (last < line.length) segments.push(...renderHashtags(line.slice(last), HASH_RE, blueClass, 't' + li));
     return (
       <span key={li}>
-        {parts.map((s, i) => s.startsWith('#')
-          ? <span key={i} className={dark ? 'text-[#7bb6ff] font-medium' : 'text-[#0a66c2] font-medium'}>{s}</span>
-          : <span key={i}>{s}</span>
-        )}
+        {segments}
+        {li < lines.length - 1 && <br />}
       </span>
     );
   });
+}
+
+function renderHashtags(text: string, re: RegExp, cls: string, keyPrefix: string): React.ReactNode[] {
+  const parts = text.split(/(#[a-zA-ZÀ-ÿ0-9_]+)/g);
+  return parts.map((s, i) => s.startsWith('#')
+    ? <span key={keyPrefix + '_' + i} className={cls}>{s}</span>
+    : <span key={keyPrefix + '_' + i}>{s}</span>
+  );
 }
 
 type Mode = 'desktop' | 'mobile';
@@ -61,8 +88,10 @@ export default function LinkedInPreview({
   const [expanded, setExpanded] = useState(false);
 
   const limit = mode === 'mobile' ? 140 : 210;
-  const truncated = text.length > limit && !expanded;
-  const visible = truncated ? text.slice(0, limit) : text;
+  // V8.2 — mention-aware truncation : count plain (display name) length, not raw markers
+  const plain = stripMentionsForCount(text);
+  const truncated = plain.length > limit && !expanded;
+  const visible = truncated ? truncatePreservingMentions(text, limit) : text;
 
   const isDark = theme === 'dark';
   const surface = isDark ? '#1B1F23' : '#FFFFFF';
@@ -90,7 +119,7 @@ export default function LinkedInPreview({
             <button onClick={() => setTheme('light')} className={`px-2.5 py-1 rounded-md font-medium transition ${theme === 'light' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500'}`}>Clair</button>
             <button onClick={() => setTheme('dark')} className={`px-2.5 py-1 rounded-md font-medium transition ${theme === 'dark' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500'}`}>Sombre</button>
           </div>
-          <div className="ml-auto text-2xs text-ink-400 font-medium">{text.length} caractères</div>
+          <div className="ml-auto text-2xs text-ink-400 font-medium">{plainCount(text)} caractères</div>
         </div>
       )}
 
@@ -168,4 +197,47 @@ export default function LinkedInPreview({
       </div>
     </div>
   );
+}
+
+
+// V8.2 — mention markers @[Display](urn:...) are stored but only the display_name counts toward LinkedIn char limit
+const MENTION_RE_GLOBAL = /@\[([^\]]+)\]\(urn:li:(?:person|organization|school):[^)\s]+\)/g;
+
+function stripMentionsForCount(text: string): string {
+  return text.replace(MENTION_RE_GLOBAL, (_, display) => display);
+}
+
+function plainCount(text: string): number {
+  return stripMentionsForCount(text).length;
+}
+
+// Truncate based on visible plain length, preserve mention markers entirely (never cut inside an @[](urn:))
+function truncatePreservingMentions(text: string, limit: number): string {
+  const re = /@\[([^\]]+)\]\((urn:li:(?:person|organization|school):[^)\s]+)\)/g;
+  let plainCount = 0;
+  let last = 0;
+  let out = '';
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const segment = text.slice(last, m.index);
+    for (const ch of segment) {
+      if (plainCount >= limit) return out;
+      out += ch;
+      plainCount++;
+    }
+    const display = m[1];
+    if (plainCount + display.length > limit) {
+      // Don't include this mention if it would overflow
+      return out;
+    }
+    out += m[0]; // include the full marker
+    plainCount += display.length;
+    last = re.lastIndex;
+  }
+  for (const ch of text.slice(last)) {
+    if (plainCount >= limit) return out;
+    out += ch;
+    plainCount++;
+  }
+  return out;
 }

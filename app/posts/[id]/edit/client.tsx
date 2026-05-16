@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import LinkedInPreview, { toBold, toItalic } from '@/components/LinkedInPreview';
 import PublishModal from '@/components/PublishModal';
 import VisualGenerator from '@/components/VisualGenerator';
+import MentionTextarea from '@/components/MentionTextarea';
 
 const QUICK_ACTIONS = [
   { label: 'Améliorer le hook',          prompt: 'Améliore le hook : rends-le plus accrocheur, < 80 caractères, factuel, sans clickbait.' },
@@ -196,14 +197,12 @@ export default function EditClient({ initial, validated: initialValidated }: { i
                 <span className={text.length > 1300 ? 'text-danger-500 font-semibold' : ''}>{text.length}</span> <span className="text-ink-400">/ 1300</span>
               </span>
             </div>
-            <textarea
-              ref={taRef}
+            <MentionTextarea
+              textareaRef={taRef}
               value={text}
-              onChange={e => setText(e.target.value)}
+              onChange={setText}
               rows={focusMode ? 24 : 16}
-              spellCheck
-              className="input font-mono text-[14px] leading-relaxed resize-none"
-              placeholder="Commencez à écrire votre post…"
+              placeholder="Commencez à écrire votre post… Tapez @ pour mentionner une personne ou entreprise."
             />
           </div>
 
