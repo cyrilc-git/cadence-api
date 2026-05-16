@@ -51,8 +51,14 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
               <a href={dbInfo.url} target="_blank" rel="noopener" className="block mt-1 font-medium text-ink-900 hover:text-brand-700 truncate">{dbInfo.title} <span className="text-ink-400">↗</span></a>
             </div>
             <div className="card p-3 bg-ink-50/40 border-ink-100">
-              <div className="text-2xs uppercase tracking-wider font-semibold text-ink-500">ID</div>
-              <code className="block mt-1 text-xs text-ink-700 truncate font-mono">{dbInfo.id}</code>
+              <div className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Identifiant</div>
+              <button
+                onClick={() => navigator.clipboard?.writeText(dbInfo.id)}
+                className="mt-1 text-xs text-ink-500 hover:text-brand-700 transition flex items-center gap-1"
+              >
+                <span>•••• {dbInfo.id.slice(-6)}</span>
+                <span className="text-2xs">📋 Copier</span>
+              </button>
             </div>
           </div>
         ) : (
@@ -85,8 +91,8 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
             const typeOk = found && found.type === req.type;
             return (
               <div key={req.name} className="flex items-center gap-3 p-2.5 rounded-lg border border-ink-100 hover:border-ink-200 transition">
-                <code className="font-mono text-xs text-ink-900 w-44 truncate">{req.name}</code>
-                <code className="font-mono text-2xs text-ink-500 w-24 truncate">{req.type}</code>
+                <span className="text-sm font-medium text-ink-900 w-44 truncate">{req.name}</span>
+                <span className="text-2xs text-ink-400 w-24 truncate">{humanType(req.type)}</span>
                 <span className="flex-1 text-xs text-ink-500 truncate">{req.purpose}</span>
                 {!found && <span className="chip chip-danger"><span className="dot bg-danger-500" /> Manquante</span>}
                 {found && !typeOk && <span className="chip chip-warn"><span className="dot bg-warn-500" /> Type {found.type}</span>}
@@ -228,4 +234,20 @@ function EditorialMemoryCard() {
       <p className="mt-3 text-2xs text-ink-400">Modèle : OpenAI text-embedding-3-small (1536 dims, indexé HNSW pgvector). Coût : ~$0.02 / million de tokens, pas d'OpenAI = pas d'embedding.</p>
     </section>
   );
+}
+
+
+function humanType(t: string): string {
+  return ({
+    'title': 'Titre',
+    'rich_text': 'Texte',
+    'date': 'Date',
+    'select': 'Choix',
+    'multi_select': 'Choix multiples',
+    'url': 'Lien',
+    'checkbox': 'Booléen',
+    'number': 'Nombre',
+    'people': 'Personne',
+    'files': 'Fichier'
+  } as Record<string,string>)[t] || t;
 }

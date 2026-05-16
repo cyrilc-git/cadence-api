@@ -121,7 +121,7 @@ export default function MentionTextarea({
         rows={rows}
         placeholder={placeholder}
         spellCheck={spellCheck}
-        className={`input font-mono text-[14px] leading-relaxed resize-none ${className}`}
+        className={`input text-[15px] leading-[1.55] resize-none ${className}`}
       />
       {mentionCount > 0 && (
         <span className="absolute -bottom-5 right-1 text-2xs text-ink-400">{mentionCount} mention{mentionCount > 1 ? 's' : ''} insérée{mentionCount > 1 ? 's' : ''}</span>

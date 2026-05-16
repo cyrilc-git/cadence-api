@@ -35,9 +35,11 @@ function timeAgo(iso?: string): string {
   if (!iso) return '';
   const d = (Date.now() - new Date(iso).getTime()) / 1000;
   if (d < 60) return "à l'instant";
-  if (d < 3600) return `il y a ${Math.floor(d/60)} min`;
-  if (d < 86400) return `il y a ${Math.floor(d/3600)} h`;
-  return `il y a ${Math.floor(d/86400)} j`;
+  if (d < 3600) { const m = Math.floor(d/60); return `il y a ${m} minute${m > 1 ? 's' : ''}`; }
+  if (d < 86400) { const h = Math.floor(d/3600); return `il y a ${h} heure${h > 1 ? 's' : ''}`; }
+  const j = Math.floor(d/86400);
+  if (j < 7) return `il y a ${j} jour${j > 1 ? 's' : ''}`;
+  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
 }
 
 function ScoreRing({ score }: { score: number }) {
@@ -72,6 +74,7 @@ export default function SuggestionsClient() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'score' | 'recent'>('score');
+  const [showAll, setShowAll] = useState(false);
 
   async function load() {
     setLoading(true); setError(null);
@@ -172,7 +175,7 @@ export default function SuggestionsClient() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {filtered.map(s => (
+          {(showAll ? filtered : filtered.slice(0, 5)).map(s => (
             <article key={s.id} className="card card-hover p-5 animate-slide-up">
               <div className="flex items-start gap-4">
                 <ScoreRing score={s.score} />
@@ -224,6 +227,11 @@ export default function SuggestionsClient() {
               </div>
             </article>
           ))}
+          {!showAll && filtered.length > 5 && (
+            <button onClick={() => setShowAll(true)} className="card card-hover p-4 text-center text-sm text-ink-600 hover:text-brand-700 transition border-dashed">
+              Voir {filtered.length - 5} autre{filtered.length - 5 > 1 ? 's' : ''} idée{filtered.length - 5 > 1 ? 's' : ''}
+            </button>
+          )}
         </div>
       )}
     </div>

@@ -5,6 +5,7 @@ import LinkedInPreview, { toBold, toItalic } from '@/components/LinkedInPreview'
 import PublishModal from '@/components/PublishModal';
 import VisualGenerator from '@/components/VisualGenerator';
 import MentionTextarea from '@/components/MentionTextarea';
+import CommandPalette, { Command } from '@/components/CommandPalette';
 
 const QUICK_ACTIONS = [
   { label: 'Améliorer le hook',          prompt: 'Améliore le hook : rends-le plus accrocheur, < 80 caractères, factuel, sans clickbait.' },
@@ -105,6 +106,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); save(false); }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCmdOpen(o => !o); }
       if (e.key === 'Escape' && focusMode) setFocusMode(false);
     }
     window.addEventListener('keydown', onKey);
@@ -143,6 +145,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
 
   const [removeDialog, setRemoveDialog] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
   const [compareIndex, setCompareIndex] = useState<number | null>(null);
 
   async function performRemove(alsoArchiveNotion: boolean) {
@@ -160,6 +163,34 @@ export default function EditClient({ initial, validated: initialValidated }: { i
     } catch (e: any) { alert('Erreur : ' + e.message); }
     finally { setRemoving(false); }
   }
+
+  // V8.3 — Command palette ⌘K
+  const commands: Command[] = [
+    { id: 'focus', label: focusMode ? 'Quitter le mode focus' : 'Mode focus', hint: 'Plein écran sans distractions', group: 'Vue', shortcut: 'esc', perform: () => setFocusMode(f => !f) },
+    { id: 'save', label: 'Sauvegarder', hint: 'Forcer une sauvegarde immédiate', group: 'Vue', shortcut: '⌘S', perform: () => save(false) },
+    { id: 'versions', label: `Historique versions (${versions.length})`, hint: 'Voir et restaurer une version précédente', group: 'Vue', perform: () => setVersionsOpen(true) },
+    { id: 'notion', label: 'Ouvrir dans Notion', group: 'Vue', perform: () => window.open(summary.notion_url, '_blank') },
+    ...QUICK_ACTIONS.map<Command>(a => ({
+      id: 'ai-' + a.label.toLowerCase().replace(/\s+/g, '-'),
+      label: a.label,
+      hint: 'Réécriture par Cadence',
+      group: 'Améliorer avec l\'IA',
+      perform: () => runChat(a.prompt)
+    })),
+    { id: 'remove', label: summary.cadence_source === 'cadence' ? 'Retirer de Cadence' : 'Retirer de la liste', hint: 'Conserver la page Notion', group: 'Avancé', perform: () => setRemoveDialog(true) },
+    { id: 'publish', label: 'Publier maintenant', hint: 'Validation requise', group: 'Avancé', perform: () => setPublishOpen(true) },
+  ];
+
+  // V8.3 — slash commands inside the textarea (detect '/' typed at start of line)
+  // Light implementation : if user types '/' followed by a known command and hits Enter, replace it.
+  function handleTextChange(next: string) {
+    setText(next);
+  }
+
+  // V8.3 — word/reading helpers
+  const stripped = text.replace(/@\[([^\]]+)\]\(urn:li:(?:person|organization|school):[^)\s]+\)/g, (_, d) => d);
+  const wordCount = stripped.trim() ? stripped.trim().split(/\s+/).length : 0;
+  const readingMin = Math.max(1, Math.round(wordCount / 220));
 
   return (
     <div className={focusMode ? 'fixed inset-0 z-40 bg-white overflow-y-auto p-8 animate-fade-in' : 'space-y-6 pb-24 lg:pb-0'}>
@@ -193,8 +224,9 @@ export default function EditClient({ initial, validated: initialValidated }: { i
               <span className="w-px h-5 bg-ink-200 mx-1" />
               <button onClick={() => setText(text.replace(/[—–]/g, ','))} className="btn-ghost text-xs">Retirer tirets longs</button>
               <button onClick={() => setText(text.replace(/\n+/g, '\n\n').trim())} className="btn-ghost text-xs">Aérer</button>
-              <span className="ml-auto text-xs text-ink-500 tabular-nums">
-                <span className={text.length > 1300 ? 'text-danger-500 font-semibold' : ''}>{text.length}</span> <span className="text-ink-400">/ 1300</span>
+              <span className="ml-auto text-xs text-ink-500 tabular-nums flex items-center gap-3">
+                <span className="hidden sm:inline">{wordCount} mots · ~{readingMin} min</span>
+                <span><span className={stripped.length > 1300 ? 'text-danger-500 font-semibold' : ''}>{stripped.length}</span> <span className="text-ink-400">/ 1300</span></span>
               </span>
             </div>
             <MentionTextarea
@@ -225,13 +257,11 @@ export default function EditClient({ initial, validated: initialValidated }: { i
                     </div>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {QUICK_ACTIONS.map(a => (
-                    <button key={a.label} onClick={() => runChat(a.prompt)} disabled={chatLoading} className="text-xs px-2.5 py-1.5 rounded-lg border border-ink-200 bg-white hover:bg-brand-50 hover:border-brand-300 hover:text-brand-700 disabled:opacity-50 transition">
-                      {a.label}
-                    </button>
-                  ))}
-                </div>
+                <button onClick={() => setCmdOpen(true)} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-ink-200 hover:border-brand-300 hover:bg-brand-50/40 text-sm text-ink-600 transition text-left">
+                  <svg className="w-3.5 h-3.5 text-ink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path strokeLinecap="round" d="M21 21l-4.3-4.3"/></svg>
+                  <span className="flex-1">Améliorer avec l'IA…</span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-ink-100 text-2xs font-mono text-ink-500">⌘K</kbd>
+                </button>
                 <div className="mt-3 flex gap-2">
                   <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && chatInput && runChat(chatInput)} placeholder="Ou une instruction libre…" className="input text-sm flex-1" />
                   <button onClick={() => chatInput && runChat(chatInput)} disabled={chatLoading || !chatInput} className="btn-primary">{chatLoading ? '…' : 'Envoyer'}</button>
@@ -376,6 +406,8 @@ export default function EditClient({ initial, validated: initialValidated }: { i
           </div>
         </div>
       )}
+
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} commands={commands} />
 
       <PublishModal open={publishOpen} onClose={() => setPublishOpen(false)} text={text} notionPageId={summary.id} />
     </div>

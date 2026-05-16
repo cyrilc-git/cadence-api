@@ -82,6 +82,35 @@ export default function PostsLibraryClient({ initial }: { initial: any[] }) {
     return true;
   });
 
+  // V8.3 — group by month for visual hierarchy + sort by impressions in published view
+  const sorted = useMemo(() => {
+    const list = [...filtered];
+    if (filter === 'published') {
+      list.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+    } else {
+      list.sort((a, b) => (b.scheduled_at || '').localeCompare(a.scheduled_at || ''));
+    }
+    return list;
+  }, [filtered, filter]);
+
+  const grouped = useMemo(() => {
+    if (filter === 'published') return null; // top-perf doesn't need date groups
+    const groups: { key: string; label: string; items: typeof sorted }[] = [];
+    for (const p of sorted) {
+      let key = 'no-date', label = 'Sans date';
+      if (p.scheduled_at) {
+        const d = new Date(p.scheduled_at);
+        key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+        label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        label = label.charAt(0).toUpperCase() + label.slice(1);
+      }
+      const last = groups[groups.length - 1];
+      if (last && last.key === key) last.items.push(p);
+      else groups.push({ key, label, items: [p] });
+    }
+    return groups;
+  }, [sorted, filter]);
+
   function updateUrl(s: DerivedStatus, src: 'all'|'cadence'|'historique') {
     const usp = new URLSearchParams();
     if (s !== 'all') usp.set('status', s);
@@ -143,9 +172,20 @@ export default function PostsLibraryClient({ initial }: { initial: any[] }) {
           <p className="font-medium text-ink-700">Aucun post.</p>
           <p className="mt-1">Ajustez les filtres ou créez un nouveau post.</p>
         </div>
+      ) : grouped ? (
+        <div className="space-y-5">
+          {grouped.map(g => (
+            <div key={g.key}>
+              <div className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2 px-1">{g.label} <span className="text-ink-400 normal-case font-normal">· {g.items.length}</span></div>
+              <div className="space-y-1.5">
+                {g.items.map(p => (<PostRow key={p.id} p={p} />))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : (
-        <div className="space-y-2">
-          {filtered.map(p => (
+        <div className="space-y-1.5">
+          {sorted.map(p => (
             <Link key={p.id} href={`/posts/${p.id}/edit`} className="card card-hover p-4 flex items-center gap-3 group">
               <span className={`chip ${STATUS_CHIP[p.primaryStatus as DerivedStatus]} shrink-0`}>
                 <span className={`dot ${STATUS_DOT[p.primaryStatus as DerivedStatus]}`} />
@@ -164,11 +204,34 @@ export default function PostsLibraryClient({ initial }: { initial: any[] }) {
                 <Link href={`/posts/new?from=${p.id}&recycle=1`} onClick={e => e.stopPropagation()} className="btn-secondary text-xs">Recycler</Link>
               )}
               {p.linkedin_url && <a href={p.linkedin_url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="btn-ghost text-2xs">LinkedIn ↗</a>}
-              <a href={p.notion_url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="btn-ghost text-2xs">Notion ↗</a>
             </Link>
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+function PostRow({ p }: { p: any }) {
+  return (
+    <Link href={`/posts/${p.id}/edit`} className="card card-hover p-4 flex items-center gap-3 group">
+      <span className={`chip ${STATUS_CHIP[p.primaryStatus as DerivedStatus]} shrink-0`}>
+        <span className={`dot ${STATUS_DOT[p.primaryStatus as DerivedStatus]}`} />
+        {STATUS_LABEL[p.primaryStatus as DerivedStatus]}
+      </span>
+      {p.cadence_source && <span className="chip chip-brand shrink-0 text-2xs">✦</span>}
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-ink-900 truncate group-hover:text-brand-700 transition">{p.title}</div>
+        <div className="text-xs text-ink-500 flex items-center gap-2 mt-0.5 flex-wrap">
+          {p.pilier && <span>{p.pilier.split('·')[1]?.trim() || p.pilier}</span>}
+          {p.scheduled_at && <span>· {new Date(p.scheduled_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} {p.scheduled_time?.slice(0,5) || ''}</span>}
+          {p.impressions ? <span className="text-success-700">· {p.impressions.toLocaleString('fr-FR')} impressions</span> : null}
+        </div>
+      </div>
+      {p.derivedStatuses.includes('recyclable') && (
+        <span onClick={e => { e.stopPropagation(); e.preventDefault(); window.location.href = `/posts/new?from=${p.id}&recycle=1`; }} className="btn-secondary text-xs cursor-pointer">Recycler</span>
+      )}
+      {p.linkedin_url && <a href={p.linkedin_url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 btn-ghost text-2xs transition">↗</a>}
+    </Link>
   );
 }

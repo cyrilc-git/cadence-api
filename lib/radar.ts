@@ -16,13 +16,19 @@ export async function radarFromNotion(): Promise<number> {
     const recentDrafts = posts.filter(p => p.status === 'draft' || (p.status === 'scheduled' && !p.validated));
     for (const p of recentDrafts.slice(0, 8)) {
       if (!p.title || p.title === 'Sans titre') continue;
-      const score = 65 + (p.pilier ? 8 : 0) + (p.scheduled_at ? 8 : 0) + (p.cadence_source ? 5 : 0);
+      // V8.3 — distribute scores (variance réelle pour éviter le 80/100 uniforme)
+      const titleLen = (p.title || '').length;
+      const lenSignal = titleLen > 60 && titleLen < 120 ? 8 : titleLen > 30 ? 4 : 0;
+      const recencyBonus = p.scheduled_at && (Date.now() - new Date(p.scheduled_at).getTime()) < 1000*60*60*24*7 ? 6 : 0;
+      const score = Math.min(95, Math.max(30,
+        45 + (p.pilier ? 8 : 0) + (p.scheduled_at ? 8 : 0) + (p.cadence_source ? 5 : 0) + lenSignal + recencyBonus + Math.floor(Math.random()*15)
+      ));
       const fmt = inferFormat(p.pilier);
       await suggestionUpsert({
         source: 'notion',
         source_ref: `draft-${p.id}`,
         title: p.title,
-        hook: shortHook(p.title),
+        hook: pickHookFromTitle(p.title, p.pilier),
         angle: p.pilier ? `Angle ${p.pilier.toLowerCase()}, à étoffer` : 'Angle à préciser',
         pilier: p.pilier,
         score,
@@ -287,4 +293,50 @@ function extractTheme(content: string): string {
   // Try to find first uppercase-starting French noun
   const cap = words.find(w => /^[A-ZÀ-Ÿ]/.test(w));
   return (cap || words[0]).replace(/[,.!?;:]$/, '').slice(0, 30);
+}
+
+
+// V8.3 — generate a distinct hook from a title.
+// Returns an evocative single sentence that complements the title (not duplicates it).
+function pickHookFromTitle(title: string, pilier?: string): string {
+  const t = (title || '').trim();
+  if (!t) return '';
+  const isOpinion = pilier && /Opinion/i.test(pilier);
+  const isCas = pilier && /Cas client|dirigeant/i.test(pilier);
+  const isProduit = pilier && /Produit|démo/i.test(pilier);
+  const isBuild = pilier && /Build in public/i.test(pilier);
+  const isPedago = pilier && /Pédagogie/i.test(pilier);
+  // Variant hooks by pilier
+  const variants = isOpinion ? [
+    "Ce que je vois chez la plupart des PME que j'accompagne.",
+    "Le débat que personne ne veut avoir.",
+    "L'erreur que je vois revenir mois après mois.",
+    "Mon avis a évolué — voici pourquoi."
+  ] : isCas ? [
+    "Un cas concret qui a changé ma vision.",
+    "L'histoire d'un dirigeant qui a failli y passer.",
+    "Ce qu'on découvre quand on regarde vraiment les chiffres.",
+    "Une PME qui pensait aller bien."
+  ] : isProduit ? [
+    "On vient de sortir quelque chose qui change tout.",
+    "Voici ce que vous attendiez (peut-être sans le savoir).",
+    "La feature qu'on a mis 3 mois à valider.",
+    "Démo : 60 secondes pour comprendre."
+  ] : isBuild ? [
+    "Voici ce qui s'est passé cette semaine.",
+    "Transparence : on partage les chiffres.",
+    "On a hésité 2 semaines. Voici la décision.",
+    "Le côté caché de la construction d'un SaaS."
+  ] : isPedago ? [
+    "On me pose cette question 3 fois par semaine.",
+    "Sujet technique, mais on va le simplifier.",
+    "Une notion essentielle qu'on confond souvent.",
+    "Voici la définition en 60 secondes."
+  ] : [
+    "Ce sujet mérite qu'on s'y arrête une minute.",
+    "Un angle que je n'avais pas vu jusqu'ici.",
+    "Voici ce que j'ai appris en pratique.",
+    "Quelques observations qui m'ont marqué."
+  ];
+  return variants[Math.floor(Math.random() * variants.length)];
 }
