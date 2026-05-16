@@ -15,6 +15,7 @@ type Entity = {
   url?: string;
   headline?: string;
   use_count?: number;
+  avatar_url?: string;
 };
 
 export default function MentionTextarea({
