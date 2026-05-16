@@ -74,6 +74,37 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
         <p className="mt-1 text-sm text-ink-500 lead">Cadence utilise ces tokens pour générer vos illustrations, schémas et captures. Modifiez ici pour changer le rendu de tous vos visuels en un instant.</p>
       </header>
 
+      {/* V8.7 — hero : preview SVG d'un exemple de visuel généré */}
+      <section className="card p-0 overflow-hidden border-brand-100">
+        <div className="bg-gradient-to-br from-brand-50 to-white px-6 pt-6 pb-3">
+          <div className="text-2xs uppercase tracking-wider font-semibold text-brand-700">Aperçu</div>
+          <h2 className="mt-1 text-base font-semibold text-ink-900">Voici à quoi ressembleront vos visuels</h2>
+          <p className="text-xs text-ink-500 mt-0.5">Carte produit générée avec vos tokens actuels.</p>
+        </div>
+        <div className="bg-white px-6 pb-6 pt-3">
+          <svg viewBox="0 0 1200 630" className="w-full rounded-lg shadow-card" xmlns="http://www.w3.org/2000/svg">
+            <rect width="1200" height="630" fill="#F8FAFC"/>
+            <rect x="80" y="80" width="1040" height="470" rx="24" fill="white" stroke="#E2E8F0" strokeWidth="2"/>
+            <text x="120" y="170" fontFamily="Inter, sans-serif" fontSize="22" fill="#64748B" fontWeight="600">HEELIO · PRODUIT</text>
+            <text x="120" y="240" fontFamily="Inter, sans-serif" fontSize="56" fill="#0F172A" fontWeight="700">P&amp;L estimé en temps réel</text>
+            <text x="120" y="285" fontFamily="Inter, sans-serif" fontSize="22" fill="#475569">Sans attendre la clôture comptable.</text>
+            <rect x="120" y="340" width="280" height="160" rx="14" fill="#EFF6FF" stroke="#BFDBFE"/>
+            <text x="140" y="380" fontFamily="Inter, sans-serif" fontSize="14" fill="#1E40AF" fontWeight="600">MARGE M-1</text>
+            <text x="140" y="430" fontFamily="Inter, sans-serif" fontSize="44" fill="#1E40AF" fontWeight="700">+18,4%</text>
+            <text x="140" y="470" fontFamily="Inter, sans-serif" fontSize="13" fill="#64748B">vs Banque · +43k€</text>
+            <rect x="420" y="340" width="280" height="160" rx="14" fill="#ECFDF5" stroke="#A7F3D0"/>
+            <text x="440" y="380" fontFamily="Inter, sans-serif" fontSize="14" fill="#047857" fontWeight="600">FAE/FNP</text>
+            <text x="440" y="430" fontFamily="Inter, sans-serif" fontSize="44" fill="#047857" fontWeight="700">112k€</text>
+            <text x="440" y="470" fontFamily="Inter, sans-serif" fontSize="13" fill="#64748B">Auto-calculés</text>
+            <rect x="720" y="340" width="280" height="160" rx="14" fill="#FFFBEB" stroke="#FCD34D"/>
+            <text x="740" y="380" fontFamily="Inter, sans-serif" fontSize="14" fill="#B45309" fontWeight="600">DSO</text>
+            <text x="740" y="430" fontFamily="Inter, sans-serif" fontSize="44" fill="#B45309" fontWeight="700">32j</text>
+            <text x="740" y="470" fontFamily="Inter, sans-serif" fontSize="13" fill="#64748B">-12j vs N-1</text>
+          </svg>
+          <p className="mt-3 text-2xs text-ink-400 text-center">Exemple — Cadence respecte vos couleurs, vos cards, votre typo lors de chaque génération.</p>
+        </div>
+      </section>
+
       {/* Hero : color palette preview */}
       <section className="card p-6">
         <div className="flex items-center justify-between mb-4">
@@ -111,22 +142,19 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
 
       {/* Figma import */}
       <section className="card p-5 bg-gradient-to-br from-brand-50/50 to-white border-brand-100">
-        <div className="flex items-start gap-4">
-          <div className="w-10 h-10 rounded-lg bg-white shadow-card flex items-center justify-center text-base">🎨</div>
-          <div className="flex-1">
-            <h2 className="font-semibold text-ink-900">Importer depuis Figma</h2>
+        <div className="flex-1">
+          <h2 className="font-semibold text-ink-900">Importer depuis Figma</h2>
             <p className="mt-1 text-xs text-ink-500">Collez le lien de votre fichier Figma. Cadence donne le contexte au LLM lors de la génération. L'extraction automatique des tokens (couleurs, typo) arrivera dans une version ultérieure.</p>
             <div className="mt-3 flex gap-2">
               <input value={figmaUrl} onChange={e => setFigmaUrl(e.target.value)} placeholder="https://www.figma.com/file/…" className="input text-sm flex-1" />
               <button onClick={saveFigma} disabled={!figmaUrl || savingFigma} className="btn-primary">{savingFigma ? 'Enregistrement…' : 'Enregistrer'}</button>
             </div>
-            {currentFigma && (
-              <p className="mt-2 text-xs text-success-700 flex items-center gap-1.5">
-                <span className="dot bg-success-500" />
-                Lien actif : <a href={currentFigma.value} target="_blank" rel="noopener" className="underline truncate">{currentFigma.value}</a>
-              </p>
-            )}
-          </div>
+          {currentFigma && (
+            <p className="mt-2 text-xs text-success-700 flex items-center gap-1.5">
+              <span className="dot bg-success-500" />
+              Lien actif : <a href={currentFigma.value} target="_blank" rel="noopener" className="underline truncate">{currentFigma.value}</a>
+            </p>
+          )}
         </div>
       </section>
 

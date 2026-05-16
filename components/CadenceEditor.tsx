@@ -34,6 +34,10 @@ export type CadenceEditorProps = {
   textareaRef?: React.MutableRefObject<HTMLTextAreaElement | null>;
   /** If true : show 'Cadence réfléchit…' chip during IA call. */
   showAiIndicator?: boolean;
+  /** Optional brief : if provided AND text is short, show a floating chip 'Écrire la version complète' */
+  brief?: string;
+  /** Pilier context for full-version generation */
+  pilier?: string;
 };
 
 // Strip mention markers for char/word count (display name only counts on LinkedIn)
@@ -54,6 +58,7 @@ export default function CadenceEditor({
   rows = 14, placeholder = 'Tapez / pour les commandes, @ pour mentionner.',
   bare = false, className = '',
   textareaRef, showAiIndicator = true,
+  brief, pilier,
 }: CadenceEditorProps) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const ref = textareaRef || localRef;
@@ -86,6 +91,37 @@ export default function CadenceEditor({
     }
   }
 
+  // V8.7 — pseudo-streaming for IA rewrites (sensation 'Cadence tape en direct')
+  async function pseudoStream(target: string, startText: string = '', steps: number = 18, stepMs: number = 35) {
+    for (let i = 1; i <= steps; i++) {
+      const len = Math.ceil((target.length * i) / steps);
+      onChange(startText + target.slice(0, len));
+      await new Promise(r => setTimeout(r, stepMs));
+    }
+    onChange(startText + target);
+  }
+
+  // V8.7 — generate a full LinkedIn post from the brief and replace the editor content
+  async function writeFullVersion() {
+    if (!brief?.trim()) return;
+    setAiBusy(true);
+    try {
+      const r = await fetch('/api/generate-post', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pilier: pilier || 'Jeudi · Opinion / hot take mesuré', brief })
+      });
+      const d = await r.json();
+      if (r.ok && d.proposals?.[0]) {
+        await pseudoStream(d.proposals[0]);
+        onResult?.(d.proposals[0]);
+      } else if (d.error) {
+        console.warn('writeFullVersion error:', d.error);
+      }
+    } catch (e: any) {
+      console.warn('writeFullVersion error:', e.message);
+    } finally { setAiBusy(false); }
+  }
+
   async function applySlashCommand(cmd: SlashCommand) {
     setSlashOpen(false);
     const ta = ref.current;
@@ -103,10 +139,10 @@ export default function CadenceEditor({
       });
       const d = await r.json();
       if (r.ok && d.rewrite) {
-        onChange(d.rewrite);
+        // V8.7 — pseudo-streaming pour effet 'Cadence tape en direct'
+        await pseudoStream(d.rewrite);
         onResult?.(d.rewrite);
       } else {
-        // Silent failure : restore the slash so user sees they need to retry
         console.warn('CadenceEditor IA error:', d.error || r.status);
       }
     } catch (e: any) {
@@ -160,10 +196,21 @@ export default function CadenceEditor({
         className={bareClass}
       />
 
+      {/* V8.7 — floating chip 'Écrire version complète' when text is short and a brief is available */}
+      {brief && value.length < 200 && !aiBusy && (
+        <button
+          onClick={writeFullVersion}
+          className="absolute top-2 right-2 chip chip-brand text-2xs hover:shadow-sm transition cursor-pointer animate-fade-in z-20"
+          title="Cadence rédige une version complète du brief"
+        >
+          ✨ Écrire la version complète
+        </button>
+      )}
+
       {/* IA in-flight indicator */}
       {aiBusy && showAiIndicator && (
-        <div className="absolute top-2 right-2 chip chip-brand text-2xs animate-pulse-soft pointer-events-none">
-          <span className="dot bg-brand-500" /> Cadence réfléchit…
+        <div className="absolute top-2 right-2 chip chip-brand text-2xs animate-pulse-soft pointer-events-none z-20">
+          <span className="dot bg-brand-500" /> Cadence rédige…
         </div>
       )}
 

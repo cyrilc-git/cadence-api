@@ -175,7 +175,7 @@ export default function SuggestionsClient() {
         </div>
       ) : (
         <div className="grid gap-3">
-          {(showAll ? filtered : filtered.slice(0, 5)).map(s => (
+          {(showAll ? filtered : filtered.slice(0, 3)).map(s => (
             <article key={s.id} className="card card-hover p-5 animate-slide-up">
               <div className="flex items-start gap-4">
                 <ScoreRing score={s.score} />
@@ -218,7 +218,7 @@ export default function SuggestionsClient() {
                   onClick={() => setStatus(s.id, 'used')}
                   className="btn-primary"
                 >
-                  ✨ Générer un post
+                  Écrire cette idée →
                 </Link>
                 <button onClick={() => setStatus(s.id, 'saved')} className="btn-secondary">Sauvegarder</button>
                 <button onClick={() => setStatus(s.id, 'ignored')} className="btn-ghost">Ignorer</button>
@@ -227,9 +227,9 @@ export default function SuggestionsClient() {
               </div>
             </article>
           ))}
-          {!showAll && filtered.length > 5 && (
+          {!showAll && filtered.length > 3 && (
             <button onClick={() => setShowAll(true)} className="card card-hover p-4 text-center text-sm text-ink-600 hover:text-brand-700 transition border-dashed">
-              Voir {filtered.length - 5} autre{filtered.length - 5 > 1 ? 's' : ''} idée{filtered.length - 5 > 1 ? 's' : ''}
+              Voir {filtered.length - 3} autre{filtered.length - 3 > 1 ? 's' : ''} idée{filtered.length - 3 > 1 ? 's' : ''}
             </button>
           )}
         </div>

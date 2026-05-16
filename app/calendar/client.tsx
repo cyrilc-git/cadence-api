@@ -209,17 +209,18 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
               const isOtherMonth = view === 'month' && d.getMonth() !== cursor.getMonth();
               const isPast = d < new Date(new Date().setHours(0,0,0,0));
               const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+              const hasItems = items.length > 0;
               return (
                 <div
                   key={k}
-                  onMouseEnter={() => items.length > 0 && setHover({ key: k, items })}
+                  onMouseEnter={() => hasItems && setHover({ key: k, items })}
                   onMouseLeave={() => setHover(null)}
-                  className={`relative rounded-xl p-2 min-h-[124px] border transition ${isToday ? 'border-brand-400 bg-brand-50/30 shadow-elev' : isWeekend ? 'border-ink-100 bg-ink-50/40' : 'border-ink-200 bg-white'} ${isOtherMonth ? 'opacity-40' : ''} ${isPast && !isToday ? 'opacity-75' : ''}`}
+                  className={`group relative rounded-xl p-2 min-h-[124px] border transition-all duration-200 ${isToday ? 'border-brand-400 bg-brand-50/30 shadow-elev' : isWeekend ? 'border-ink-100 bg-ink-50/40' : 'border-ink-200 bg-white hover:border-ink-300 hover:shadow-xs'} ${isOtherMonth ? 'opacity-40' : ''} ${isPast && !isToday ? 'opacity-75' : ''}`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className={`text-xs font-semibold ${isToday ? 'text-brand-700' : isWeekend ? 'text-ink-400' : 'text-ink-700'}`}>{d.getDate()}</span>
                     {!isPast && !isWeekend && (
-                      <Link href={`/posts/new?date=${k}`} className="w-5 h-5 rounded-md flex items-center justify-center text-ink-400 hover:text-brand-600 hover:bg-brand-50 transition text-sm" title="Créer un post">+</Link>
+                      <Link href={`/posts/new?date=${k}`} className={`w-5 h-5 rounded-md flex items-center justify-center text-ink-300 hover:text-brand-600 hover:bg-brand-50 transition text-sm ${hasItems ? 'opacity-0 group-hover:opacity-100' : ''}`} title="Créer un post">+</Link>
                     )}
                   </div>
                   <div className="space-y-1">

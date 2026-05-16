@@ -204,10 +204,8 @@ function EditorialMemoryCard() {
   const pct = stats?.coverage_pct ?? 0;
   return (
     <section className="card p-5 bg-gradient-to-br from-brand-50/40 to-white border-brand-100">
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center text-brand-700 text-base">🧠</div>
-        <div className="flex-1 min-w-0">
-          <h2 className="font-semibold text-ink-900">Mémoire éditoriale</h2>
+      <div className="flex-1 min-w-0">
+        <h2 className="font-semibold text-ink-900">Mémoire éditoriale</h2>
           <p className="text-xs text-ink-500 mt-0.5">Cadence indexe vos posts (titre + contenu) en vecteurs sémantiques. Ça permet : éviter les répétitions, détecter les sujets non couverts, scorer la nouveauté d'une idée, faire de la recherche sémantique.</p>
           {loading ? (
             <div className="mt-3 skeleton h-4 w-32" />
@@ -229,7 +227,6 @@ function EditorialMemoryCard() {
           ) : null}
           {progress && <div className="mt-2 text-2xs text-ink-500">{progress}</div>}
           {lastResult && <div className="mt-2 text-xs text-success-700">{lastResult}</div>}
-        </div>
       </div>
       <p className="mt-3 text-2xs text-ink-400">Modèle : OpenAI text-embedding-3-small (1536 dims, indexé HNSW pgvector). Coût : ~$0.02 / million de tokens, pas d'OpenAI = pas d'embedding.</p>
     </section>

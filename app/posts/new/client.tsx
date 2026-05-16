@@ -224,6 +224,9 @@ export default function NewPostClient({
             rows={text ? 18 : 6}
             placeholder={text ? '' : 'Ou commencez à écrire directement. Tapez / pour les commandes, @ pour mentionner.'}
             bare
+            brief={brief || prefillBrief}
+            pilier={pilier}
+            onResult={r => { setProposals([r]); setProposalIdx(0); }}
           />
         )}
 
