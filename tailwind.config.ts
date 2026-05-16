@@ -35,7 +35,9 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['"Inter"', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace']
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+        // V8.6 — typo éditoriale pour la zone d'écriture (Charter sur iOS/macOS, Iowan sur iOS, Georgia universel)
+        editorial: ['"Charter"', '"Iowan Old Style"', 'Georgia', 'Cambria', 'serif']
       },
       fontSize: {
         '2xs': ['0.6875rem', { lineHeight: '1rem' }]

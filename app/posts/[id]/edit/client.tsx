@@ -6,13 +6,13 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Link from 'next/link';
-import LinkedInPreview, { toBold, toItalic } from '@/components/LinkedInPreview';
+import LinkedInPreview from '@/components/LinkedInPreview';
 import PublishModal from '@/components/PublishModal';
 import VisualGenerator from '@/components/VisualGenerator';
-import MentionTextarea, { caretCoords } from '@/components/MentionTextarea';
+import CadenceEditor, { useEditorMetrics } from '@/components/CadenceEditor';
 import CommandPalette, { Command } from '@/components/CommandPalette';
 import PreviewDrawer from '@/components/PreviewDrawer';
-import SlashMenu, { SLASH_COMMANDS, detectSlashQuery, SlashCommand } from '@/components/SlashMenu';
+import { SLASH_COMMANDS } from '@/components/SlashMenu';
 
 type Status = 'draft' | 'needs_validation' | 'scheduled' | 'published' | 'late';
 
@@ -67,15 +67,6 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
-  // Slash menu state
-  const [slashOpen, setSlashOpen] = useState(false);
-  const [slashQuery, setSlashQuery] = useState('');
-  const [slashAnchor, setSlashAnchor] = useState<{ top: number; left: number } | null>(null);
-  const [slashTrigger, setSlashTrigger] = useState(0);
-
-  // Bubble toolbar state
-  const [bubble, setBubble] = useState<{ top: number; left: number } | null>(null);
-
   const lastSavedTextRef = useRef(initial.content);
   const lastSavedValidatedRef = useRef(initialValidated);
   const autosaveTimer = useRef<number | null>(null);
@@ -86,10 +77,8 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   const sMeta = STATUS_META[status];
   const isDirty = text !== lastSavedTextRef.current || validated !== lastSavedValidatedRef.current;
 
-  // Word/reading helpers (mention markers stripped)
-  const stripped = text.replace(/@\[([^\]]+)\]\(urn:li:(?:person|organization|school):[^)\s]+\)/g, (_, d) => d);
-  const wordCount = stripped.trim() ? stripped.trim().split(/\s+/).length : 0;
-  const readingMin = Math.max(1, Math.round(wordCount / 220));
+  // V8.6 — metrics via CadenceEditor's useEditorMetrics
+  const { wordCount, charCount, readingMin } = useEditorMetrics(text);
 
   // Ticker for live "Sauvegardé il y a X sec"
   useEffect(() => {
@@ -184,49 +173,6 @@ export default function EditClient({ initial, validated: initialValidated }: { i
     finally { setRemoving(false); }
   }
 
-  // Text change handler with slash detection
-  function onTextChange(next: string) {
-    setText(next);
-    const ta = taRef.current;
-    if (!ta) { setSlashOpen(false); return; }
-    const caret = ta.selectionStart;
-    const detection = detectSlashQuery(next, caret);
-    if (detection) {
-      setSlashOpen(true);
-      setSlashQuery(detection.query);
-      setSlashTrigger(detection.trigger);
-      try { setSlashAnchor(caretCoords(ta, detection.trigger)); } catch { /* silent */ }
-    } else {
-      setSlashOpen(false);
-    }
-  }
-
-  // Apply slash command : remove the "/cmd" text, run the AI rewrite, replace post entirely with result
-  async function applySlashCommand(cmd: SlashCommand) {
-    setSlashOpen(false);
-    // Remove the "/cmd" from the text (from trigger pos to current caret)
-    const ta = taRef.current;
-    if (!ta) return;
-    const caret = ta.selectionStart;
-    const cleaned = text.slice(0, slashTrigger) + text.slice(caret);
-    setText(cleaned);
-    // Run the IA command
-    const rewrite = await runChat(cmd.prompt);
-    if (rewrite) applyRewrite(rewrite);
-  }
-
-  // Bubble toolbar : update position when selection changes
-  function onSelectionChange() {
-    const ta = taRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart, end = ta.selectionEnd;
-    if (start === end) { setBubble(null); return; }
-    try {
-      const pos = caretCoords(ta, start);
-      setBubble({ top: pos.top - 38, left: Math.max(8, pos.left - 60) });
-    } catch { setBubble(null); }
-  }
-
   // Command palette commands
   const commands: Command[] = [
     { id: 'preview', label: previewOpen ? 'Fermer l\'aperçu LinkedIn' : 'Ouvrir l\'aperçu LinkedIn', hint: 'Panneau coulissant à droite', group: 'Vue', shortcut: '⌘P', perform: () => setPreviewOpen(o => !o) },
@@ -276,34 +222,15 @@ export default function EditClient({ initial, validated: initialValidated }: { i
 
       {/* === EDITOR — single column max-w-3xl centered === */}
       <div ref={editorRef} className="flex-1 w-full max-w-3xl mx-auto px-5 lg:px-8 py-8 lg:py-12 relative">
-        <MentionTextarea
+        <CadenceEditor
           textareaRef={taRef}
           value={text}
-          onChange={onTextChange}
+          onChange={setText}
+          draftId={summary.id}
+          onResult={r => setVersions(v => [...v, r])}
           rows={20}
           placeholder="Commencez à écrire. Tapez / pour les commandes, @ pour mentionner."
-          className="!border-0 !p-0 !bg-transparent !shadow-none text-[16px] leading-[1.65] focus:!ring-0 focus:!shadow-none"
-        />
-
-        {/* Bubble toolbar */}
-        {bubble && (
-          <div
-            className="absolute z-30 card p-1 flex items-center gap-0.5 shadow-pop animate-fade-in"
-            style={{ top: bubble.top, left: bubble.left }}
-            onMouseDown={e => e.preventDefault()}
-          >
-            <button onClick={() => applyTransform(toBold)} className="btn-ghost text-base font-bold w-8 h-8" title="Gras">𝗕</button>
-            <button onClick={() => applyTransform(toItalic)} className="btn-ghost text-base italic w-8 h-8" title="Italique">𝘐</button>
-          </div>
-        )}
-
-        {/* Slash menu */}
-        <SlashMenu
-          open={slashOpen}
-          anchor={slashAnchor}
-          query={slashQuery}
-          onSelect={applySlashCommand}
-          onClose={() => setSlashOpen(false)}
+          bare
         />
       </div>
 
@@ -311,7 +238,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
       <footer className="sticky bottom-0 z-20 border-t border-ink-100 bg-white/95 backdrop-blur">
         <div className="max-w-3xl mx-auto px-5 lg:px-8 h-12 flex items-center gap-3 text-xs text-ink-500">
           <span className="tabular-nums">{wordCount} mots · ~{readingMin} min</span>
-          <span className={`tabular-nums ${stripped.length > 1300 ? 'text-danger-500 font-semibold' : ''}`}>{stripped.length}/1300</span>
+          <span className={`tabular-nums ${charCount > 1300 ? 'text-danger-500 font-semibold' : ''}`}>{charCount}/1300</span>
           <span className="ml-auto flex items-center gap-2">
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input type="checkbox" checked={validated} onChange={e => setValidated(e.target.checked)} className="w-3.5 h-3.5 rounded border-ink-300 text-brand-500" />
@@ -408,27 +335,8 @@ export default function EditClient({ initial, validated: initialValidated }: { i
 
       <PublishModal open={publishOpen} onClose={() => setPublishOpen(false)} text={text} notionPageId={summary.id} />
 
-      {/* Selection listener for bubble toolbar */}
-      <SelectionListener taRef={taRef} onSelectionChange={onSelectionChange} />
     </div>
   );
-}
-
-function SelectionListener({ taRef, onSelectionChange }: { taRef: React.MutableRefObject<HTMLTextAreaElement | null>; onSelectionChange: () => void }) {
-  useEffect(() => {
-    const ta = taRef.current;
-    if (!ta) return;
-    function handler() { onSelectionChange(); }
-    ta.addEventListener('mouseup', handler);
-    ta.addEventListener('keyup', handler);
-    document.addEventListener('selectionchange', handler);
-    return () => {
-      ta.removeEventListener('mouseup', handler);
-      ta.removeEventListener('keyup', handler);
-      document.removeEventListener('selectionchange', handler);
-    };
-  }, [taRef, onSelectionChange]);
-  return null;
 }
 
 function SaveIndicator({ saving, lastSavedAt, isDirty, error, tick }: { saving: boolean; lastSavedAt: number | null; isDirty: boolean; error: string | null; tick: number }) {

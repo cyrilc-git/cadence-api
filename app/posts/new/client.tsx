@@ -1,12 +1,18 @@
 'use client';
 
-import { useMemo, useState, useRef } from 'react';
-import StatusBadge from '@/components/StatusBadge';
+// V8.6 — /posts/new refondu en single column premium
+// Inspirations : Linear ticket / Notion page / Claude chat
+// Sortie : single column max-w-3xl, hero suggestion en haut, CadenceEditor au centre, sticky footer
+
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import Link from 'next/link';
+import LinkedInPreview from '@/components/LinkedInPreview';
 import PublishModal from '@/components/PublishModal';
 import VisualGenerator from '@/components/VisualGenerator';
-import MentionTextarea, { caretCoords } from '@/components/MentionTextarea';
-import SlashMenu, { detectSlashQuery, SlashCommand } from '@/components/SlashMenu';
-
+import CadenceEditor, { useEditorMetrics } from '@/components/CadenceEditor';
+import CommandPalette, { Command } from '@/components/CommandPalette';
+import PreviewDrawer from '@/components/PreviewDrawer';
+import { SLASH_COMMANDS } from '@/components/SlashMenu';
 
 const PILIERS = [
   'Lundi · Cas client',
@@ -18,8 +24,8 @@ const PILIERS = [
 ];
 
 type Initial = null | { id?: string; title: string; pilier?: string; content: string; date?: string };
-
 type Recyclable = { id: string; title: string; pilier?: string; impressions?: number; published_at: string };
+
 export default function NewPostClient({
   initial, prefillBrief, prefillHook,
   suggestSource, suggestId, suggestScore, suggestPilier,
@@ -39,6 +45,7 @@ export default function NewPostClient({
   filterSource?: string | null;
   recyclables?: Recyclable[];
 }) {
+  // ── State ─────────────────────────────────
   const [pilier, setPilier] = useState(initial?.pilier || PILIERS[2]);
   const [brief, setBrief] = useState(prefillBrief || '');
   const [text, setText] = useState(initial?.content || '');
@@ -47,14 +54,30 @@ export default function NewPostClient({
   const [time, setTime] = useState('07:30');
   const [anonOk, setAnonOk] = useState(false);
   const [validated, setValidated] = useState(false);
+  const [proposals, setProposals] = useState<string[]>([]);
+  const [proposalIdx, setProposalIdx] = useState(0);
+  const [genLoading, setGenLoading] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [cmdOpen, setCmdOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [optionsOpen, setOptionsOpen] = useState(false); // bottom collapsible (brief, schedule, validate)
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
 
-  // Auto-pre-fill date based on pilier
-  useMemo(() => {
+  const { wordCount, charCount, readingMin } = useEditorMetrics(text);
+  const pilierIsCasClient = pilier?.includes('Cas client') || pilier?.includes('Cas dirigeant');
+  const lint = useMemo(() => analyzeAntiPatterns(text), [text]);
+  const criticalLint = lint.filter(h => h.severity === 'critical');
+
+  // Auto-pre-fill date based on pilier (only when no explicit date and no existing post)
+  useEffect(() => {
     if (!pilier || initial?.id || initial?.date) return;
     const wd = /Lundi/.test(pilier) ? 1 : /Mardi/.test(pilier) ? 2 : /Mercredi/.test(pilier) ? 3 : /Jeudi/.test(pilier) ? 4 : /Vendredi/.test(pilier) ? 5 : -1;
     if (wd < 0) return;
-    const today = new Date();
-    const next = new Date(today);
+    const next = new Date();
     next.setHours(7, 30, 0, 0);
     for (let i = 0; i < 14; i++) {
       if (next.getDay() === wd && next.getTime() > Date.now()) break;
@@ -62,313 +85,330 @@ export default function NewPostClient({
     }
     const y = next.getFullYear(), m = String(next.getMonth() + 1).padStart(2, '0'), d2 = String(next.getDate()).padStart(2, '0');
     setDate(`${y}-${m}-${d2}`);
-  }, [pilier]);
+  }, [pilier, initial]);
 
-  const [proposals, setProposals] = useState<string[]>([]);
-  const [genModel, setGenModel] = useState<string | null>(null);
-  const [genLoading, setGenLoading] = useState(false);
-  const [genError, setGenError] = useState<string | null>(null);
-
-  const [saveLoading, setSaveLoading] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
-  const [publishOpen, setPublishOpen] = useState(false);
-
-  // V8.5 — slash menu + mention textarea ref
-  const taRef = useRef<HTMLTextAreaElement | null>(null);
-  const [slashOpen, setSlashOpen] = useState(false);
-  const [slashQuery, setSlashQuery] = useState('');
-  const [slashAnchor, setSlashAnchor] = useState<{ top: number; left: number } | null>(null);
-  const [slashTrigger, setSlashTrigger] = useState(0);
-  const [aiBusy, setAiBusy] = useState(false);
-
-  function onTextChange(next: string) {
-    setText(next);
-    const ta = taRef.current;
-    if (!ta) { setSlashOpen(false); return; }
-    const caret = ta.selectionStart;
-    const detection = detectSlashQuery(next, caret);
-    if (detection) {
-      setSlashOpen(true);
-      setSlashQuery(detection.query);
-      setSlashTrigger(detection.trigger);
-      try { setSlashAnchor(caretCoords(ta, detection.trigger)); } catch {/* silent */}
-    } else {
-      setSlashOpen(false);
-    }
-  }
-
-  async function applySlashCommand(cmd: SlashCommand) {
-    setSlashOpen(false);
-    const ta = taRef.current;
-    if (!ta) return;
-    const caret = ta.selectionStart;
-    const cleaned = text.slice(0, slashTrigger) + text.slice(caret);
-    setText(cleaned);
-    setAiBusy(true);
+  // ── Generate ─────────────────────────────
+  const handleGenerate = useCallback(async (customBrief?: string) => {
+    const b = customBrief ?? brief;
+    if (!b.trim()) return;
+    setGenLoading(true); setGenError(null); setProposals([]);
     try {
-      const r = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ notion_page_id: initial?.id || 'new-post', draft: cleaned || (initial?.content || ''), instruction: cmd.prompt })
+      const r = await fetch('/api/generate-post', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pilier, brief: b })
       });
-      const d = await r.json();
-      if (r.ok && d.rewrite) setText(d.rewrite);
-      else alert(d.error || 'Erreur IA');
-    } catch (e: any) {
-      alert('Erreur IA : ' + e.message);
-    } finally { setAiBusy(false); }
-  }
-
-  const charCount = text.length;
-  const lint = useMemo(() => analyzeAntiPatterns(text), [text]);
-
-  async function handleGenerate() {
-    setGenLoading(true); setGenError(null); setProposals([]); setGenModel(null);
-    try {
-      const r = await fetch('/api/generate-post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pilier, brief }) });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || `Erreur ${r.status}`);
-      setProposals(data.proposals || []);
-      setGenModel(data.model || null);
+      const props = data.proposals || [];
+      setProposals(props);
+      if (props.length > 0) { setText(props[0]); setProposalIdx(0); }
     } catch (e: any) { setGenError(e.message); }
     finally { setGenLoading(false); }
-  }
+  }, [brief, pilier]);
 
-  async function handleSave(asScheduled: boolean) {
+  // ── Save ─────────────────────────────────
+  const handleSave = useCallback(async (asScheduled: boolean) => {
     setSaveLoading(true); setSaveMsg(null);
     try {
-      const r = await fetch('/api/notion/posts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
-        id: initial?.id,
-        title: title || (text.split('\n')[0] || 'Sans titre').slice(0, 80),
-        pilier,
-        date: asScheduled ? date : undefined,
-        time: asScheduled ? time : undefined,
-        anonymisation_ok: anonOk,
-        content: text
-      }) });
+      const r = await fetch('/api/notion/posts', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: initial?.id,
+          title: title || (text.split('\n')[0] || 'Sans titre').slice(0, 80),
+          pilier,
+          date: asScheduled ? date : undefined,
+          time: asScheduled ? time : undefined,
+          anonymisation_ok: anonOk,
+          content: text
+        })
+      });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Erreur sauvegarde Notion');
       const pageId = data.id || initial?.id;
       if (pageId) await fetch(`/api/notion/post/${pageId}/validate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ validated }) }).catch(() => {});
-      setSaveMsg(asScheduled ? `Programmé ${validated ? '✓ (validé pour cron)' : '(à valider)'}` : `Sauvegardé en draft ${validated ? '(validé)' : ''} ✓`);
+      setSaveMsg(asScheduled ? `Programmé ${validated ? '✓ validé' : ''}` : 'Brouillon sauvegardé');
+      setTimeout(() => setSaveMsg(null), 2400);
     } catch (e: any) { setSaveMsg('Erreur : ' + e.message); }
     finally { setSaveLoading(false); }
-  }
+  }, [initial?.id, title, text, pilier, date, time, anonOk, validated]);
 
-  const pilierIsCasClient = pilier?.includes('Cas client') || pilier?.includes('Cas dirigeant');
-  const visualPromptDefault = text ? `Visuel d'accompagnement pour ce post LinkedIn :\n\n${text.slice(0, 300)}\n\n(Heelio design system, ${pilier})` : '';
+  // Keyboard shortcuts
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setCmdOpen(o => !o); }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'p') { e.preventDefault(); setPreviewOpen(o => !o); }
+      if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); handleSave(false); }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [handleSave]);
+
+  // Command palette commands
+  const commands: Command[] = [
+    { id: 'preview', label: previewOpen ? "Fermer l'aperçu LinkedIn" : "Ouvrir l'aperçu LinkedIn", hint: 'Drawer coulissant', group: 'Vue', shortcut: '⌘P', perform: () => setPreviewOpen(o => !o) },
+    { id: 'options', label: optionsOpen ? 'Masquer les options' : 'Afficher les options', hint: 'Brief, garde-fous, programmation', group: 'Vue', perform: () => setOptionsOpen(o => !o) },
+    { id: 'gen', label: 'Régénérer 3 propositions', hint: 'Re-run Claude avec le brief', group: 'Génération', perform: () => handleGenerate() },
+    { id: 'save', label: 'Sauvegarder en brouillon', group: 'Sauvegarder', shortcut: '⌘S', perform: () => handleSave(false) },
+    { id: 'sched', label: `Programmer pour le ${new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} à ${time}`, group: 'Sauvegarder', perform: () => handleSave(true) },
+    ...SLASH_COMMANDS.map<Command>(c => ({
+      id: 'slash-' + c.id, label: c.label, hint: c.hint, group: c.group || 'Améliorer',
+      perform: async () => {
+        const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notion_page_id: initial?.id || 'new-post', draft: text, instruction: c.prompt }) });
+        const d = await r.json(); if (r.ok && d.rewrite) setText(d.rewrite);
+      }
+    })),
+    { id: 'publish', label: 'Publier maintenant', hint: 'Validation requise', group: 'Avancé', perform: () => setPublishOpen(true) },
+  ];
+
+  const pilierShort = pilier.split('·')[1]?.trim() || pilier;
+  const canPublish = text.trim() && (!pilierIsCasClient || anonOk) && !criticalLint.length;
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">{initial?.id ? 'Modifier le post' : 'Nouveau post'}</h1>
-          <p className="mt-1 text-sm text-ink-500 lead">Pilier, brief auto-suggéré, génération IA, validation, programmation.</p>
+    <div className="-mx-5 lg:-mx-10 -my-7 lg:-my-9 min-h-screen flex flex-col bg-white">
+      {/* ── HEADER STICKY 56px ───────────────────────────────────── */}
+      <header className="sticky top-0 z-20 flex items-center gap-3 px-5 lg:px-8 h-14 border-b border-ink-100 bg-white/95 backdrop-blur">
+        <Link href="/posts" className="btn-ghost text-sm" aria-label="Retour">←</Link>
+        <span className="chip chip-neutral text-2xs whitespace-nowrap">
+          {initial?.id ? '✦ Modification' : '✦ Nouveau'}
+        </span>
+        <select value={pilier} onChange={e => setPilier(e.target.value)} className="text-2xs bg-transparent border-0 focus:ring-0 cursor-pointer text-ink-700 hover:text-ink-900 max-w-[280px] truncate" title="Changer le pilier">
+          {PILIERS.map(p => <option key={p} value={p}>{p.split('·')[1]?.trim() || p}</option>)}
+        </select>
+        {saveMsg && <span className="text-2xs text-success-700 flex items-center gap-1 animate-fade-in"><span className="dot bg-success-500" /> {saveMsg}</span>}
+        <div className="ml-auto flex items-center gap-1">
+          <button onClick={() => setCmdOpen(true)} className="btn-ghost text-xs" title="Commandes ⌘K">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path strokeLinecap="round" d="M21 21l-4.3-4.3"/></svg>
+            <kbd className="hidden sm:inline px-1 rounded bg-ink-100 font-mono text-2xs ml-1">⌘K</kbd>
+          </button>
+          <button onClick={() => setPreviewOpen(o => !o)} className={`btn-ghost text-xs ${previewOpen ? 'bg-brand-50 text-brand-700' : ''}`} title="Aperçu LinkedIn ⌘P">
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span className="hidden sm:inline">Aperçu</span>
+          </button>
         </div>
-        {!initial?.id && !prefillBrief && (
-          <a href="/suggestions" className="btn-secondary text-xs">
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>
-            Voir le Radar
-          </a>
-        )}
       </header>
 
-      {prefillBrief && !initial?.id && (
-        <SuggestionBanner
-          source={suggestSource}
-          id={suggestId}
-          score={suggestScore}
-          pilier={suggestPilier}
-          brief={prefillBrief}
-          hook={prefillHook}
-          angle={suggestAngle}
-          why={suggestWhy}
-          visualIdea={suggestVisualIdea}
-          filterSource={filterSource}
-          recyclables={recyclables}
-        />
-      )}
-      {!prefillBrief && !initial?.id && recyclables.length > 0 && (
-        <RecyclablesPicker recyclables={recyclables} />
-      )}
+      {/* ── MAIN single-column max-w-3xl ─────────────────────────── */}
+      <div className="flex-1 w-full max-w-3xl mx-auto px-5 lg:px-8 py-8 lg:py-10 space-y-6">
+        {/* Suggestion hero (only when text empty AND a suggestion is available) */}
+        {!text && prefillBrief && (
+          <SuggestionHero
+            source={suggestSource} score={suggestScore} pilier={suggestPilier}
+            brief={prefillBrief} hook={prefillHook} angle={suggestAngle}
+            why={suggestWhy} visualIdea={suggestVisualIdea}
+            id={suggestId} filterSource={filterSource} recyclables={recyclables}
+            onAccept={() => handleGenerate(prefillBrief)}
+            generating={genLoading}
+          />
+        )}
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <section className="space-y-4">
-          <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
-            <Label>Pilier éditorial</Label>
-            <select value={pilier} onChange={e => setPilier(e.target.value)} className="mt-1 w-full rounded-lg border-ink-300 px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500">
-              {PILIERS.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
+        {/* Start callout (no suggestion AND no text) */}
+        {!text && !prefillBrief && (
+          <StartCallout
+            pilier={pilier}
+            brief={brief}
+            onBrief={setBrief}
+            onGenerate={() => handleGenerate()}
+            generating={genLoading}
+            error={genError}
+            recyclables={recyclables}
+          />
+        )}
+
+        {/* Editor (always visible once there's text, or on user start writing) */}
+        {(text || !prefillBrief) && (
+          <CadenceEditor
+            textareaRef={taRef}
+            value={text}
+            onChange={setText}
+            draftId={initial?.id || 'new-post'}
+            rows={text ? 18 : 6}
+            placeholder={text ? '' : 'Ou commencez à écrire directement. Tapez / pour les commandes, @ pour mentionner.'}
+            bare
+          />
+        )}
+
+        {/* Alternative proposals (after generation) */}
+        {proposals.length > 1 && (
+          <div className="flex items-center gap-2 text-xs text-ink-500 animate-fade-in">
+            <span>Cadence a généré {proposals.length} variantes :</span>
+            {proposals.map((p, i) => (
+              <button key={i} onClick={() => { setText(p); setProposalIdx(i); }} className={`px-2 py-1 rounded-md transition ${proposalIdx === i ? 'bg-brand-50 text-brand-700 font-medium' : 'text-ink-500 hover:bg-ink-50'}`}>
+                v{i + 1}
+              </button>
+            ))}
+            <button onClick={() => handleGenerate()} disabled={genLoading} className="ml-auto btn-ghost text-2xs">
+              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M21 12a9 9 0 11-3-6.7L21 8"/></svg>
+              Régénérer
+            </button>
+          </div>
+        )}
+
+        {/* Critical lint inline (only if critical issue) */}
+        {criticalLint.length > 0 && (
+          <div className="card p-3 border-danger-100 bg-danger-50/30 text-xs text-danger-700 flex items-center gap-2 animate-fade-in">
+            <span>⚠</span>
+            <span><strong>{criticalLint.length} problème critique :</strong> {criticalLint[0].label}{criticalLint[0].matches[0] ? ` (« ${criticalLint[0].matches[0]} »)` : ''}</span>
+          </div>
+        )}
+
+        {/* Options collapsible (Schedule + Visuel + Garde-fous + Brief) */}
+        {(optionsOpen || (initial?.id && text)) && (
+          <section className="card p-5 space-y-4 animate-slide-up">
+            {/* Brief */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Brief / contexte</label>
+                {suggestSource && <span className="text-2xs text-ink-400">auto · {suggestSource}{suggestScore ? ` · ${suggestScore}/100` : ''}</span>}
+              </div>
+              <textarea
+                value={brief} onChange={e => setBrief(e.target.value)}
+                rows={2}
+                placeholder="Ex : un client a divisé par 2 son DSO en passant à Heelio. Veut raconter le déclic + résultat sans donner le nom."
+                className="input text-sm"
+              />
+              <button onClick={() => handleGenerate()} disabled={genLoading || !brief.trim()} className="btn-secondary text-xs mt-2">
+                {genLoading ? 'Génération…' : '✨ Re-générer 3 propositions depuis ce brief'}
+              </button>
+            </div>
+
+            {/* Programmation */}
+            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-ink-100">
+              <div>
+                <label className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Date</label>
+                <input type="date" value={date} onChange={e => setDate(e.target.value)} className="input text-sm mt-1" />
+              </div>
+              <div>
+                <label className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Heure</label>
+                <input type="time" value={time} onChange={e => setTime(e.target.value)} className="input text-sm mt-1" />
+              </div>
+            </div>
+
+            {/* Cas client safety */}
             {pilierIsCasClient && (
-              <label className="mt-3 flex items-start gap-3 cursor-pointer select-none">
-                <input type="checkbox" checked={anonOk} onChange={e => setAnonOk(e.target.checked)} className="mt-1 w-4 h-4 rounded border-ink-300 text-brand-500 focus:ring-brand-500" />
-                <span className="text-xs text-ink-700">Anonymisation OK validée (obligatoire avant publication)</span>
+              <label className="flex items-start gap-2 cursor-pointer p-3 rounded-lg border border-warn-100 bg-warn-50/40">
+                <input type="checkbox" checked={anonOk} onChange={e => setAnonOk(e.target.checked)} className="mt-0.5 w-3.5 h-3.5 rounded border-ink-300 text-brand-500" />
+                <span className="text-xs text-ink-700">
+                  <strong className="block text-ink-900">Anonymisation OK validée</strong>
+                  Obligatoire avant publication d'un cas client (pas de nom, pas de chiffres internes identifiables).
+                </span>
               </label>
             )}
+          </section>
+        )}
 
-            <div className="flex items-center justify-between mt-4 flex-wrap gap-2">
-              <Label>Brief / pitch</Label>
-              {prefillBrief && (
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase tracking-wide font-semibold text-brand-700 bg-brand-50 px-1.5 py-0.5 rounded">
-                    Auto-suggéré{suggestSource ? ' · ' + suggestSource : ''}{suggestScore ? ' · ' + suggestScore + '/100' : ''}
-                  </span>
-                  {suggestId && <a href={'/posts/new?skip=' + suggestId} className="text-[10px] text-brand-700 hover:text-brand-600 underline">Changer d'idée ↻</a>}
-                </div>
-              )}
-            </div>
-            <textarea value={brief} onChange={e => setBrief(e.target.value)} rows={4} placeholder="Ex : un client a divisé par 2 son DSO en passant à Heelio. Veux raconter le déclic + résultat sans donner le nom." className="mt-1 w-full rounded-lg border-ink-300 px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500" />
-
-            <button onClick={handleGenerate} disabled={genLoading || !brief.trim()} className="mt-3 w-full px-4 py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50">
-              {genLoading ? 'Génération Claude en cours… (15-30 sec)' : '✨ Générer 3 propositions'}
-            </button>
-            {genError && <div className="mt-3 p-3 rounded-lg bg-danger-50 ring-1 ring-inset ring-danger-500/20 text-sm text-danger-700"><strong className="font-semibold">Erreur Anthropic :</strong> {genError}</div>}
+        {/* Generation in progress */}
+        {genLoading && (
+          <div className="card p-4 border-brand-100 bg-brand-50/30 text-sm text-ink-700 flex items-center gap-3 animate-fade-in">
+            <span className="dot bg-brand-500 animate-pulse-soft" />
+            <span>Cadence rédige 3 propositions pour vous (15-30 secondes)…</span>
           </div>
-
-          {proposals.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="font-semibold text-ink-900 text-sm flex items-center gap-2">Propositions générées{genModel && <StatusBadge variant="brand">{genModel}</StatusBadge>}</h3>
-              {proposals.map((p, i) => (
-                <div key={i} className="bg-white rounded-2xl p-4 shadow-card ring-1 ring-inset ring-ink-300/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <StatusBadge variant="brand">Proposition {i + 1}</StatusBadge>
-                    <button onClick={() => setText(p)} className="text-xs px-3 py-1.5 rounded-lg bg-ink-100 text-ink-700 hover:bg-ink-200">Utiliser ce texte</button>
-                  </div>
-                  <p className="text-sm text-ink-700 whitespace-pre-wrap">{p}</p>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <VisualGenerator defaultPrompt={visualPromptDefault} notionPageId={initial?.id} />
-        </section>
-
-        <section className="space-y-4">
-          <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
-            <Label>Titre interne (Notion)</Label>
-            <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Titre lisible pour la DB Notion" className="mt-1 w-full rounded-lg border-ink-300 px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500" />
-            <div className="flex items-center justify-between mt-4">
-              <Label>Texte du post LinkedIn</Label>
-              <span className={`text-xs ${charCount > 1300 ? 'text-danger-700' : charCount > 900 ? 'text-warn-700' : 'text-ink-500'}`}>{charCount} / 1300</span>
-            </div>
-            <div className="relative">
-              <MentionTextarea
-                textareaRef={taRef}
-                value={text}
-                onChange={onTextChange}
-                rows={14}
-                placeholder="Tapez / pour les commandes, @ pour mentionner."
-                className="mt-1 text-[15px] leading-[1.55] resize-none font-sans"
-              />
-              {aiBusy && <div className="absolute top-2 right-2 chip chip-brand text-2xs animate-pulse-soft"><span className="dot bg-brand-500" /> Cadence réfléchit…</div>}
-              <SlashMenu
-                open={slashOpen}
-                anchor={slashAnchor}
-                query={slashQuery}
-                onSelect={applySlashCommand}
-                onClose={() => setSlashOpen(false)}
-              />
-            </div>
+        )}
+        {genError && (
+          <div className="card p-3 border-danger-100 bg-danger-50/30 text-sm text-danger-700">
+            Erreur génération : {genError}
           </div>
-
-          <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
-            <h3 className="font-semibold text-ink-900 text-sm">Garde-fous éditoriaux</h3>
-            {lint.length === 0
-              ? <p className="mt-2 text-sm text-success-700">Aucun problème détecté.</p>
-              : <ul className="mt-2 space-y-1.5">
-                  {lint.map(h => (
-                    <li key={h.id} className="text-sm">
-                      <StatusBadge variant={h.severity === 'critical' ? 'danger' : h.severity === 'high' ? 'warn' : 'neutral'}>{h.severity}</StatusBadge>
-                      <span className="ml-2 text-ink-700">{h.label}</span>
-                      {h.matches[0] && <span className="ml-2 text-ink-500 text-xs">"{h.matches[0]}"</span>}
-                    </li>
-                  ))}
-                </ul>}
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
-            <h3 className="font-semibold text-ink-900 text-sm">Programmation</h3>
-            <div className="mt-3 flex gap-3">
-              <div className="flex-1"><Label>Date</Label><input type="date" value={date} onChange={e => setDate(e.target.value)} className="mt-1 w-full rounded-lg border-ink-300 px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500" /></div>
-              <div className="flex-1"><Label>Heure</Label><input type="time" value={time} onChange={e => setTime(e.target.value)} className="mt-1 w-full rounded-lg border-ink-300 px-3 py-2 text-sm focus:ring-brand-500 focus:border-brand-500" /></div>
-            </div>
-            <p className="mt-2 text-xs text-ink-500">L'auto-publication tourne 1×/jour à 5h30 UTC (≈ 7h30 Paris). Pour publier à l'heure exacte, utilisez « Publier maintenant » après validation.</p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20 space-y-2">
-            <label className="flex items-start gap-3 cursor-pointer select-none p-2 rounded-lg ring-1 ring-ink-100 bg-warn-50/30">
-              <input type="checkbox" checked={validated} onChange={e => setValidated(e.target.checked)} className="mt-1 w-4 h-4 rounded border-ink-300 text-brand-500 focus:ring-brand-500" />
-              <span className="text-sm text-ink-700"><strong className="block text-ink-900">Validé pour publication automatique</strong><span className="text-xs text-ink-500">Si coché, le cron quotidien publiera ce post à l'heure programmée. Sinon il reste en draft, même si la date est passée.</span></span>
-            </label>
-            <button onClick={() => handleSave(false)} disabled={saveLoading || !text.trim()} className="w-full px-4 py-2.5 rounded-lg ring-1 ring-ink-300 text-ink-700 text-sm font-medium hover:bg-ink-50 disabled:opacity-50">{saveLoading ? 'Sauvegarde…' : 'Sauvegarder en draft'}</button>
-            <button onClick={() => handleSave(true)} disabled={saveLoading || !text.trim()} className="w-full px-4 py-2.5 rounded-lg ring-1 ring-brand-500 text-brand-700 text-sm font-medium hover:bg-brand-50 disabled:opacity-50">{saveLoading ? 'Sauvegarde…' : `Programmer pour le ${new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} à ${time}`}</button>
-            <button onClick={() => setPublishOpen(true)} disabled={!text.trim() || (pilierIsCasClient && !anonOk) || lint.some(h => h.severity === 'critical')} className="w-full px-4 py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 disabled:opacity-50">Publier maintenant…</button>
-            {pilierIsCasClient && !anonOk && <p className="text-xs text-warn-700">Cochez « Anonymisation OK » avant de publier un cas client.</p>}
-            {lint.some(h => h.severity === 'critical') && <p className="text-xs text-danger-700">Corrigez les garde-fous critiques avant publication.</p>}
-            {saveMsg && <p className="text-sm text-ink-700">{saveMsg}</p>}
-          </div>
-        </section>
+        )}
       </div>
+
+      {/* ── FOOTER STICKY 48px ───────────────────────────────────── */}
+      <footer className="sticky bottom-0 z-20 border-t border-ink-100 bg-white/95 backdrop-blur">
+        <div className="max-w-3xl mx-auto px-5 lg:px-8 h-12 flex items-center gap-3 text-xs text-ink-500">
+          {text && (
+            <>
+              <span className="tabular-nums hidden sm:inline">{wordCount} mots · ~{readingMin} min</span>
+              <span className={`tabular-nums ${charCount > 1300 ? 'text-danger-500 font-semibold' : ''}`}>{charCount}/1300</span>
+            </>
+          )}
+          <button onClick={() => setOptionsOpen(o => !o)} className="btn-ghost text-2xs">
+            {optionsOpen ? '↑ Options' : '↓ Options'}
+          </button>
+          <span className="ml-auto flex items-center gap-2">
+            <label className="hidden sm:flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={validated} onChange={e => setValidated(e.target.checked)} className="w-3.5 h-3.5 rounded border-ink-300 text-brand-500" />
+              <span>Validé pour cron</span>
+            </label>
+            <button onClick={() => handleSave(false)} disabled={saveLoading || !text.trim()} className="btn-ghost text-xs">{saveLoading ? '…' : 'Sauvegarder'}</button>
+            <button onClick={() => handleSave(true)} disabled={saveLoading || !text.trim()} className="btn-secondary text-xs">
+              {saveLoading ? '…' : `Programmer ${new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} ${time.slice(0,5)}`}
+            </button>
+            <button onClick={() => setPublishOpen(true)} disabled={!canPublish} className="btn-primary text-xs" title={!canPublish ? (criticalLint.length ? 'Corrigez les problèmes critiques' : 'Texte requis') : undefined}>
+              Publier…
+            </button>
+          </span>
+        </div>
+      </footer>
+
+      {/* ── PREVIEW DRAWER ───────────────────────────────────────── */}
+      <PreviewDrawer open={previewOpen} onClose={() => setPreviewOpen(false)}>
+        <LinkedInPreview text={text} image={imageUrl || undefined} />
+        <div className="mt-6">
+          <VisualGenerator
+            defaultPrompt={text ? `Visuel d'accompagnement : ${text.slice(0, 200)} (Style Heelio)` : ''}
+            notionPageId={initial?.id}
+            onPick={setImageUrl}
+          />
+        </div>
+      </PreviewDrawer>
+
+      {/* ── COMMAND PALETTE ──────────────────────────────────────── */}
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} commands={commands} />
 
       <PublishModal open={publishOpen} onClose={() => setPublishOpen(false)} text={text} notionPageId={initial?.id} />
     </div>
   );
 }
 
-function SuggestionBanner({ source, id, score, pilier, brief, hook, angle, why, visualIdea, filterSource, recyclables }: { source?: string|null; id?: string|null; score?: number|null; pilier?: string|null; brief?: string; hook?: string; angle?: string|null; why?: string|null; visualIdea?: string|null; filterSource?: string|null; recyclables: Recyclable[] }) {
+// ══════════════ SUB-COMPONENTS ══════════════
+
+function SuggestionHero({
+  source, score, pilier, brief, hook, angle, why, visualIdea, id, filterSource, recyclables,
+  onAccept, generating
+}: {
+  source?: string|null; score?: number|null; pilier?: string|null; brief?: string; hook?: string;
+  angle?: string|null; why?: string|null; visualIdea?: string|null;
+  id?: string|null; filterSource?: string|null; recyclables: Recyclable[];
+  onAccept: () => void; generating: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
-  const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [showRecyclables, setShowRecyclables] = useState(false);
-  const sources = ['notion', 'github', 'heuristic'];
+
   return (
-    <div className="card p-4 border-brand-100 bg-gradient-to-br from-brand-50/40 to-white animate-slide-up">
+    <section className="card p-5 border-brand-100 bg-gradient-to-br from-brand-50/40 to-white animate-slide-up">
       <div className="flex items-start gap-3">
-        <div className="w-9 h-9 rounded-lg bg-brand-100 flex items-center justify-center text-brand-700 text-base shrink-0">✨</div>
+        <div className="w-10 h-10 rounded-xl bg-brand-100 flex items-center justify-center text-brand-700 text-lg shrink-0">✨</div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className="text-2xs uppercase tracking-wider font-semibold text-brand-700">Cadence vous propose</span>
             {source && <span className="chip chip-brand text-2xs">{source}</span>}
             {score != null && <span className="text-2xs text-ink-500">· score {score}/100</span>}
-            {pilier && <span className="text-2xs text-ink-500">· {pilier}</span>}
-            {filterSource && <span className="chip chip-neutral text-2xs">filtré sur {filterSource}</span>}
+            {pilier && <span className="text-2xs text-ink-500">· {pilier.split('·')[1]?.trim() || pilier}</span>}
           </div>
-          <div className="mt-1 text-sm font-medium text-ink-900 leading-snug">{brief}</div>
-          {hook && <div className="mt-1.5 text-xs text-ink-600 italic">« {hook} »</div>}
+          <h2 className="mt-1 text-base font-semibold text-ink-900 leading-snug">{brief}</h2>
+          {hook && <p className="mt-2 text-sm text-ink-700 italic border-l-2 border-brand-300 pl-3">« {hook} »</p>}
           {expanded && (
-            <div className="mt-3 space-y-2 pt-3 border-t border-brand-100 text-xs animate-slide-up">
-              {why && <div><span className="font-semibold text-ink-700">Pourquoi maintenant : </span><span className="text-ink-600">{why}</span></div>}
-              {angle && <div><span className="font-semibold text-ink-700">Angle suggéré : </span><span className="text-ink-600">{angle}</span></div>}
-              {visualIdea && <div><span className="font-semibold text-ink-700">Idée de visuel : </span><span className="text-ink-600">{visualIdea}</span></div>}
-              {!why && !angle && !visualIdea && <div className="text-ink-500 italic">Cette suggestion ne contient pas d\'explication détaillée. C\'est probablement une suggestion heuristique.</div>}
+            <div className="mt-3 space-y-1.5 pt-3 border-t border-brand-100 text-xs animate-slide-up">
+              {why && <div><span className="font-semibold text-ink-700">Pourquoi : </span><span className="text-ink-600">{why}</span></div>}
+              {angle && <div><span className="font-semibold text-ink-700">Angle : </span><span className="text-ink-600">{angle}</span></div>}
+              {visualIdea && <div><span className="font-semibold text-ink-700">Visuel : </span><span className="text-ink-600">{visualIdea}</span></div>}
+              {!why && !angle && !visualIdea && <div className="text-ink-500 italic">Suggestion heuristique.</div>}
             </div>
           )}
-          <div className="mt-3 flex items-center gap-1 flex-wrap">
-            <button onClick={() => setExpanded(e => !e)} className="btn-ghost text-2xs">
-              {expanded ? '↑ Masquer' : '↓ Voir pourquoi'}
+          <div className="mt-4 flex items-center gap-2 flex-wrap">
+            <button onClick={onAccept} disabled={generating} className="btn-primary">
+              {generating ? (<><span className="dot bg-white animate-pulse-soft" /> Cadence rédige…</>) : 'Écrire ce post →'}
             </button>
-            {id && <a href={'/posts/new?skip=' + id + (filterSource ? '&source=' + filterSource : '')} className="btn-ghost text-2xs">↻ Changer d\'idée</a>}
-            <button onClick={() => setShowSourcePicker(s => !s)} className="btn-ghost text-2xs">⊕ Changer de source</button>
-            {recyclables.length > 0 && <button onClick={() => setShowRecyclables(s => !s)} className="btn-ghost text-2xs">⟲ Depuis un ancien post</button>}
+            <button onClick={() => setExpanded(e => !e)} className="btn-ghost text-xs">{expanded ? '↑ Masquer' : '↓ Voir pourquoi'}</button>
+            {id && <a href={'/posts/new?skip=' + id + (filterSource ? '&source=' + filterSource : '')} className="btn-ghost text-xs">↻ Autre idée</a>}
+            {recyclables.length > 0 && <button onClick={() => setShowRecyclables(s => !s)} className="btn-ghost text-xs">⟲ Recycler ancien</button>}
           </div>
-          {showSourcePicker && (
-            <div className="mt-2 p-2 rounded-lg border border-ink-200 bg-white animate-slide-up">
-              <div className="text-2xs font-semibold text-ink-500 mb-1.5">Choisir une source</div>
-              <div className="flex flex-wrap gap-1">
-                <a href="/posts/new" className={`text-2xs px-2 py-1 rounded-md border transition ${!filterSource ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-ink-200 hover:bg-ink-50'}`}>Toutes</a>
-                {sources.map(s => (
-                  <a key={s} href={'/posts/new?source=' + s} className={`text-2xs px-2 py-1 rounded-md border transition ${filterSource === s ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-ink-200 hover:bg-ink-50'}`}>{s}</a>
-                ))}
-              </div>
-            </div>
-          )}
-          {showRecyclables && recyclables.length > 0 && (
-            <div className="mt-2 p-2 rounded-lg border border-ink-200 bg-white animate-slide-up max-h-72 overflow-y-auto">
+          {showRecyclables && (
+            <div className="mt-3 p-2 rounded-lg border border-ink-200 bg-white max-h-60 overflow-y-auto animate-slide-up">
               <div className="text-2xs font-semibold text-ink-500 mb-1.5">Anciens posts à recycler ({recyclables.length})</div>
               <div className="space-y-1">
-                {recyclables.map(r => (
+                {recyclables.slice(0, 5).map(r => (
                   <a key={r.id} href={'/posts/new?from=' + r.id + '&recycle=1'} className="block p-2 rounded-md hover:bg-ink-50 text-xs transition">
                     <div className="font-medium text-ink-900 truncate">{r.title}</div>
-                    <div className="text-2xs text-ink-500 mt-0.5">{r.pilier || '—'} · publié le {new Date(r.published_at).toLocaleDateString('fr-FR')}{r.impressions ? ' · ' + r.impressions.toLocaleString('fr-FR') + ' impressions' : ''}</div>
+                    <div className="text-2xs text-ink-500 mt-0.5">{r.pilier?.split('·')[1]?.trim() || '—'} · {new Date(r.published_at).toLocaleDateString('fr-FR')}{r.impressions ? ' · ' + r.impressions.toLocaleString('fr-FR') + ' imp' : ''}</div>
                   </a>
                 ))}
               </div>
@@ -376,42 +416,49 @@ function SuggestionBanner({ source, id, score, pilier, brief, hook, angle, why, 
           )}
         </div>
       </div>
-    </div>
+    </section>
   );
 }
 
-function RecyclablesPicker({ recyclables }: { recyclables: Recyclable[] }) {
+function StartCallout({
+  pilier, brief, onBrief, onGenerate, generating, error, recyclables
+}: {
+  pilier: string; brief: string; onBrief: (s: string) => void;
+  onGenerate: () => void; generating: boolean; error: string | null; recyclables: Recyclable[];
+}) {
   return (
-    <div className="card p-4 border-ink-200 animate-slide-up">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="font-semibold text-ink-900 text-sm">Aucune suggestion fraîche pour l\'instant</h3>
-        <a href="/suggestions" className="btn-ghost text-2xs">Lancer le radar</a>
+    <section className="card p-5 animate-fade-in">
+      <h2 className="font-semibold text-ink-900">De quoi voulez-vous parler ?</h2>
+      <p className="text-xs text-ink-500 mt-0.5">Brief court — Cadence en fera 3 versions. Ou commencez à écrire directement dans la zone ci-dessous.</p>
+      <textarea
+        value={brief} onChange={e => onBrief(e.target.value)}
+        rows={3}
+        placeholder={`Ex (${pilier.split('·')[1]?.trim() || 'sujet'}) : un client a divisé par 2 son DSO en passant à Heelio.`}
+        className="input text-sm mt-3 font-editorial leading-[1.55]"
+        autoFocus
+      />
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
+        <button onClick={onGenerate} disabled={generating || !brief.trim()} className="btn-primary">
+          {generating ? (<><span className="dot bg-white animate-pulse-soft" /> Génération…</>) : '✨ Générer 3 propositions'}
+        </button>
+        <Link href="/suggestions" className="btn-ghost text-xs">
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>
+          Voir le Radar
+        </Link>
+        {recyclables.length > 0 && <a href={'/posts/new?from=' + recyclables[0].id + '&recycle=1'} className="btn-ghost text-xs">⟲ Recycler un ancien</a>}
       </div>
-      <p className="text-xs text-ink-500 mb-3">En attendant, voici {recyclables.length} ancien{recyclables.length > 1 ? 's' : ''} post{recyclables.length > 1 ? 's' : ''} qui pourrai{recyclables.length > 1 ? 'ent' : 't'} être recyclé{recyclables.length > 1 ? 's' : ''} :</p>
-      <div className="space-y-1">
-        {recyclables.slice(0, 5).map(r => (
-          <a key={r.id} href={'/posts/new?from=' + r.id + '&recycle=1'} className="block p-2 rounded-lg border border-ink-100 hover:border-brand-200 hover:bg-brand-50/30 transition">
-            <div className="text-sm font-medium text-ink-900">{r.title}</div>
-            <div className="text-2xs text-ink-500 mt-0.5">{r.pilier || '—'} · publié le {new Date(r.published_at).toLocaleDateString('fr-FR')}{r.impressions ? ' · ' + r.impressions.toLocaleString('fr-FR') + ' impressions' : ''}</div>
-          </a>
-        ))}
-      </div>
-    </div>
+      {error && <p className="mt-3 text-xs text-danger-700">Erreur : {error}</p>}
+    </section>
   );
 }
 
-function Label({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <label className={`block text-xs font-medium text-ink-700 ${className}`}>{children}</label>;
-}
-
+// ── Anti-pattern linter ─────────────────────
 function analyzeAntiPatterns(text: string) {
   const hits: { id: string; label: string; severity: 'critical' | 'high' | 'medium'; matches: string[] }[] = [];
   if (!text.trim()) return hits;
   if (/[—–]/.test(text)) hits.push({ id: 'em_dash', label: 'Tiret long (— ou –) interdit', severity: 'critical', matches: text.match(/[—–]/g) || [] });
   if (/(c['e]?st|n['e]?st)\s+pas\s+\w+[\s,]+c['e]?st\s+\w+/i.test(text)) hits.push({ id: 'not_x_y', label: '« Ce n\'est pas X, c\'est Y » interdit', severity: 'critical', matches: ['(détecté)'] });
   if (/\b(seamless|robust|delve|leverage|unlock|unleash|deep dive|game[- ]?changer|dans un monde où)\b/i.test(text)) hits.push({ id: 'creux', label: 'Mot creux IA détecté', severity: 'high', matches: text.match(/\b(seamless|robust|delve|leverage|unlock|unleash|deep dive|game[- ]?changer|dans un monde où)\b/gi) || [] });
-  const emojiCount = (text.match(/\p{Extended_Pictographic}/gu) || []).length;
-  if (emojiCount > 3) hits.push({ id: 'emoji', label: `${emojiCount} emojis (max 3)`, severity: 'medium', matches: [] });
   if (/\b(tu|toi|ton|ta|tes)\b/i.test(text)) hits.push({ id: 'tu', label: 'Tutoiement détecté (vouvoiement requis)', severity: 'high', matches: text.match(/\b(tu|toi|ton|ta|tes)\b/gi) || [] });
   return hits;
 }
