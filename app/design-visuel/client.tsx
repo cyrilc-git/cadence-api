@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 const CATEGORY_META: Record<string, { label: string; description: string; icon: string }> = {
   brand:      { label: 'Logo & branding',         description: 'Identité visuelle de Cadence', icon: '✦' },
@@ -18,6 +18,10 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
   const [editing, setEditing] = useState<any | null>(null);
   const [figmaUrl, setFigmaUrl] = useState('');
   const [savingFigma, setSavingFigma] = useState(false);
+  // V8.9 §7 — moodboards
+  const [moodboards, setMoodboards] = useState<any[]>([]);
+  const [uploadingMb, setUploadingMb] = useState(false);
+  const [mbError, setMbError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>('all');
 
   async function save() {
@@ -35,6 +39,38 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
     if (!confirm('Supprimer ce token ?')) return;
     const r = await fetch(`/api/design-system/${id}`, { method: 'DELETE' });
     if (r.ok) setTokens(tokens.filter(t => t.id !== id));
+  }
+
+  async function loadMoodboards() {
+    try {
+      const r = await fetch('/api/design-visuel/moodboard');
+      const d = await r.json();
+      if (r.ok) setMoodboards(d.moodboards || []);
+    } catch { /* silent */ }
+  }
+  // Load on mount
+  useEffect(() => { loadMoodboards(); }, []);
+
+  async function uploadMoodboard(file: File) {
+    setUploadingMb(true); setMbError(null);
+    const fd = new FormData();
+    fd.append('file', file);
+    try {
+      const r = await fetch('/api/design-visuel/moodboard', { method: 'POST', body: fd });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'upload failed');
+      await loadMoodboards();
+    } catch (e: any) {
+      setMbError(e.message);
+    } finally { setUploadingMb(false); }
+  }
+
+  async function deleteMoodboard(id: string) {
+    if (!confirm('Supprimer cette image de référence ?')) return;
+    try {
+      const r = await fetch(`/api/design-system/${id}`, { method: 'DELETE' });
+      if (r.ok) setMoodboards(prev => prev.filter(m => m.id !== id));
+    } catch { /* silent */ }
   }
 
   async function saveFigma() {
@@ -156,6 +192,44 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
             </p>
           )}
         </div>
+      </section>
+
+      {/* V8.9 §7 — Moodboard upload */}
+      <section className="card p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-ink-900">Moodboard de référence</h2>
+            <p className="mt-1 text-xs text-ink-500">Glissez-déposez ou sélectionnez des images. Cadence les utilise comme inspiration visuelle lors de la génération.</p>
+          </div>
+          <label className="btn-primary text-xs cursor-pointer">
+            {uploadingMb ? 'Upload…' : '+ Ajouter une image'}
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              disabled={uploadingMb}
+              onChange={e => { const f = e.target.files?.[0]; if (f) uploadMoodboard(f); e.currentTarget.value = ''; }}
+            />
+          </label>
+        </div>
+        {mbError && <p className="mt-2 text-xs text-danger-700">{mbError}</p>}
+        {moodboards.length > 0 ? (
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+            {moodboards.map(m => (
+              <div key={m.id} className="group relative aspect-square rounded-lg overflow-hidden border border-ink-200 bg-ink-50">
+                <img src={m.value} alt="" className="w-full h-full object-cover" loading="lazy" />
+                <button
+                  onClick={() => deleteMoodboard(m.id)}
+                  className="absolute top-1 right-1 w-6 h-6 rounded-md bg-white/90 text-ink-600 hover:text-danger-700 opacity-0 group-hover:opacity-100 transition text-xs"
+                  title="Supprimer"
+                  aria-label="Supprimer cette image"
+                >×</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-xs text-ink-500 italic">Aucune image. Ajoutez 3-6 références pour donner une direction artistique à Cadence.</p>
+        )}
       </section>
 
       {/* Mode banner */}

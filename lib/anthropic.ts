@@ -131,8 +131,12 @@ RÈGLES OBLIGATOIRES :
 export async function generateClaudeDesignSvg(prompt: string): Promise<{ svg: string; model: string }> {
   const c = await client();
   const dsBlock = await designSystemPromptBlock().catch(() => '');
+  // V8.9 §7 — séparer le moodboard du reste pour le rendre saillant
+  const moodboardHint = dsBlock.includes('[MOODBOARD]')
+    ? '\nNOTE : Les URLs sous [MOODBOARD] sont des images de référence (palette/style/composition). Inspirez-vous-en pour la direction artistique sans les fetcher.\n'
+    : '';
   const userBlock = dsBlock
-    ? `DESIGN SYSTEM UTILISATEUR (PRIORITAIRE — surcharge les défauts)\n${dsBlock}\n\nDEMANDE\n${prompt}`
+    ? `DESIGN SYSTEM UTILISATEUR (PRIORITAIRE — surcharge les défauts)\n${dsBlock}${moodboardHint}\nDEMANDE\n${prompt}`
     : `DEMANDE\n${prompt}`;
   const MODEL = 'claude-sonnet-4-6';
   const msg = await c.messages.create({
