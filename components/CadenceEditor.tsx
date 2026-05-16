@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import MentionTextarea, { caretCoords } from './MentionTextarea';
 import SlashMenu, { SlashCommand, detectSlashQuery } from './SlashMenu';
+import MentionSuggestions from './MentionSuggestions';
 import { toBold, toItalic } from './LinkedInPreview';
 
 export type CadenceEditorProps = {
@@ -21,6 +22,8 @@ export type CadenceEditorProps = {
   showAiIndicator?: boolean;
   brief?: string;
   pilier?: string;
+  /** V8.9 — afficher les suggestions de mentions IA sous l'éditeur */
+  showMentionSuggestions?: boolean;
 };
 
 function strippedText(text: string): string {
@@ -41,6 +44,7 @@ export default function CadenceEditor({
   bare = false, className = '',
   textareaRef, showAiIndicator = true,
   brief, pilier,
+  showMentionSuggestions = true,
 }: CadenceEditorProps) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const ref = textareaRef || localRef;
@@ -297,6 +301,22 @@ export default function CadenceEditor({
         onSelect={applySlashCommand}
         onClose={() => setSlashOpen(false)}
       />
+
+      {/* V8.9 — suggestions de mentions IA discrètes */}
+      {showMentionSuggestions && !aiBusy && (
+        <MentionSuggestions
+          text={value}
+          onApply={(position, length, urn, display) => {
+            const tag = `@[${display}](urn:li:${urn.includes(':') ? urn.split(':').slice(2).join(':') : urn})`;
+            // urn format en cache : "person:abc" ou "organization:xyz" → reconstruit "urn:li:person:abc"
+            const fullUrn = urn.startsWith('urn:li:') ? urn : `urn:li:${urn}`;
+            const fullTag = `@[${display}](${fullUrn})`;
+            const next = value.slice(0, position) + fullTag + value.slice(position + length);
+            onChange(next);
+          }}
+          className="mt-2"
+        />
+      )}
     </div>
   );
 }
