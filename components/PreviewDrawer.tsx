@@ -26,20 +26,28 @@ export default function PreviewDrawer({
       {open && (
         <div onClick={onClose} className="lg:hidden fixed inset-0 z-30 bg-ink-900/20 backdrop-blur-[2px] animate-fade-in" />
       )}
-      {/* Drawer */}
+      {/* Drawer — V8.8 : bottom sheet on mobile, side drawer on desktop */}
       <aside
-        className={`fixed top-0 right-0 z-40 h-screen w-full sm:w-[560px] bg-white border-l border-ink-200 shadow-elev transform transition-transform duration-300 ease-out-expo ${open ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`fixed z-40 bg-white shadow-elev transform transition-transform duration-300 ease-out-expo
+          ${open ? 'translate-x-0 translate-y-0' : 'sm:translate-x-full translate-y-full sm:translate-y-0'}
+          sm:top-0 sm:right-0 sm:h-screen sm:w-[560px] sm:border-l sm:border-ink-200
+          bottom-0 left-0 right-0 max-h-[88vh] rounded-t-2xl sm:rounded-none
+          pb-[env(safe-area-inset-bottom)]`}
         aria-hidden={!open}
       >
+        {/* Mobile drag indicator */}
+        <div className="sm:hidden flex justify-center pt-2 pb-1" onClick={onClose}>
+          <span className="block w-10 h-1 rounded-full bg-ink-200" />
+        </div>
         <header className="flex items-center justify-between px-5 py-3 border-b border-ink-100">
-          <div className="flex items-center gap-2">
-            <svg className="w-4 h-4 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
-            <h3 className="text-sm font-semibold text-ink-900">{title}</h3>
-            <kbd className="ml-1 px-1.5 py-0.5 rounded bg-ink-100 text-2xs font-mono text-ink-500">⌘P</kbd>
+          <div className="flex items-center gap-2 min-w-0">
+            <svg className="w-4 h-4 text-brand-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+            <h3 className="text-sm font-semibold text-ink-900 truncate">{title}</h3>
+            <kbd className="ml-1 hidden sm:inline px-1.5 py-0.5 rounded bg-ink-100 text-2xs font-mono text-ink-500">⌘P</kbd>
           </div>
-          <button onClick={onClose} className="btn-ghost text-sm" aria-label="Fermer">×</button>
+          <button onClick={onClose} className="btn-ghost text-base" aria-label="Fermer">×</button>
         </header>
-        <div className="h-[calc(100vh-49px)] overflow-y-auto px-5 py-5">
+        <div className="sm:h-[calc(100vh-49px)] max-h-[calc(88vh-90px)] sm:max-h-none overflow-y-auto px-5 py-5">
           {children}
         </div>
       </aside>

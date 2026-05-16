@@ -80,10 +80,19 @@ export default function SlashMenu({
 
   let flatIdx = -1;
 
+  // V8.8 — on mobile (< 640px), render as bottom sheet for ergonomy on touch screens
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+  const dropdownStyle = isMobile
+    ? { bottom: 0, left: 0, right: 0, maxHeight: '60vh' } as React.CSSProperties
+    : { top: anchor.top, left: Math.min(anchor.left, 380) } as React.CSSProperties;
+  const dropdownClass = isMobile
+    ? 'fixed z-50 mx-2 mb-2 max-h-[60vh] overflow-y-auto card p-1 shadow-pop animate-slide-up'
+    : 'absolute z-50 w-72 max-h-80 overflow-y-auto card p-1 shadow-pop animate-fade-in';
+
   return (
     <div
-      className="absolute z-50 w-72 max-h-80 overflow-y-auto card p-1 shadow-pop animate-fade-in"
-      style={{ top: anchor.top, left: Math.min(anchor.left, 380) }}
+      className={dropdownClass}
+      style={dropdownStyle}
       onMouseDown={e => e.preventDefault()}
     >
       <div className="px-3 py-1.5 text-2xs uppercase tracking-wider font-semibold text-ink-500 flex items-center justify-between">

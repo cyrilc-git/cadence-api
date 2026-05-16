@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import MoveMenu from '@/components/MoveMenu';
 
 // Pilier color tokens — one base color per editorial day
 const PILIER_TONES: Record<string, { bg: string; text: string; ring: string; dot: string }> = {
@@ -65,16 +66,24 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
   async function generateWeek() {
     if (!confirm('Générer 5 brouillons (lundi → vendredi) pour la semaine prochaine ? Drafts NON validés.')) return;
     setGenerating(true); setGenResult(null);
-    setGenStage('Lancement…');
+
+    // V8.8 — orchestration visible : 4 étapes que Cadence traverse
+    setGenStage('Analyse de votre ligne éditoriale…');
+    await new Promise(r => setTimeout(r, 600));
+    setGenStage('Recherche dans le Radar (sujets et angles)…');
+    await new Promise(r => setTimeout(r, 600));
+    setGenStage('Rédaction des 5 drafts par Claude (Sonnet 4.6)…');
+
     try {
       const r = await fetch('/api/generate-week', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       const created = (d.results || []).filter((x: any) => x.status === 'created');
+
+      setGenStage(`Ajout au calendrier (${created.length} cards)…`);
       // Optimistic staged insert : show each card appearing one by one
       for (let i = 0; i < created.length; i++) {
         const c = created[i];
-        setGenStage(`Création ${i + 1}/${created.length} — ${c.pilier?.split('· ')[1] || c.pilier || c.label}`);
         const optimistic = {
           id: c.id || `optimistic-${Date.now()}-${i}`,
           title: c.title || c.label,
@@ -88,11 +97,10 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
           cover_url: null
         };
         setPosts(prev => prev.find(p => p.id === optimistic.id) ? prev : [...prev, optimistic]);
-        await new Promise(res => setTimeout(res, 350));
+        await new Promise(res => setTimeout(res, 300));
       }
       setGenStage(null);
       setGenResult({ created: created.length, pilierList: created.map((c: any) => c.pilier) });
-      // Final refresh from server (replaces optimistic by real data with cover_url etc.)
       setTimeout(refresh, 800);
     } catch (e: any) { alert('Erreur : ' + e.message); setGenStage(null); }
     finally { setGenerating(false); }
@@ -181,15 +189,16 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
         <KPI label="Publiés"     value={stats.published}        tone="success" />
       </div>
 
-      {/* Generate result toast */}
+      {/* Generate result toast — V8.8 with 'Voir les drafts créés' CTA */}
       {genResult && (
         <div className="card p-4 animate-slide-up flex items-center gap-3 border-success-200 bg-success-50/50">
           <span className="w-10 h-10 rounded-full bg-success-500 text-white flex items-center justify-center font-bold">{genResult.created}</span>
           <div className="flex-1">
-            <div className="font-semibold text-success-700">{genResult.created} brouillon(s) créé(s)</div>
-            <div className="text-xs text-ink-500">Tous en NON validé. Ouvrez chacun pour relire, ajuster, et valider pour publication.</div>
+            <div className="font-semibold text-success-700">{genResult.created} brouillon{genResult.created > 1 ? 's' : ''} créé{genResult.created > 1 ? 's' : ''}</div>
+            <div className="text-xs text-ink-500">Tous en non validé. Ouvrez chacun pour relire, ajuster et valider pour publication automatique.</div>
           </div>
-          <button onClick={() => setGenResult(null)} className="btn-ghost">Fermer</button>
+          <Link href="/posts?status=needs_validation" className="btn-primary text-xs">Voir les drafts →</Link>
+          <button onClick={() => setGenResult(null)} className="btn-ghost">×</button>
         </div>
       )}
 
@@ -228,19 +237,33 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
                       const t = tone(p.pilier);
                       const st = statusOf(p);
                       return (
-                        <Link key={p.id} href={`/posts/${p.id}/edit`} className={`block text-2xs rounded-md border ${t.bg} ${t.text} ${t.ring} hover:shadow-xs transition overflow-hidden`}>
-                          {p.cover_url && (
-                            <div className="h-10 bg-cover bg-center" style={{ backgroundImage: `url(${p.cover_url})` }} />
-                          )}
-                          <span className="flex items-center gap-1 px-1.5 py-1 truncate">
-                            {st === 'published' && <span title="Publié" className="text-success-700">✓</span>}
-                            {st === 'late' && <span title="En retard" className="text-danger-500">⚠</span>}
-                            {st === 'scheduled' && <span title="Programmé" className="dot bg-brand-500" />}
-                            {st === 'needs_validation' && <span title="À valider" className="dot bg-warn-500" />}
-                            <span className="font-medium truncate">{p.scheduled_time?.slice(0,5) || ''}</span>
-                            <span className="truncate flex-1 opacity-80">{p.title}</span>
-                          </span>
-                        </Link>
+                        <div key={p.id} className="group relative">
+                          <Link href={`/posts/${p.id}/edit`} className={`block text-2xs rounded-md border ${t.bg} ${t.text} ${t.ring} hover:shadow-xs transition overflow-hidden`}>
+                            {p.cover_url ? (
+                              <div className="h-10 bg-cover bg-center" style={{ backgroundImage: `url(${p.cover_url})` }} />
+                            ) : (
+                              // V8.8 — fallback miniature : gradient subtil par pilier + dot
+                              <div className={`h-8 ${t.bg} flex items-center px-1.5`}>
+                                <span className={`dot ${t.dot}`} />
+                                <span className={`ml-1.5 text-2xs uppercase tracking-wider font-semibold ${t.text} truncate`}>{p.pilier?.split('·')[0]?.trim() || ''}</span>
+                              </div>
+                            )}
+                            <span className="flex items-center gap-1 px-1.5 py-1 truncate">
+                              {st === 'published' && <span title="Publié" className="text-success-700">✓</span>}
+                              {st === 'late' && <span title="En retard" className="text-danger-500">⚠</span>}
+                              {st === 'scheduled' && <span title="Programmé" className="dot bg-brand-500" />}
+                              {st === 'needs_validation' && <span title="À valider" className="dot bg-warn-500" />}
+                              <span className="font-medium truncate">{p.scheduled_time?.slice(0,5) || ''}</span>
+                              <span className="truncate flex-1 opacity-80">{p.title}</span>
+                            </span>
+                          </Link>
+                          <div className="absolute top-0.5 right-0.5">
+                            <MoveMenu postId={p.id} currentDate={p.scheduled_at?.slice(0,10)} onMoved={(newIso) => {
+                              // Optimistic : update post in state
+                              setPosts(prev => prev.map(x => x.id === p.id ? { ...x, scheduled_at: newIso + 'T' + (x.scheduled_time?.slice(0,5) || '07:30') + ':00.000Z' } : x));
+                            }} compact />
+                          </div>
+                        </div>
                       );
                     })}
                     {items.length > 3 && (

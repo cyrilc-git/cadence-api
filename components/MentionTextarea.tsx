@@ -126,10 +126,16 @@ export default function MentionTextarea({
       {mentionCount > 0 && (
         <span className="absolute -bottom-5 right-1 text-2xs text-ink-400">{mentionCount} mention{mentionCount > 1 ? 's' : ''} insérée{mentionCount > 1 ? 's' : ''}</span>
       )}
-      {open && anchor && (
+      {open && anchor && (() => {
+        const isMobile = typeof window !== 'undefined' && window.innerWidth < 640;
+        const cls = isMobile
+          ? 'fixed z-50 mx-2 mb-2 left-0 right-0 bottom-0 max-h-[60vh] overflow-y-auto card p-1 shadow-pop animate-slide-up'
+          : 'absolute z-50 w-80 max-h-72 overflow-y-auto card p-1 shadow-pop animate-fade-in';
+        const style = isMobile ? undefined : { top: anchor.top, left: Math.min(anchor.left, 320) };
+        return (
         <div
-          className="absolute z-50 w-80 max-h-72 overflow-y-auto card p-1 shadow-pop animate-fade-in"
-          style={{ top: anchor.top, left: Math.min(anchor.left, 320) }}
+          className={cls}
+          style={style}
           onMouseDown={e => e.preventDefault() /* preserve focus */}
         >
           <div className="px-3 py-1.5 text-2xs uppercase tracking-wider font-semibold text-ink-500 flex items-center justify-between">
@@ -165,7 +171,8 @@ export default function MentionTextarea({
             <kbd className="px-1 rounded bg-ink-100 font-mono">Esc</kbd> fermer
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
