@@ -3,6 +3,7 @@ import { listNotionPosts, notionStatus } from '@/lib/notion';
 import { getActiveToken, publishedThisMonthCount } from '@/lib/supabase';
 import { validateToken } from '@/lib/linkedin';
 import { suggestionsList } from '@/lib/db';
+import CadenceObserved from '@/components/CadenceObserved';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -130,6 +131,9 @@ export default async function HomePage() {
           <Link href="/suggestions" className="btn-primary mt-3 inline-flex">Lancer le Radar →</Link>
         </section>
       )}
+
+      {/* === CADENCE A REMARQUÉ === V8.9 */}
+      <CadenceObserved />
 
       {/* === SEMAINE EN UN COUP D'ŒIL === */}
       <section>
