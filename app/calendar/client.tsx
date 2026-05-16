@@ -44,6 +44,35 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
   const [genResult, setGenResult] = useState<{ created: number; pilierList: string[] } | null>(null);
   const [genStage, setGenStage] = useState<string | null>(null);
   const [hover, setHover] = useState<{ key: string; items: any[] } | null>(null);
+  // V8.9 §5 — drag/drop natif (HTML5 D&D, sans dep). Mobile : MoveMenu déjà.
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+
+  async function moveByDrag(postId: string, newDateKey: string) {
+    // Snapshot pour rollback
+    const before = posts;
+    const before_post = posts.find(p => p.id === postId);
+    if (!before_post) return;
+    const oldKey = before_post.scheduled_at?.slice(0, 10);
+    if (oldKey === newDateKey) return;
+    const time = before_post.scheduled_time?.slice(0,5) || '07:30';
+    // Optimistic update
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, scheduled_at: newDateKey + 'T' + time + ':00.000Z' } : p));
+    try {
+      const r = await fetch(`/api/notion/post/${postId}/move`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: newDateKey, time })
+      });
+      if (!r.ok) {
+        const d = await r.json();
+        throw new Error(d.error || 'Erreur déplacement');
+      }
+    } catch (e: any) {
+      // Rollback
+      setPosts(before);
+      alert('Déplacement impossible : ' + e.message);
+    }
+  }
 
   const byDate = useMemo(() => {
     const m = new Map<string, any[]>();
@@ -224,7 +253,20 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
                   key={k}
                   onMouseEnter={() => hasItems && setHover({ key: k, items })}
                   onMouseLeave={() => setHover(null)}
-                  className={`group relative rounded-xl p-2 min-h-[124px] border transition-all duration-200 ${isToday ? 'border-brand-400 bg-brand-50/30 shadow-elev' : isWeekend ? 'border-ink-100 bg-ink-50/40' : 'border-ink-200 bg-white hover:border-ink-300 hover:shadow-xs'} ${isOtherMonth ? 'opacity-40' : ''} ${isPast && !isToday ? 'opacity-75' : ''}`}
+                  onDragOver={(e) => {
+                    if (!draggingId) return;
+                    e.preventDefault();
+                    if (dragOverKey !== k) setDragOverKey(k);
+                  }}
+                  onDragLeave={() => { if (dragOverKey === k) setDragOverKey(null); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const id = e.dataTransfer.getData('text/plain') || draggingId;
+                    if (id) moveByDrag(id, k);
+                    setDragOverKey(null);
+                    setDraggingId(null);
+                  }}
+                  className={`group relative rounded-xl p-2 min-h-[124px] border transition-all duration-200 ${isToday ? 'border-brand-400 bg-brand-50/30 shadow-elev' : isWeekend ? 'border-ink-100 bg-ink-50/40' : 'border-ink-200 bg-white hover:border-ink-300 hover:shadow-xs'} ${isOtherMonth ? 'opacity-40' : ''} ${isPast && !isToday ? 'opacity-75' : ''} ${dragOverKey === k && draggingId ? 'ring-2 ring-brand-400 bg-brand-50/60' : ''}`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className={`text-xs font-semibold ${isToday ? 'text-brand-700' : isWeekend ? 'text-ink-400' : 'text-ink-700'}`}>{d.getDate()}</span>
@@ -237,8 +279,14 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
                       const t = tone(p.pilier);
                       const st = statusOf(p);
                       return (
-                        <div key={p.id} className="group relative">
-                          <Link href={`/posts/${p.id}/edit`} className={`block text-2xs rounded-md border ${t.bg} ${t.text} ${t.ring} hover:shadow-xs transition overflow-hidden`}>
+                        <div
+                          key={p.id}
+                          className={`group relative ${draggingId === p.id ? 'opacity-40' : ''}`}
+                          draggable={!isPast}
+                          onDragStart={(e) => { setDraggingId(p.id); try { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; } catch {} }}
+                          onDragEnd={() => { setDraggingId(null); setDragOverKey(null); }}
+                        >
+                          <Link href={`/posts/${p.id}/edit`} draggable={false} className={`block text-2xs rounded-md border ${t.bg} ${t.text} ${t.ring} hover:shadow-xs transition overflow-hidden cursor-grab active:cursor-grabbing`}>
                             {p.cover_url ? (
                               <div className="h-10 bg-cover bg-center" style={{ backgroundImage: `url(${p.cover_url})` }} />
                             ) : (
