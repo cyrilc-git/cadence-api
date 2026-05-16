@@ -169,7 +169,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
     { id: 'focus', label: focusMode ? 'Quitter le mode focus' : 'Mode focus', hint: 'Plein écran sans distractions', group: 'Vue', shortcut: 'esc', perform: () => setFocusMode(f => !f) },
     { id: 'save', label: 'Sauvegarder', hint: 'Forcer une sauvegarde immédiate', group: 'Vue', shortcut: '⌘S', perform: () => save(false) },
     { id: 'versions', label: `Historique versions (${versions.length})`, hint: 'Voir et restaurer une version précédente', group: 'Vue', perform: () => setVersionsOpen(true) },
-    { id: 'notion', label: 'Ouvrir dans Notion', group: 'Vue', perform: () => window.open(summary.notion_url, '_blank') },
+    { id: 'notion', label: 'Ouvrir dans Notion', group: 'Vue', perform: () => { window.open(summary.notion_url, '_blank'); } },
     ...QUICK_ACTIONS.map<Command>(a => ({
       id: 'ai-' + a.label.toLowerCase().replace(/\s+/g, '-'),
       label: a.label,
