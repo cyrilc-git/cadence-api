@@ -174,8 +174,8 @@ export default function NewPostClient({
 
   return (
     <div className="-mx-5 lg:-mx-10 -my-7 lg:-my-9 min-h-screen flex flex-col bg-white">
-      <header className="flex items-center gap-2 px-5 lg:px-8 h-12 relative">
-        <Link href="/posts" className="text-ink-500 hover:text-ink-900 transition w-8 h-8 inline-flex items-center justify-center -ml-1" aria-label="Retour à la bibliothèque" title="Retour">←</Link>
+      <header className="flex items-center gap-2 px-5 lg:px-8 h-14 sm:h-12 relative pt-[env(safe-area-inset-top)]">
+        <Link href="/posts" className="text-ink-500 hover:text-ink-900 transition w-10 h-10 sm:w-8 sm:h-8 inline-flex items-center justify-center -ml-2 sm:-ml-1" aria-label="Retour à la bibliothèque" title="Retour">←</Link>
 
         <div className="relative mx-auto">
           <button
@@ -209,10 +209,10 @@ export default function NewPostClient({
         {saveMsg && <span className="absolute left-1/2 top-12 -translate-x-1/2 text-2xs text-success-700 flex items-center gap-1 animate-fade-in bg-white px-2 py-0.5 rounded-md shadow-xs"><span className="dot bg-success-500" /> {saveMsg}</span>}
 
         <div className="ml-auto flex items-center gap-1">
-          <button onClick={() => setCmdOpen(true)} className="w-8 h-8 inline-flex items-center justify-center text-ink-400 hover:text-ink-900 rounded-md hover:bg-ink-50 transition" title="Commandes" aria-label="Commandes">
+          <button onClick={() => setCmdOpen(true)} className="w-10 h-10 sm:w-8 sm:h-8 inline-flex items-center justify-center text-ink-400 hover:text-ink-900 rounded-md hover:bg-ink-50 transition" title="Commandes" aria-label="Commandes">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><circle cx="11" cy="11" r="8"/><path strokeLinecap="round" d="M21 21l-4.3-4.3"/></svg>
           </button>
-          <button onClick={() => setPreviewOpen(o => !o)} className={`w-8 h-8 inline-flex items-center justify-center rounded-md transition ${previewOpen ? 'text-brand-700 bg-brand-50' : 'text-ink-400 hover:text-ink-900 hover:bg-ink-50'}`} title="Aperçu LinkedIn" aria-label="Aperçu LinkedIn">
+          <button onClick={() => setPreviewOpen(o => !o)} className={`w-10 h-10 sm:w-8 sm:h-8 inline-flex items-center justify-center rounded-md transition ${previewOpen ? 'text-brand-700 bg-brand-50' : 'text-ink-400 hover:text-ink-900 hover:bg-ink-50'}`} title="Aperçu LinkedIn" aria-label="Aperçu LinkedIn">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
         </div>
@@ -291,7 +291,7 @@ export default function NewPostClient({
 
       {hasText && (
         <footer className="sticky bottom-0 z-20 border-t border-ink-100 bg-white/90 backdrop-blur">
-          <div className="max-w-2xl mx-auto px-5 lg:px-8 h-12 flex items-center gap-3 text-xs text-ink-500">
+          <div className="max-w-2xl mx-auto px-5 lg:px-8 h-14 sm:h-12 flex items-center gap-3 text-xs text-ink-500 pb-[env(safe-area-inset-bottom)]">
             <span className="tabular-nums hidden sm:inline">{wordCount} mots · {readingMin} min</span>
             <span className={`tabular-nums ${charCount > 1300 ? 'text-danger-500 font-semibold' : ''}`}>{charCount}/1300</span>
             <div className="ml-auto flex items-center gap-1.5">
@@ -299,7 +299,7 @@ export default function NewPostClient({
                 {saveLoading ? '…' : (initial?.id ? 'Sauvegarder' : 'Enregistrer le brouillon')}
               </button>
               <div className="relative">
-                <button onClick={() => setMoreOpen(o => !o)} className="w-8 h-8 inline-flex items-center justify-center rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition" title="Plus d'actions" aria-label="Plus d'actions">⋯</button>
+                <button onClick={() => setMoreOpen(o => !o)} className="w-10 h-10 sm:w-8 sm:h-8 inline-flex items-center justify-center rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition" title="Plus d'actions" aria-label="Plus d'actions">⋯</button>
                 {moreOpen && (
                   <>
                     <div className="fixed inset-0 z-30" onClick={() => setMoreOpen(false)} />

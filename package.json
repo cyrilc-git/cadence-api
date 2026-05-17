@@ -1,6 +1,6 @@
 {
   "name": "cadence-api",
-  "version": "0.9.1",
+  "version": "0.9.10",
   "private": true,
   "scripts": {
     "dev": "next dev",
