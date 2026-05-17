@@ -151,7 +151,7 @@ export async function recentNotionActions(limit = 10) {
 }
 
 // ========== V7.6 : Design system ==========
-export type DesignToken = { id: string; key: string; value: string; category?: string; updated_at: string };
+export type DesignToken = { id: string; key: string; value: string; category?: string; updated_at: string; meta?: any };
 export async function designSystemList(): Promise<DesignToken[]> {
   const { data } = await supabase.from('design_system').select('*').order('category').order('key');
   return (data || []) as DesignToken[];
