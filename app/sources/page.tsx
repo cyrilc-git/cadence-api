@@ -110,11 +110,11 @@ export default async function SourcesPage() {
                     {!s.soon && (
                       <div className="flex items-center gap-2 shrink-0">
                         {isConnected ? (
-                          <Link href={s.configRoute || '/settings'} className="text-xs text-ink-500 hover:text-ink-900 transition opacity-0 group-hover:opacity-100">Gérer</Link>
+                          <Link href={s.configRoute || '/settings'} className="text-xs text-ink-500 hover:text-ink-900 transition sm:opacity-0 sm:group-hover:opacity-100 inline-flex items-center px-2 py-2 min-h-[40px] sm:min-h-0 sm:py-0 sm:px-0">Gérer</Link>
                         ) : s.oauth ? (
-                          <Link href={s.oauth} className="text-xs text-brand-700 hover:text-brand-900 font-medium transition">Connecter →</Link>
+                          <Link href={s.oauth} className="text-xs text-brand-700 hover:text-brand-900 font-medium transition inline-flex items-center px-2 py-2 min-h-[40px] sm:min-h-0 sm:py-0 sm:px-0">Connecter →</Link>
                         ) : s.configRoute ? (
-                          <Link href={s.configRoute} className="text-xs text-brand-700 hover:text-brand-900 font-medium transition">Configurer →</Link>
+                          <Link href={s.configRoute} className="text-xs text-brand-700 hover:text-brand-900 font-medium transition inline-flex items-center px-2 py-2 min-h-[40px] sm:min-h-0 sm:py-0 sm:px-0">Configurer →</Link>
                         ) : null}
                       </div>
                     )}

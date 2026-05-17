@@ -196,7 +196,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   return (
     <div className="-mx-5 lg:-mx-10 -my-7 lg:-my-9 min-h-screen flex flex-col bg-white">
       {/* === HEADER MINIMAL (sticky, 56px) === */}
-      <header className="sticky top-0 z-20 flex items-center gap-3 px-5 lg:px-8 h-14 border-b border-ink-100 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-20 flex items-center gap-3 px-5 lg:px-8 h-14 border-b border-ink-100 bg-white/95 backdrop-blur pt-[env(safe-area-inset-top)]">
         <Link href="/posts" className="btn-ghost text-sm" aria-label="Retour">←</Link>
         <span className={`chip ${sMeta.cls} text-2xs whitespace-nowrap`}>
           <span className={`dot ${sMeta.dot}`} /> {sMeta.label}
@@ -236,7 +236,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
 
       {/* === FOOTER STICKY DISCRET (bottom) === */}
       <footer className="sticky bottom-0 z-20 border-t border-ink-100 bg-white/95 backdrop-blur">
-        <div className="max-w-3xl mx-auto px-5 lg:px-8 h-12 flex items-center gap-3 text-xs text-ink-500">
+        <div className="max-w-3xl mx-auto px-5 lg:px-8 h-14 sm:h-12 flex items-center gap-3 text-xs text-ink-500 pb-[env(safe-area-inset-bottom)]">
           <span className="tabular-nums">{wordCount} mots · ~{readingMin} min</span>
           <span className={`tabular-nums ${charCount > 1300 ? 'text-danger-500 font-semibold' : ''}`}>{charCount}/1300</span>
           <span className="ml-auto flex items-center gap-2">
