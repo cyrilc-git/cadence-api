@@ -71,7 +71,7 @@ async function rankTopics(): Promise<TopicCandidate[]> {
     else if (t.lastDays > 7)  freshness = 40;
     else freshness = 10; // récent
     if (t.count60d > 4) freshness -= 30; // saturé
-    return { key: t.key, lastDays: t.lastDays, count60d: t.count60d, freshness };
+    return { key: t.topic, lastDays: t.lastDays, count60d: t.count60d, freshness };
   }).sort((a, b) => b.freshness - a.freshness);
 }
 
