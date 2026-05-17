@@ -142,3 +142,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 
 /* Dot indicators */
 .dot { display: inline-block; width: 6px; height: 6px; border-radius: 999px; }
+
+/* V9.0 §6 — caret blink for streaming indicator (Perplexity/Cursor style) */
+.animate-caret-blink { animation: caretBlink 1s steps(2, jump-none) infinite; }
+@keyframes caretBlink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0.15; } }

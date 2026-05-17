@@ -93,6 +93,19 @@ export default function CadenceEditor({
       const reader = r.body.getReader();
       const decoder = new TextDecoder();
       let buf = '';
+
+      // V9.0 §6 — batch rendering via requestAnimationFrame pour un streaming fluide (60fps)
+      // au lieu de setState pour chaque delta Anthropic. Sensation Perplexity/Cursor.
+      let pendingFlush = false;
+      function scheduleFlush() {
+        if (pendingFlush) return;
+        pendingFlush = true;
+        requestAnimationFrame(() => {
+          pendingFlush = false;
+          onChange(acc);
+        });
+      }
+
       while (true) {
         const { value: chunk, done } = await reader.read();
         if (done) break;
@@ -108,7 +121,7 @@ export default function CadenceEditor({
             const evt = JSON.parse(json);
             if (evt.type === 'delta' && evt.text) {
               acc += evt.text;
-              onChange(acc);
+              scheduleFlush();
             } else if (evt.type === 'done' && typeof evt.full === 'string') {
               onChange(evt.full);
               return evt.full;
@@ -118,6 +131,8 @@ export default function CadenceEditor({
           } catch (parseErr) { /* skip malformed */ }
         }
       }
+      // Flush final
+      if (acc) onChange(acc);
       return acc || null;
     } catch (e: any) {
       if (controller.signal.aborted) return null;
@@ -276,12 +291,12 @@ export default function CadenceEditor({
         </button>
       )}
 
-      {/* V8.9 — chip 'Cadence écrit…' avec bouton Annuler (Esc) */}
+      {/* V9.0 §6 — chip 'Cadence rédige' avec caret ▍ blink + Esc explicite */}
       {aiBusy && showAiIndicator && (
-        <div className="absolute top-2 right-2 inline-flex items-center gap-1.5 chip chip-brand text-2xs animate-fade-in z-20">
-          <span className="dot bg-brand-500 animate-pulse-soft" />
-          <span>Cadence écrit…</span>
-          <button onClick={cancelStream} className="ml-1 hover:underline cursor-pointer" title="Annuler (Esc)">Annuler</button>
+        <div className="absolute top-2 right-2 inline-flex items-center gap-1.5 chip chip-brand text-2xs animate-fade-in z-20 select-none">
+          <span className="inline-block w-[2px] h-3 bg-brand-500 animate-caret-blink" aria-hidden />
+          <span>Cadence rédige</span>
+          <button onClick={cancelStream} className="ml-1.5 px-1.5 py-0.5 rounded bg-brand-100/60 hover:bg-brand-200/80 text-brand-800 cursor-pointer transition" title="Annuler (Esc)">Esc</button>
         </div>
       )}
 
