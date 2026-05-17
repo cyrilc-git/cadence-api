@@ -47,17 +47,20 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
   // V8.9 §5 — drag/drop natif (HTML5 D&D, sans dep). Mobile : MoveMenu déjà.
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+  const [dragToast, setDragToast] = useState<{ kind: 'success' | 'error'; msg: string } | null>(null);
+  const [justMovedId, setJustMovedId] = useState<string | null>(null);
 
   async function moveByDrag(postId: string, newDateKey: string) {
-    // Snapshot pour rollback
     const before = posts;
     const before_post = posts.find(p => p.id === postId);
     if (!before_post) return;
     const oldKey = before_post.scheduled_at?.slice(0, 10);
     if (oldKey === newDateKey) return;
     const time = before_post.scheduled_time?.slice(0,5) || '07:30';
-    // Optimistic update
+    // Optimistic + highlight target card briefly
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, scheduled_at: newDateKey + 'T' + time + ':00.000Z' } : p));
+    setJustMovedId(postId);
+    setTimeout(() => setJustMovedId(prev => prev === postId ? null : prev), 1200);
     try {
       const r = await fetch(`/api/notion/post/${postId}/move`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -67,10 +70,14 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
         const d = await r.json();
         throw new Error(d.error || 'Erreur déplacement');
       }
+      const dayLabel = new Date(newDateKey + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'short' });
+      setDragToast({ kind: 'success', msg: 'Déplacé vers ' + dayLabel });
+      setTimeout(() => setDragToast(null), 2400);
     } catch (e: any) {
-      // Rollback
       setPosts(before);
-      alert('Déplacement impossible : ' + e.message);
+      setJustMovedId(null);
+      setDragToast({ kind: 'error', msg: 'Impossible : ' + e.message });
+      setTimeout(() => setDragToast(null), 3600);
     }
   }
 
@@ -266,7 +273,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
                     setDragOverKey(null);
                     setDraggingId(null);
                   }}
-                  className={`group relative rounded-xl p-2 min-h-[124px] border transition-all duration-200 ${isToday ? 'border-brand-400 bg-brand-50/30 shadow-elev' : isWeekend ? 'border-ink-100 bg-ink-50/40' : 'border-ink-200 bg-white hover:border-ink-300 hover:shadow-xs'} ${isOtherMonth ? 'opacity-40' : ''} ${isPast && !isToday ? 'opacity-75' : ''} ${dragOverKey === k && draggingId ? 'ring-2 ring-brand-400 bg-brand-50/60' : ''}`}
+                  className={`group relative rounded-xl p-2 min-h-[124px] border transition-all duration-200 ${isToday ? 'border-brand-400 bg-brand-50/30 shadow-elev' : isWeekend ? 'border-ink-100 bg-ink-50/40' : 'border-ink-200 bg-white hover:border-ink-300 hover:shadow-xs'} ${isOtherMonth ? 'opacity-40' : ''} ${isPast && !isToday ? 'opacity-75' : ''} ${dragOverKey === k && draggingId ? 'ring-2 ring-brand-500 ring-offset-2 bg-brand-50/80 scale-[1.02]' : ''}`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className={`text-xs font-semibold ${isToday ? 'text-brand-700' : isWeekend ? 'text-ink-400' : 'text-ink-700'}`}>{d.getDate()}</span>
@@ -281,7 +288,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
                       return (
                         <div
                           key={p.id}
-                          className={`group relative ${draggingId === p.id ? 'opacity-40' : ''}`}
+                          className={`group relative ${draggingId === p.id ? 'opacity-30 scale-95' : ''} ${justMovedId === p.id ? 'animate-pulse-soft ring-2 ring-success-500 ring-offset-1 rounded-lg' : ''} transition-all duration-200`}
                           draggable={!isPast}
                           onDragStart={(e) => { setDraggingId(p.id); try { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; } catch {} }}
                           onDragEnd={() => { setDraggingId(null); setDragOverKey(null); }}
@@ -340,6 +347,14 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* V8.9.1 §D — Drag toast */}
+      {dragToast && (
+        <div className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-40 px-4 py-2.5 rounded-xl text-sm font-medium shadow-pop animate-slide-up flex items-center gap-2 ${dragToast.kind === 'success' ? 'bg-success-50 text-success-700 border border-success-100' : 'bg-danger-50 text-danger-700 border border-danger-100'}`}>
+          <span>{dragToast.kind === 'success' ? '✓' : '⚠'}</span>
+          <span>{dragToast.msg}</span>
         </div>
       )}
 
