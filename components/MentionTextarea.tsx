@@ -27,6 +27,7 @@ export default function MentionTextarea({
   id,
   textareaRef,
   spellCheck = true,
+  onKeyIntercept,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -36,6 +37,8 @@ export default function MentionTextarea({
   id?: string;
   textareaRef?: React.MutableRefObject<HTMLTextAreaElement | null>;
   spellCheck?: boolean;
+  /** V8.9.1 — Si retourne true, on bloque le keypress natif (utilisé par SlashMenu pour intercepter Enter/Tab/Arrow) */
+  onKeyIntercept?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => boolean;
 }) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const ref = textareaRef || localRef;
@@ -101,6 +104,8 @@ export default function MentionTextarea({
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    // V8.9.1 — Slash menu (ou autre parent) a priorité absolue
+    if (onKeyIntercept && onKeyIntercept(e)) return;
     if (!open || results.length === 0) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => (i + 1) % results.length); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => (i - 1 + results.length) % results.length); }

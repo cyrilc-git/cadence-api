@@ -251,6 +251,19 @@ export default function CadenceEditor({
         rows={rows}
         placeholder={placeholder}
         className={bareClass}
+        onKeyIntercept={(e) => {
+          // V8.9.1 — Si le slash menu est ouvert, ON BLOQUE Enter/Tab/Arrow au niveau du textarea.
+          // Ça empêche l'insertion de newline natif ET tout side-effect (form submit, etc.).
+          if (!slashOpen) return false;
+          const k = e.key;
+          if (k === 'Escape') { e.preventDefault(); setSlashOpen(false); return true; }
+          if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Enter' || k === 'Tab') {
+            e.preventDefault();
+            e.stopPropagation();
+            return true; // bloqué — le window listener du SlashMenu fera la sélection
+          }
+          return false;
+        }}
       />
 
       {brief && value.length < 200 && !aiBusy && (
