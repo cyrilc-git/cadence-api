@@ -1,6 +1,6 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import Sidebar from '@/components/Sidebar';
+import LayoutShell from '@/components/LayoutShell';
 
 export const metadata: Metadata = {
   title: 'Cadence — LinkedIn publishing',
@@ -22,14 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
       </head>
       <body className="font-sans min-h-screen text-ink-900">
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="flex-1 lg:pl-64">
-            <div className="px-5 py-7 lg:px-10 lg:py-9 max-w-6xl mx-auto">
-              {children}
-            </div>
-          </main>
-        </div>
+        <LayoutShell>{children}</LayoutShell>
       </body>
     </html>
   );

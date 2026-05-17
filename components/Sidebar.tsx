@@ -49,7 +49,7 @@ const SECTIONS: { key: string; label: string; group: NavItem['group'] }[] = [
   { key: 'config',  label: 'Configuration', group: 'config' }
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ compact = false }: { compact?: boolean } = {}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -69,27 +69,27 @@ export default function Sidebar() {
       </header>
 
       {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 z-20 h-screen w-64 bg-white border-r border-ink-200 transition-transform duration-300 ease-out-expo ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
-        <div className="hidden lg:flex items-center gap-3 h-16 px-5 border-b border-ink-100">
+      <aside className={`group/sidebar fixed top-0 left-0 z-20 h-screen bg-white border-r border-ink-200 transition-all duration-300 ease-out-expo ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 ${compact ? 'w-64 lg:w-12 lg:hover:w-64' : 'w-64'}`}>
+        <div className={`hidden lg:flex items-center gap-3 h-16 border-b border-ink-100 ${compact ? 'lg:px-2 lg:justify-center lg:group-hover/sidebar:justify-start lg:group-hover/sidebar:px-5' : 'px-5'}`}>
           <Logo />
-          <div>
-            <div className="font-semibold text-ink-900 leading-tight tracking-tight">Cadence</div>
-            <div className="text-2xs text-ink-500 leading-tight font-medium uppercase tracking-wider">LinkedIn publishing</div>
+          <div className={`${compact ? 'lg:hidden lg:group-hover/sidebar:block' : ''}`}>
+            <div className="font-semibold text-ink-900 leading-tight tracking-tight whitespace-nowrap">Cadence</div>
+            <div className="text-2xs text-ink-500 leading-tight font-medium uppercase tracking-wider whitespace-nowrap">LinkedIn publishing</div>
           </div>
         </div>
-        <nav className="px-3 py-3 lg:py-4 overflow-y-auto h-[calc(100vh-64px-72px)] pt-20 lg:pt-3 space-y-5">
+        <nav className={`overflow-y-auto h-[calc(100vh-64px-72px)] pt-20 lg:pt-3 space-y-5 ${compact ? 'lg:px-1 lg:group-hover/sidebar:px-3 px-3 py-3 lg:py-4' : 'px-3 py-3 lg:py-4'}`}>
           {SECTIONS.map(section => (
             <div key={section.key}>
-              <div className="px-3 pb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-400">{section.label}</div>
+              <div className={`px-3 pb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-400 ${compact ? 'lg:hidden lg:group-hover/sidebar:block' : ''}`}>{section.label}</div>
               <div className="space-y-0.5">
                 {NAV.filter(n => n.group === section.group).map(item => {
                   const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
                   return (
-                    <Link key={item.href} href={item.href} onClick={() => setOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 ${active ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-ink-50 hover:text-ink-900'}`}>
+                    <Link key={item.href} href={item.href} onClick={() => setOpen(false)} title={compact ? item.label : undefined}
+                      className={`flex items-center gap-3 rounded-lg text-sm font-medium transition-colors duration-150 ${active ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-ink-50 hover:text-ink-900'} ${compact ? 'lg:px-2.5 lg:py-2 lg:justify-center lg:group-hover/sidebar:justify-start lg:group-hover/sidebar:px-3 px-3 py-2' : 'px-3 py-2'}`}>
                       <span className={active ? 'text-brand-600' : 'text-ink-400'}><Icon name={item.icon} /></span>
-                      <span className="flex-1">{item.label}</span>
-                      {active && <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />}
+                      <span className={`flex-1 truncate ${compact ? 'lg:hidden lg:group-hover/sidebar:inline' : ''}`}>{item.label}</span>
+                      {active && <span className={`w-1.5 h-1.5 rounded-full bg-brand-500 ${compact ? 'lg:hidden lg:group-hover/sidebar:block' : ''}`} />}
                     </Link>
                   );
                 })}
@@ -97,10 +97,10 @@ export default function Sidebar() {
             </div>
           ))}
         </nav>
-        <div className="absolute bottom-0 left-0 right-0 px-5 py-3.5 border-t border-ink-100 bg-white">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-sm font-semibold">CC</div>
-            <div className="flex-1 min-w-0">
+        <div className={`absolute bottom-0 left-0 right-0 border-t border-ink-100 bg-white ${compact ? 'lg:px-2 lg:py-2 lg:group-hover/sidebar:px-5 lg:group-hover/sidebar:py-3.5 px-5 py-3.5' : 'px-5 py-3.5'}`}>
+          <div className={`flex items-center gap-3 ${compact ? 'lg:justify-center lg:group-hover/sidebar:justify-start' : ''}`} title={compact ? 'Cyril Coulange · cyril@heelio.io' : undefined}>
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-sm font-semibold shrink-0">CC</div>
+            <div className={`flex-1 min-w-0 ${compact ? 'lg:hidden lg:group-hover/sidebar:block' : ''}`}>
               <div className="text-sm font-medium text-ink-900 leading-tight truncate">Cyril Coulange</div>
               <div className="text-xs text-ink-500 leading-tight truncate">cyril@heelio.io</div>
             </div>
