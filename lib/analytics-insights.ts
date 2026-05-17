@@ -153,6 +153,75 @@ export async function computeHumanInsights(): Promise<HumanInsight[]> {
     }
   }
 
+  // 5. V9.1 §4 — Engagement par pilier (commentaires + likes pondérés)
+  const engagement: Record<string, { count: number; comments: number; likes: number }> = {};
+  for (const p of withMetrics) {
+    const pil = p.pilier?.split(' · ')[1]?.trim() || p.pilier || 'sans pilier';
+    if (!engagement[pil]) engagement[pil] = { count: 0, comments: 0, likes: 0 };
+    engagement[pil].count++;
+    engagement[pil].comments += p.meta.comments || 0;
+    engagement[pil].likes += p.meta.likes || 0;
+  }
+  const engageAvg = Object.entries(engagement)
+    .filter(([, v]) => v.count >= 3)
+    .map(([k, v]) => ({ pilier: k, avgEngagement: (v.comments + v.likes * 0.3) / v.count, count: v.count }));
+  if (engageAvg.length >= 2) {
+    const sorted = [...engageAvg].sort((a, b) => b.avgEngagement - a.avgEngagement);
+    const best = sorted[0], worst = sorted[sorted.length - 1];
+    if (best.avgEngagement > worst.avgEngagement * 1.5 && best.avgEngagement > 5) {
+      insights.push({
+        kind: 'pilier',
+        message: `Vos posts "${best.pilier}" déclenchent ${(best.avgEngagement / Math.max(worst.avgEngagement, 1)).toFixed(1)}× plus d'engagement (commentaires + likes pondérés) que vos "${worst.pilier}".`,
+        data: { best: best.pilier, worst: worst.pilier, bestE: Math.round(best.avgEngagement) }
+      });
+    }
+  }
+
+  // 6. V9.1 §4 — Cadence éditoriale : posts/semaine sur 30j vs 90j
+  const now = Date.now();
+  const last30 = withMetrics.filter(p => p.scheduled_at && new Date(p.scheduled_at).getTime() > now - 30 * 86400000);
+  const last90 = withMetrics.filter(p => p.scheduled_at && new Date(p.scheduled_at).getTime() > now - 90 * 86400000);
+  if (last90.length >= 6) {
+    const rate30 = last30.length / 4.3;   // posts/semaine sur 30j
+    const rate90 = last90.length / 12.9;  // posts/semaine sur 90j
+    if (rate30 < rate90 * 0.7 && rate90 > 1) {
+      insights.push({
+        kind: 'pilier',
+        message: `Votre cadence baisse : ${rate30.toFixed(1)} post/semaine sur 30j vs ${rate90.toFixed(1)} sur 90j.`,
+        data: { rate30: rate30.toFixed(1), rate90: rate90.toFixed(1) }
+      });
+    } else if (rate30 > rate90 * 1.3) {
+      insights.push({
+        kind: 'pilier',
+        message: `Votre cadence accélère : ${rate30.toFixed(1)} post/semaine sur 30j vs ${rate90.toFixed(1)} sur 90j.`,
+        data: { rate30: rate30.toFixed(1), rate90: rate90.toFixed(1) }
+      });
+    }
+  }
+
+  // 7. V9.1 §4 — Hour-of-day pattern (matin vs après-midi vs soir)
+  const byBucket: Record<string, { count: number; total: number }> = { matin: { count: 0, total: 0 }, midi: { count: 0, total: 0 }, soir: { count: 0, total: 0 } };
+  for (const p of withMetrics) {
+    if (!p.scheduled_at) continue;
+    const h = new Date(p.scheduled_at).getHours();
+    const bucket = h < 11 ? 'matin' : h < 17 ? 'midi' : 'soir';
+    byBucket[bucket].count++;
+    byBucket[bucket].total += p.meta.impressions;
+  }
+  const bucketAvg = Object.entries(byBucket)
+    .filter(([, v]) => v.count >= 3)
+    .map(([k, v]) => ({ bucket: k, avg: v.total / v.count }));
+  if (bucketAvg.length >= 2) {
+    const sorted = [...bucketAvg].sort((a, b) => b.avg - a.avg);
+    if (sorted[0].avg > sorted[sorted.length - 1].avg * 1.2) {
+      insights.push({
+        kind: 'weekday',
+        message: `Vos posts publiés le ${sorted[0].bucket} (avant 11h pour matin, 17h pour midi, après 17h pour soir) performent mieux.`,
+        data: { best: sorted[0].bucket }
+      });
+    }
+  }
+
   if (insights.length === 0) {
     insights.push({
       kind: 'low_data',
