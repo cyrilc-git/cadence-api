@@ -56,6 +56,24 @@ export async function POST(req: NextRequest) {
           }]
         });
 
+        // V9.1 §3 — Chunking naturel "Cadence tape" :
+        // — accumule jusqu'à frontière mot/phrase, flush en chunks rythmés
+        // — pause de 60ms après fin de phrase (.?!) pour respiration naturelle
+        const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+        let buf = '';
+        const SENTENCE_END = /[.!?]\s*$/;
+        const WORD_END = /\s$/;
+
+        async function flush(force = false) {
+          if (!buf) return;
+          if (!force && !WORD_END.test(buf) && buf.length < 24) return;
+          const out = buf;
+          buf = '';
+          controller.enqueue(sseEvent({ type: 'delta', text: out }));
+          // Respiration : si on vient de finir une phrase, légère pause
+          if (SENTENCE_END.test(out)) await sleep(60);
+        }
+
         for await (const event of anthropicStream) {
           if (cancelled) {
             try { anthropicStream.controller.abort(); } catch { /* silent */ }
@@ -64,9 +82,11 @@ export async function POST(req: NextRequest) {
           if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
             const piece = event.delta.text;
             full += piece;
-            controller.enqueue(sseEvent({ type: 'delta', text: piece }));
+            buf += piece;
+            await flush(false);
           }
         }
+        await flush(true);
 
         if (!cancelled) {
           const trimmed = full.trim();
