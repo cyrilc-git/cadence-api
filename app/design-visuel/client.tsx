@@ -1,28 +1,49 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+// V8.9.1 §C — /design-visuel refondu en studio créatif.
+// — Hero studio : 3 vrais previews côte à côte (avant/après variations).
+// — Direction artistique : tags humains (sobre / dense / éditorial / agressif LinkedIn).
+// — Moodboard central : grille masonry, drag/drop full-zone, hover preview.
+// — Figma honnête : "Cadence utilise ce lien comme référence stylistique" (pas de fake parsing).
+// — Tokens techniques (hex, radius) cachés sous "Tokens avancés".
+
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 
 const CATEGORY_META: Record<string, { label: string; description: string; icon: string }> = {
-  brand:      { label: 'Logo & branding',         description: 'Identité visuelle de Cadence', icon: '✦' },
-  color:      { label: 'Couleurs',                 description: 'Palette principale et accents', icon: '◐' },
-  typography: { label: 'Typographies',             description: 'Police, tailles, hiérarchie', icon: 'Aa' },
-  layout:     { label: 'Cards & boutons',          description: 'Radius, ombres, paddings', icon: '▢' },
-  format:     { label: 'Formats visuels',          description: 'Tailles, ratios, exports', icon: '↔' },
-  style:      { label: "Styles d'illustration",    description: 'Direction artistique, ambiance', icon: '✎' },
-  prompt:     { label: 'Prompts visuels réutilisables', description: 'Briefs et instructions Claude', icon: '✨' },
-  misc:       { label: 'Autres',                   description: 'Paramètres divers', icon: '⋯' }
+  brand:      { label: 'Logo & branding',              description: 'Identité visuelle de Cadence',     icon: '✦' },
+  color:      { label: 'Couleurs',                      description: 'Palette principale et accents',    icon: '◐' },
+  typography: { label: 'Typographies',                  description: 'Police, tailles, hiérarchie',      icon: 'Aa' },
+  layout:     { label: 'Cards & boutons',               description: 'Radius, ombres, paddings',         icon: '▢' },
+  format:     { label: 'Formats visuels',               description: 'Tailles, ratios, exports',         icon: '↔' },
+  style:      { label: "Styles d'illustration",         description: 'Direction artistique, ambiance',   icon: '✎' },
+  prompt:     { label: 'Prompts visuels réutilisables', description: 'Briefs et instructions Claude',    icon: '✨' },
+  moodboard:  { label: 'Moodboard',                     description: 'Images de référence',              icon: '▦' },
+  misc:       { label: 'Autres',                        description: 'Paramètres divers',                icon: '⋯' }
 };
+
+// Tags humains pour la direction artistique
+const ART_DIRECTION = [
+  { key: 'sobre',      label: 'Sobre',                hint: 'Peu de couleurs, espace, sérieux' },
+  { key: 'dense',      label: 'Dense',                hint: 'Beaucoup d\'information visuelle' },
+  { key: 'editorial',  label: 'Éditorial',            hint: 'Style magazine, typo généreuse' },
+  { key: 'agressif',   label: 'Agressif LinkedIn',    hint: 'Couleurs vives, hook fort, contraste' },
+  { key: 'pedagogue',  label: 'Pédagogique',          hint: 'Schéma, flèches, étapes' },
+  { key: 'data',       label: 'Data-first',           hint: 'Chiffres au centre, sparklines' }
+];
 
 export default function DesignVisuelClient({ initial }: { initial: any[] }) {
   const [tokens, setTokens] = useState(initial);
   const [editing, setEditing] = useState<any | null>(null);
   const [figmaUrl, setFigmaUrl] = useState('');
   const [savingFigma, setSavingFigma] = useState(false);
-  // V8.9 §7 — moodboards
   const [moodboards, setMoodboards] = useState<any[]>([]);
   const [uploadingMb, setUploadingMb] = useState(false);
   const [mbError, setMbError] = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState<string>('all');
+  const [zoomedImg, setZoomedImg] = useState<any | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [activeArt, setActiveArt] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function save() {
     if (!editing.key || !editing.value) return;
@@ -48,10 +69,9 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
       if (r.ok) setMoodboards(d.moodboards || []);
     } catch { /* silent */ }
   }
-  // Load on mount
   useEffect(() => { loadMoodboards(); }, []);
 
-  async function uploadMoodboard(file: File) {
+  const uploadMoodboard = useCallback(async (file: File) => {
     setUploadingMb(true); setMbError(null);
     const fd = new FormData();
     fd.append('file', file);
@@ -60,17 +80,14 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'upload failed');
       await loadMoodboards();
-    } catch (e: any) {
-      setMbError(e.message);
-    } finally { setUploadingMb(false); }
-  }
+    } catch (e: any) { setMbError(e.message); }
+    finally { setUploadingMb(false); }
+  }, []);
 
   async function deleteMoodboard(id: string) {
     if (!confirm('Supprimer cette image de référence ?')) return;
-    try {
-      const r = await fetch(`/api/design-system/${id}`, { method: 'DELETE' });
-      if (r.ok) setMoodboards(prev => prev.filter(m => m.id !== id));
-    } catch { /* silent */ }
+    const r = await fetch(`/api/design-system/${id}`, { method: 'DELETE' });
+    if (r.ok) setMoodboards(prev => prev.filter(m => m.id !== id));
   }
 
   async function saveFigma() {
@@ -88,214 +105,226 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
     } finally { setSavingFigma(false); }
   }
 
+  async function saveArtDirection(keys: string[]) {
+    setActiveArt(keys);
+    await fetch('/api/design-system', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'style.direction', value: keys.join(', ') || 'sobre', category: 'style' }) });
+  }
+
+  useEffect(() => {
+    const tok = tokens.find(t => t.key === 'style.direction');
+    if (tok?.value) setActiveArt(tok.value.split(/[,\s]+/).filter(Boolean));
+  }, [tokens]);
+
   const byCat = useMemo(() => {
     const m: Record<string, any[]> = {};
     for (const t of tokens) {
       const c = t.category || 'misc';
+      if (c === 'moodboard') continue; // moodboard rendu séparément
       if (!m[c]) m[c] = [];
       m[c].push(t);
     }
     return m;
   }, [tokens]);
 
-  const colorTokens = byCat['color'] || [];
   const currentFigma = tokens.find(t => t.key === 'figma.url');
 
-  const visibleCats = activeCategory === 'all' ? Object.keys(byCat) : [activeCategory];
+  // Drag/drop full-zone for moodboard
+  function onZoneDragOver(e: React.DragEvent) {
+    e.preventDefault();
+    if (!dragOver) setDragOver(true);
+  }
+  function onZoneDragLeave() { setDragOver(false); }
+  function onZoneDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    files.forEach(uploadMoodboard);
+  }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
+      {/* ── HERO STUDIO ─────────────────────────────────────── */}
       <header>
-        <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">Design visuel</h1>
-        <p className="mt-1 text-sm text-ink-500 lead">Cadence utilise ces tokens pour générer vos illustrations, schémas et captures. Modifiez ici pour changer le rendu de tous vos visuels en un instant.</p>
+        <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Studio</p>
+        <h1 className="mt-1 text-3xl font-semibold text-ink-900 tracking-tight">Design visuel</h1>
+        <p className="mt-2 text-sm text-ink-500 max-w-2xl">La direction artistique de Cadence. Inspiration, références, ambiance — tout ce qui guide Claude quand il génère vos illustrations.</p>
       </header>
 
-      {/* V8.7 — hero : preview SVG d'un exemple de visuel généré */}
-      <section className="card p-0 overflow-hidden border-brand-100">
-        <div className="bg-gradient-to-br from-brand-50 to-white px-6 pt-6 pb-3">
-          <div className="text-2xs uppercase tracking-wider font-semibold text-brand-700">Aperçu</div>
-          <h2 className="mt-1 text-base font-semibold text-ink-900">Voici à quoi ressembleront vos visuels</h2>
-          <p className="text-xs text-ink-500 mt-0.5">Carte produit générée avec vos tokens actuels.</p>
+      {/* Sample previews — 3 styles côte à côte */}
+      <section>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <PreviewSample
+            tag="Sobre · éditorial"
+            svg={<svg viewBox="0 0 400 300" className="w-full h-full"><rect width="400" height="300" fill="#FAFAF9"/><line x1="40" y1="60" x2="120" y2="60" stroke="#0F172A" strokeWidth="2"/><text x="40" y="120" fontFamily="Georgia, serif" fontSize="32" fill="#0F172A" fontWeight="500">P&amp;L estimé</text><text x="40" y="155" fontFamily="Georgia, serif" fontSize="32" fill="#64748B" fontWeight="400" fontStyle="italic">en temps réel</text><text x="40" y="240" fontFamily="Inter, sans-serif" fontSize="11" fill="#94A3B8" letterSpacing="2">HEELIO · PRODUIT</text></svg>}
+          />
+          <PreviewSample
+            tag="Dense · data"
+            svg={<svg viewBox="0 0 400 300" className="w-full h-full"><rect width="400" height="300" fill="#F8FAFC"/><rect x="20" y="20" width="170" height="125" rx="8" fill="white" stroke="#E2E8F0"/><text x="32" y="42" fontFamily="Inter" fontSize="9" fill="#64748B" fontWeight="600">MARGE M-1</text><text x="32" y="90" fontFamily="Inter" fontSize="28" fill="#1E40AF" fontWeight="700">+18,4%</text><text x="32" y="115" fontFamily="Inter" fontSize="9" fill="#64748B">vs Banque · +43k€</text><rect x="210" y="20" width="170" height="125" rx="8" fill="white" stroke="#E2E8F0"/><text x="222" y="42" fontFamily="Inter" fontSize="9" fill="#64748B" fontWeight="600">DSO</text><text x="222" y="90" fontFamily="Inter" fontSize="28" fill="#047857" fontWeight="700">32j</text><text x="222" y="115" fontFamily="Inter" fontSize="9" fill="#64748B">-12j vs N-1</text><rect x="20" y="160" width="360" height="120" rx="8" fill="white" stroke="#E2E8F0"/><polyline points="40,260 90,240 140,250 190,200 240,210 290,180 340,170 380,150" stroke="#2563EB" strokeWidth="2" fill="none"/></svg>}
+          />
+          <PreviewSample
+            tag="Agressif · hook fort"
+            svg={<svg viewBox="0 0 400 300" className="w-full h-full"><rect width="400" height="300" fill="#1E40AF"/><text x="200" y="120" fontFamily="Inter" fontSize="44" fill="white" fontWeight="800" textAnchor="middle">-50%</text><text x="200" y="160" fontFamily="Inter" fontSize="14" fill="#BFDBFE" fontWeight="500" textAnchor="middle">DE DSO EN 3 MOIS</text><line x1="160" y1="190" x2="240" y2="190" stroke="white" strokeWidth="2"/><text x="200" y="220" fontFamily="Inter" fontSize="11" fill="white" textAnchor="middle" letterSpacing="2">CAS CLIENT · PME SERVICES</text></svg>}
+          />
         </div>
-        <div className="bg-white px-6 pb-6 pt-3">
-          <svg viewBox="0 0 1200 630" className="w-full rounded-lg shadow-card" xmlns="http://www.w3.org/2000/svg">
-            <rect width="1200" height="630" fill="#F8FAFC"/>
-            <rect x="80" y="80" width="1040" height="470" rx="24" fill="white" stroke="#E2E8F0" strokeWidth="2"/>
-            <text x="120" y="170" fontFamily="Inter, sans-serif" fontSize="22" fill="#64748B" fontWeight="600">HEELIO · PRODUIT</text>
-            <text x="120" y="240" fontFamily="Inter, sans-serif" fontSize="56" fill="#0F172A" fontWeight="700">P&amp;L estimé en temps réel</text>
-            <text x="120" y="285" fontFamily="Inter, sans-serif" fontSize="22" fill="#475569">Sans attendre la clôture comptable.</text>
-            <rect x="120" y="340" width="280" height="160" rx="14" fill="#EFF6FF" stroke="#BFDBFE"/>
-            <text x="140" y="380" fontFamily="Inter, sans-serif" fontSize="14" fill="#1E40AF" fontWeight="600">MARGE M-1</text>
-            <text x="140" y="430" fontFamily="Inter, sans-serif" fontSize="44" fill="#1E40AF" fontWeight="700">+18,4%</text>
-            <text x="140" y="470" fontFamily="Inter, sans-serif" fontSize="13" fill="#64748B">vs Banque · +43k€</text>
-            <rect x="420" y="340" width="280" height="160" rx="14" fill="#ECFDF5" stroke="#A7F3D0"/>
-            <text x="440" y="380" fontFamily="Inter, sans-serif" fontSize="14" fill="#047857" fontWeight="600">FAE/FNP</text>
-            <text x="440" y="430" fontFamily="Inter, sans-serif" fontSize="44" fill="#047857" fontWeight="700">112k€</text>
-            <text x="440" y="470" fontFamily="Inter, sans-serif" fontSize="13" fill="#64748B">Auto-calculés</text>
-            <rect x="720" y="340" width="280" height="160" rx="14" fill="#FFFBEB" stroke="#FCD34D"/>
-            <text x="740" y="380" fontFamily="Inter, sans-serif" fontSize="14" fill="#B45309" fontWeight="600">DSO</text>
-            <text x="740" y="430" fontFamily="Inter, sans-serif" fontSize="44" fill="#B45309" fontWeight="700">32j</text>
-            <text x="740" y="470" fontFamily="Inter, sans-serif" fontSize="13" fill="#64748B">-12j vs N-1</text>
-          </svg>
-          <p className="mt-3 text-2xs text-ink-400 text-center">Exemple — Cadence respecte vos couleurs, vos cards, votre typo lors de chaque génération.</p>
-        </div>
+        <p className="mt-3 text-2xs text-ink-400 text-center">Trois directions possibles. Choisissez celle qui vous ressemble en bas.</p>
       </section>
 
-      {/* Hero : color palette preview */}
-      <section className="card p-6">
-        <div className="flex items-center justify-between mb-4">
+      {/* ── DIRECTION ARTISTIQUE — tags humains ────────────── */}
+      <section>
+        <div className="flex items-baseline justify-between mb-3">
           <div>
-            <h2 className="font-semibold text-ink-900 text-sm">Aperçu de votre palette</h2>
-            <p className="text-xs text-ink-500">Les couleurs sont injectées dans tous les prompts Claude.</p>
+            <h2 className="text-sm font-semibold text-ink-900">Comment doit penser Cadence ?</h2>
+            <p className="text-xs text-ink-500 mt-0.5">Multi-sélection. Combinez-les. Ces mots guident chaque génération.</p>
           </div>
-          <button onClick={() => setEditing({ key: 'color.', value: '#2563EB', category: 'color' })} className="btn-secondary text-xs">+ Ajouter une couleur</button>
+          {activeArt.length > 0 && <span className="text-2xs text-success-700 flex items-center gap-1"><span className="dot bg-success-500" /> {activeArt.length} active{activeArt.length > 1 ? 's' : ''}</span>}
         </div>
-        {colorTokens.length === 0 ? (
-          <div className="grid grid-cols-5 gap-2 text-xs">
-            {['#EFF6FF', '#BFDBFE', '#2563EB', '#1D4ED8', '#172554'].map((c, i) => (
-              <div key={c} className="space-y-1.5">
-                <div className="aspect-square rounded-xl shadow-card" style={{ backgroundColor: c }} />
-                <div className="font-mono text-ink-500 text-2xs">{c}</div>
-                <div className="text-ink-400 text-2xs">brand-{[50,100,500,600,900][i]}</div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3">
-            {colorTokens.map(c => {
-              const isHex = /^#[0-9A-Fa-f]{6}$/.test(c.value);
-              return (
-                <button key={c.id} onClick={() => setEditing(c)} className="group text-left space-y-1.5 hover:opacity-90 transition">
-                  <div className={`aspect-square rounded-xl shadow-card group-hover:shadow-elev transition ${!isHex ? 'border border-dashed border-ink-300' : ''}`} style={{ backgroundColor: isHex ? c.value : '#F1F5F9' }} />
-                  <div className="font-mono text-ink-700 text-2xs truncate">{isHex ? c.value : c.value.slice(0, 12) + '…'}</div>
-                  <div className="text-ink-500 text-2xs truncate">{c.key.split('.').slice(1).join('.') || c.key}</div>
-                </button>
-              );
-            })}
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {ART_DIRECTION.map(d => {
+            const active = activeArt.includes(d.key);
+            return (
+              <button
+                key={d.key}
+                onClick={() => saveArtDirection(active ? activeArt.filter(k => k !== d.key) : [...activeArt, d.key])}
+                className={`text-left px-4 py-2.5 rounded-xl border transition-all duration-200 ${active ? 'border-ink-900 bg-ink-900 text-white shadow-sm' : 'border-ink-200 bg-white hover:border-ink-400 hover:shadow-xs'}`}
+                title={d.hint}
+              >
+                <div className={`text-sm font-medium ${active ? 'text-white' : 'text-ink-900'}`}>{d.label}</div>
+                <div className={`text-2xs mt-0.5 ${active ? 'text-white/70' : 'text-ink-500'}`}>{d.hint}</div>
+              </button>
+            );
+          })}
+        </div>
       </section>
 
-      {/* Figma import */}
-      <section className="card p-5 bg-gradient-to-br from-brand-50/50 to-white border-brand-100">
-        <div className="flex-1">
-          <h2 className="font-semibold text-ink-900">Importer depuis Figma</h2>
-            <p className="mt-1 text-xs text-ink-500">Collez le lien de votre fichier Figma. Cadence donne le contexte au LLM lors de la génération. L'extraction automatique des tokens (couleurs, typo) arrivera dans une version ultérieure.</p>
-            <div className="mt-3 flex gap-2">
-              <input value={figmaUrl} onChange={e => setFigmaUrl(e.target.value)} placeholder="https://www.figma.com/file/…" className="input text-sm flex-1" />
-              <button onClick={saveFigma} disabled={!figmaUrl || savingFigma} className="btn-primary">{savingFigma ? 'Enregistrement…' : 'Enregistrer'}</button>
+      {/* ── MOODBOARD — central, masonry, drag full-zone ───── */}
+      <section>
+        <div className="flex items-baseline justify-between mb-3">
+          <div>
+            <h2 className="text-sm font-semibold text-ink-900">Moodboard</h2>
+            <p className="text-xs text-ink-500 mt-0.5">Glissez vos images de référence. 3-6 suffisent à donner une vraie direction.</p>
+          </div>
+          {moodboards.length > 0 && (
+            <label className="text-xs text-ink-500 hover:text-ink-900 cursor-pointer transition">
+              {uploadingMb ? 'Upload…' : '+ Ajouter'}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                className="hidden"
+                disabled={uploadingMb}
+                onChange={e => { const f = e.target.files?.[0]; if (f) uploadMoodboard(f); e.currentTarget.value = ''; }}
+              />
+            </label>
+          )}
+        </div>
+        <div
+          onDragOver={onZoneDragOver}
+          onDragLeave={onZoneDragLeave}
+          onDrop={onZoneDrop}
+          className={`relative rounded-2xl transition-all duration-200 ${dragOver ? 'ring-2 ring-brand-500 bg-brand-50/40 p-3' : moodboards.length === 0 ? 'border-2 border-dashed border-ink-200 hover:border-ink-300 p-12' : 'p-0'}`}
+        >
+          {moodboards.length === 0 ? (
+            <div className="text-center">
+              <div className="w-12 h-12 rounded-2xl bg-ink-50 mx-auto mb-3 flex items-center justify-center text-ink-300 text-xl">▦</div>
+              <p className="text-sm text-ink-700 font-medium">Glissez vos références ici</p>
+              <p className="mt-1 text-xs text-ink-500">Ou cliquez pour parcourir vos fichiers</p>
+              <label className="btn-primary text-xs mt-4 inline-block cursor-pointer">
+                Choisir des images
+                <input type="file" accept="image/png,image/jpeg,image/webp,image/gif" className="hidden" multiple disabled={uploadingMb}
+                  onChange={e => { Array.from(e.target.files || []).forEach(uploadMoodboard); e.currentTarget.value = ''; }}
+                />
+              </label>
             </div>
+          ) : (
+            <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 [&>*]:mb-3 [&>*]:break-inside-avoid">
+              {moodboards.map(m => (
+                <div key={m.id} className="group relative rounded-xl overflow-hidden border border-ink-100 bg-ink-50 cursor-zoom-in transition-all duration-200 hover:shadow-elev hover:border-ink-300" onClick={() => setZoomedImg(m)}>
+                  <img src={m.value} alt="" loading="lazy" className="w-full block transition-transform duration-300 group-hover:scale-[1.02]" />
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteMoodboard(m.id); }}
+                    className="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-white/95 backdrop-blur text-ink-700 hover:text-danger-700 opacity-0 group-hover:opacity-100 transition shadow-xs"
+                    title="Supprimer"
+                    aria-label="Supprimer cette image"
+                  >×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {dragOver && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="text-brand-700 font-semibold text-sm bg-white/90 px-4 py-2 rounded-xl shadow-pop">Relâchez pour ajouter</div>
+            </div>
+          )}
+        </div>
+        {mbError && <p className="mt-2 text-xs text-danger-700">{mbError}</p>}
+      </section>
+
+      {/* ── FIGMA HONNÊTE ─────────────────────────────────── */}
+      <section>
+        <div className="rounded-2xl border border-ink-200 bg-white p-5">
+          <h2 className="text-sm font-semibold text-ink-900">Référence Figma</h2>
+          <p className="mt-1 text-xs text-ink-500">Cadence utilise ce lien comme référence stylistique (ne fetch pas le fichier). L'extraction native des tokens viendra avec Figma API.</p>
+          <div className="mt-3 flex gap-2">
+            <input value={figmaUrl} onChange={e => setFigmaUrl(e.target.value)} placeholder="https://www.figma.com/file/…" className="input text-sm flex-1" />
+            <button onClick={saveFigma} disabled={!figmaUrl || savingFigma} className="btn-primary text-xs">{savingFigma ? '…' : 'Enregistrer'}</button>
+          </div>
           {currentFigma && (
-            <p className="mt-2 text-xs text-success-700 flex items-center gap-1.5">
+            <p className="mt-2 text-2xs text-success-700 flex items-center gap-1.5">
               <span className="dot bg-success-500" />
-              Lien actif : <a href={currentFigma.value} target="_blank" rel="noopener" className="underline truncate">{currentFigma.value}</a>
+              Actif : <a href={currentFigma.value} target="_blank" rel="noopener" className="underline truncate">{currentFigma.value}</a>
             </p>
           )}
         </div>
       </section>
 
-      {/* V8.9 §7 — Moodboard upload */}
-      <section className="card p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-ink-900">Moodboard de référence</h2>
-            <p className="mt-1 text-xs text-ink-500">Glissez-déposez ou sélectionnez des images. Cadence les utilise comme inspiration visuelle lors de la génération.</p>
+      {/* ── TOKENS AVANCÉS — disclosure ───────────────────── */}
+      <section>
+        <button
+          onClick={() => setShowAdvanced(o => !o)}
+          className="flex items-center gap-2 text-xs text-ink-500 hover:text-ink-900 transition"
+        >
+          <span>{showAdvanced ? '▾' : '▸'}</span>
+          <span>Tokens avancés ({tokens.filter(t => t.category !== 'moodboard').length})</span>
+          <span className="text-ink-400">— pour ceux qui veulent contrôler les hex, radius, polices</span>
+        </button>
+
+        {showAdvanced && (
+          <div className="mt-4 space-y-4 animate-slide-up">
+            <div className="rounded-xl border border-ink-100 bg-ink-50/40 p-4 text-2xs text-ink-500">
+              Ces valeurs sont injectées dans chaque prompt de génération. Modifiez-les pour changer le rendu de tous vos visuels en un instant.
+            </div>
+            {Object.keys(CATEGORY_META).filter(c => byCat[c]?.length).map(cat => {
+              const list = byCat[cat] || [];
+              return (
+                <div key={cat} className="rounded-xl border border-ink-100 bg-white p-4">
+                  <h3 className="text-xs font-semibold text-ink-900 flex items-center gap-2">
+                    <span className="text-ink-400">{CATEGORY_META[cat]?.icon}</span>
+                    {CATEGORY_META[cat]?.label || cat}
+                  </h3>
+                  <ul className="mt-3 space-y-1">
+                    {list.map(t => {
+                      const isHex = /^#[0-9A-Fa-f]{6}$/.test(t.value);
+                      const shortKey = t.key.split('.').slice(1).join('.') || t.key;
+                      return (
+                        <li key={t.id} className="group flex items-center gap-3 py-1.5 px-2 -mx-2 rounded-md hover:bg-ink-50 transition">
+                          <div className="w-32 shrink-0 text-xs font-medium text-ink-700 truncate">{shortKey}</div>
+                          <div className="flex-1 flex items-center gap-2 min-w-0">
+                            {isHex && <span className="inline-block w-4 h-4 rounded shrink-0 ring-1 ring-ink-200" style={{ background: t.value }} />}
+                            <span className="font-mono text-2xs text-ink-600 truncate">{t.value}</span>
+                          </div>
+                          <button onClick={() => setEditing(t)} className="text-2xs text-ink-400 hover:text-ink-900 opacity-0 group-hover:opacity-100 transition">modifier</button>
+                          <button onClick={() => remove(t.id)} className="text-2xs text-ink-400 hover:text-danger-700 opacity-0 group-hover:opacity-100 transition">×</button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              );
+            })}
+            <button onClick={() => setEditing({ key: '', value: '', category: 'color' })} className="text-xs text-brand-700 hover:text-brand-900 transition">+ Ajouter un token</button>
           </div>
-          <label className="btn-primary text-xs cursor-pointer">
-            {uploadingMb ? 'Upload…' : '+ Ajouter une image'}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              className="hidden"
-              disabled={uploadingMb}
-              onChange={e => { const f = e.target.files?.[0]; if (f) uploadMoodboard(f); e.currentTarget.value = ''; }}
-            />
-          </label>
-        </div>
-        {mbError && <p className="mt-2 text-xs text-danger-700">{mbError}</p>}
-        {moodboards.length > 0 ? (
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
-            {moodboards.map(m => (
-              <div key={m.id} className="group relative aspect-square rounded-lg overflow-hidden border border-ink-200 bg-ink-50">
-                <img src={m.value} alt="" className="w-full h-full object-cover" loading="lazy" />
-                <button
-                  onClick={() => deleteMoodboard(m.id)}
-                  className="absolute top-1 right-1 w-6 h-6 rounded-md bg-white/90 text-ink-600 hover:text-danger-700 opacity-0 group-hover:opacity-100 transition text-xs"
-                  title="Supprimer"
-                  aria-label="Supprimer cette image"
-                >×</button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-4 text-xs text-ink-500 italic">Aucune image. Ajoutez 3-6 références pour donner une direction artistique à Cadence.</p>
         )}
       </section>
-
-      {/* Mode banner */}
-      <div className="card p-3 flex items-center gap-3 text-sm bg-brand-50/40 border-brand-100">
-        <span className="chip chip-brand"><span className="dot bg-brand-500" /> Mode actif</span>
-        <span className="text-ink-700">
-          <strong>Claude Sonnet 4.6</strong> — génération SVG interne. Tous les tokens ci-dessous sont injectés automatiquement dans le prompt.
-        </span>
-      </div>
-
-      {/* Category tabs */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <button onClick={() => setActiveCategory('all')} className={`text-xs px-3 py-1.5 rounded-full border transition ${activeCategory === 'all' ? 'bg-brand-50 border-brand-300 text-brand-700' : 'bg-white border-ink-200 hover:bg-ink-50'}`}>
-          Toutes <span className="text-ink-400">{tokens.length}</span>
-        </button>
-        {Object.keys(CATEGORY_META).filter(c => byCat[c]?.length).map(c => (
-          <button key={c} onClick={() => setActiveCategory(c)} className={`text-xs px-3 py-1.5 rounded-full border transition flex items-center gap-1.5 ${activeCategory === c ? 'bg-brand-50 border-brand-300 text-brand-700' : 'bg-white border-ink-200 hover:bg-ink-50'}`}>
-            <span className="text-ink-400">{CATEGORY_META[c].icon}</span>
-            {CATEGORY_META[c].label}
-            <span className="text-ink-400">{byCat[c]?.length || 0}</span>
-          </button>
-        ))}
-        <button onClick={() => setEditing({ key: '', value: '', category: 'color' })} className="ml-auto btn-primary text-xs">+ Ajouter</button>
-      </div>
-
-      {/* Tokens grouped */}
-      {visibleCats.map(cat => {
-        const list = byCat[cat] || [];
-        if (list.length === 0) return null;
-        return (
-          <section key={cat} className="card p-5">
-            <h2 className="font-semibold text-ink-900 flex items-center gap-2">
-              <span className="text-ink-400">{CATEGORY_META[cat]?.icon}</span>
-              {CATEGORY_META[cat]?.label || cat}
-            </h2>
-            <p className="text-xs text-ink-500 mt-0.5">{CATEGORY_META[cat]?.description}</p>
-            <ul className="mt-4 space-y-1.5">
-              {list.map(t => {
-                const isHex = /^#[0-9A-Fa-f]{6}$/.test(t.value);
-                return (
-                  <li key={t.id} className="flex items-start gap-3 p-2.5 rounded-lg border border-ink-100 hover:border-ink-200 transition">
-                    <div className="w-44 shrink-0">
-                      <div className="text-sm font-medium text-ink-900 truncate">{t.key.split('.').slice(1).join('.') || t.key}</div>
-                      <div className="text-2xs text-ink-400 font-mono truncate">{t.key}</div>
-                    </div>
-                    <span className="flex-1 text-sm text-ink-700 break-words flex items-center gap-2">
-                      {isHex && <span className="inline-block w-5 h-5 rounded shrink-0 ring-1 ring-ink-200" style={{ background: t.value }} />}
-                      <span className="font-mono text-xs">{t.value}</span>
-                    </span>
-                    <button onClick={() => setEditing(t)} className="btn-ghost text-2xs">Modifier</button>
-                    <button onClick={() => remove(t.id)} className="btn-ghost text-2xs text-danger-700">Supprimer</button>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        );
-      })}
-
-      {tokens.length === 0 && (
-        <div className="card p-10 text-center">
-          <p className="text-sm text-ink-700 font-medium">Aucun token de design défini.</p>
-          <p className="mt-1 text-xs text-ink-500">Cadence utilise les valeurs par défaut. Ajoutez vos couleurs, typographies, prompts pour que les visuels respectent votre identité.</p>
-          <button onClick={() => setEditing({ key: 'color.brand', value: '#2563EB', category: 'color' })} className="btn-primary mt-4">+ Ajouter votre première couleur</button>
-        </div>
-      )}
 
       {/* Edit modal */}
       {editing && (
@@ -317,12 +346,30 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
               <textarea value={editing.value} onChange={e => setEditing({ ...editing, value: e.target.value })} rows={3} className="input text-sm font-mono" placeholder="#2563EB ou texte libre" />
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <button onClick={() => setEditing(null)} className="btn-secondary">Annuler</button>
-              <button onClick={save} className="btn-primary">Sauvegarder</button>
+              <button onClick={() => setEditing(null)} className="btn-secondary text-xs">Annuler</button>
+              <button onClick={save} className="btn-primary text-xs">Sauvegarder</button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Zoom moodboard */}
+      {zoomedImg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-ink-900/80 backdrop-blur-sm animate-fade-in cursor-zoom-out" onClick={() => setZoomedImg(null)}>
+          <img src={zoomedImg.value} alt="" className="max-w-full max-h-full rounded-xl shadow-pop" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreviewSample({ tag, svg }: { tag: string; svg: React.ReactNode }) {
+  return (
+    <div className="group">
+      <div className="aspect-[4/3] rounded-xl overflow-hidden border border-ink-200 bg-white shadow-xs group-hover:shadow-elev transition-all duration-300 group-hover:scale-[1.01]">
+        {svg}
+      </div>
+      <div className="mt-2 text-2xs uppercase tracking-wider font-semibold text-ink-500">{tag}</div>
     </div>
   );
 }
