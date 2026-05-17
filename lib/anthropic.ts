@@ -150,3 +150,38 @@ export async function generateClaudeDesignSvg(prompt: string): Promise<{ svg: st
   if (!m) throw new Error('Claude n\'a pas renvoyé de SVG valide.');
   return { svg: m[0], model: MODEL };
 }
+
+
+// V9.0 §7 — Moodboard tagging via Claude Vision
+const MOODBOARD_TAGS = ['sobre', 'éditorial', 'dark', 'agressif', 'data-heavy', 'minimal', 'fintech', 'pédagogique', 'maximaliste', 'photo', 'illustration', 'typo-driven', 'palette-froide', 'palette-chaude'];
+
+export async function tagMoodboardImage(imageUrl: string): Promise<{ tags: string[]; palette?: string; density?: string }> {
+  const c = await client();
+  const msg = await c.messages.create({
+    model: 'claude-sonnet-4-6',
+    max_tokens: 200,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'image', source: { type: 'url', url: imageUrl } as any },
+        {
+          type: 'text',
+          text: `Analysez cette image de moodboard pour une direction artistique LinkedIn B2B.
+Réponse JSON strict (aucun préambule) :
+{ "tags": ["sobre"|"éditorial"|"dark"|"agressif"|"data-heavy"|"minimal"|"fintech"|"pédagogique"|"maximaliste"|"photo"|"illustration"|"typo-driven"|"palette-froide"|"palette-chaude"], "palette": "courte description couleurs", "density": "minimal"|"équilibrée"|"dense" }
+Sélectionnez 2-4 tags maximum les plus pertinents.`
+        }
+      ]
+    }]
+  });
+  const raw = msg.content.filter((x: any) => x.type === 'text').map((x: any) => x.text).join('\n').trim();
+  // Strip code fences si présents
+  const cleaned = raw.replace(/^```(?:json)?\n?/i, '').replace(/```\s*$/, '').trim();
+  try {
+    const parsed = JSON.parse(cleaned);
+    const tags = Array.isArray(parsed.tags) ? parsed.tags.filter((t: any) => typeof t === 'string' && MOODBOARD_TAGS.includes(t)) : [];
+    return { tags, palette: parsed.palette, density: parsed.density };
+  } catch {
+    return { tags: [] };
+  }
+}

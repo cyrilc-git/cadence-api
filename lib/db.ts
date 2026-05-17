@@ -169,10 +169,27 @@ export async function designSystemPromptBlock(): Promise<string> {
   const tokens = await designSystemList().catch(() => []);
   if (!tokens.length) return '';
   const byCat: Record<string, string[]> = {};
+  const moodboardTags = new Set<string>();
+  const palettes: string[] = [];
+  const densities: string[] = [];
   for (const t of tokens) {
     const c = t.category || 'misc';
+    if (c === 'moodboard') {
+      // V9.0 §7 — agréger les tags Vision plutôt que lister les URLs
+      const meta: any = t.meta || {};
+      (meta.tags || []).forEach((tag: string) => moodboardTags.add(tag));
+      if (meta.palette) palettes.push(meta.palette);
+      if (meta.density) densities.push(meta.density);
+      continue;
+    }
     if (!byCat[c]) byCat[c] = [];
     byCat[c].push(`- ${t.key} : ${t.value}`);
   }
-  return Object.entries(byCat).map(([cat, lines]) => `[${cat.toUpperCase()}]\n${lines.join('\n')}`).join('\n\n');
+  let out = Object.entries(byCat).map(([cat, lines]) => `[${cat.toUpperCase()}]\n${lines.join('\n')}`).join('\n\n');
+  if (moodboardTags.size > 0) {
+    out += `\n\n[MOODBOARD_ANALYSE]\nStyles dominants : ${[...moodboardTags].join(', ')}`;
+    if (palettes.length) out += `\nPalettes observées : ${palettes.slice(0, 3).join(' / ')}`;
+    if (densities.length) out += `\nDensité : ${[...new Set(densities)].join(', ')}`;
+  }
+  return out;
 }

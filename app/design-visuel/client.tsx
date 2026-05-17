@@ -201,7 +201,7 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
         <div className="flex items-baseline justify-between mb-3">
           <div>
             <h2 className="text-sm font-semibold text-ink-900">Moodboard</h2>
-            <p className="text-xs text-ink-500 mt-0.5">Glissez vos images de référence. 3-6 suffisent à donner une vraie direction.</p>
+            <p className="text-xs text-ink-500 mt-0.5">Glissez vos images. Cadence les analyse (style, palette, densité) pour guider chaque génération.</p>
           </div>
           {moodboards.length > 0 && (
             <label className="text-xs text-ink-500 hover:text-ink-900 cursor-pointer transition">
@@ -237,9 +237,20 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
             </div>
           ) : (
             <div className="columns-2 sm:columns-3 lg:columns-4 gap-3 [&>*]:mb-3 [&>*]:break-inside-avoid">
-              {moodboards.map(m => (
+              {moodboards.map(m => {
+                const tags: string[] = m.meta?.tags || [];
+                return (
                 <div key={m.id} className="group relative rounded-xl overflow-hidden border border-ink-100 bg-ink-50 cursor-zoom-in transition-all duration-200 hover:shadow-elev hover:border-ink-300" onClick={() => setZoomedImg(m)}>
                   <img src={m.value} alt="" loading="lazy" className="w-full block transition-transform duration-300 group-hover:scale-[1.02]" />
+                  {tags.length > 0 && (
+                    <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 bg-gradient-to-t from-black/70 to-transparent">
+                      <div className="flex flex-wrap gap-1">
+                        {tags.slice(0, 3).map((t: string) => (
+                          <span key={t} className="text-2xs px-1.5 py-0.5 rounded bg-white/90 text-ink-800 font-medium">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteMoodboard(m.id); }}
                     className="absolute top-1.5 right-1.5 w-7 h-7 rounded-lg bg-white/95 backdrop-blur text-ink-700 hover:text-danger-700 opacity-0 group-hover:opacity-100 transition shadow-xs"
@@ -247,7 +258,8 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
                     aria-label="Supprimer cette image"
                   >×</button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
           {dragOver && (

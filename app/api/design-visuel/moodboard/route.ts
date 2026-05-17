@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { tagMoodboardImage } from '@/lib/anthropic';
 
 export const runtime = 'nodejs';
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const BUCKET = 'cadence-visuals';
 const PREFIX = 'moodboard';
@@ -34,14 +35,27 @@ export async function POST(req: NextRequest) {
     if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
     const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
 
-    // Enregistrer dans design_system_tokens (category=moodboard, key unique, value=URL)
+    // Enregistrer dans design_system (category=moodboard, key unique, value=URL)
     const key = `moodboard.${Date.now()}`;
-    const { error: tokErr } = await supabase.from('design_system').insert({
-      key, value: urlData.publicUrl, category: 'moodboard', meta: { filename: file.name, size: file.size, type: file.type, path }
-    });
+    let meta: any = { filename: file.name, size: file.size, type: file.type, path };
+    const { data: inserted, error: tokErr } = await supabase.from('design_system').insert({
+      key, value: urlData.publicUrl, category: 'moodboard', meta
+    }).select().single();
     if (tokErr) console.warn('moodboard token save warn:', tokErr.message);
 
-    return NextResponse.json({ ok: true, url: urlData.publicUrl, path, key });
+    // V9.0 §7 — Async tagging via Claude Vision (ne bloque pas la réponse)
+    // On lance le tagging puis update le meta. L'UI verra les tags au prochain GET.
+    if (inserted?.id) {
+      tagMoodboardImage(urlData.publicUrl)
+        .then(async ({ tags, palette, density }) => {
+          if (!tags.length) return;
+          const newMeta = { ...meta, tags, palette, density, tagged_at: new Date().toISOString() };
+          await supabase.from('design_system').update({ meta: newMeta }).eq('id', inserted.id);
+        })
+        .catch(e => console.warn('moodboard tagging failed:', e.message));
+    }
+
+    return NextResponse.json({ ok: true, url: urlData.publicUrl, path, key, id: inserted?.id });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
