@@ -35,11 +35,8 @@ function statusOf(p: any): 'published' | 'scheduled' | 'needs_validation' | 'lat
 export default function CalendarClient({ initialPosts }: { initialPosts: any[] }) {
   const [posts, setPosts] = useState(initialPosts);
   const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; });
-  const [view, setView] = useState<'month' | 'week'>('month');
-  // V8.1 — auto-switch to week on mobile
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 640) setView('week');
-  }, []);
+  // V9.1 §2 — vue semaine par défaut (Notion Calendar / Linear style)
+  const [view, setView] = useState<'month' | 'week'>('week');
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<{ created: number; pilierList: string[] } | null>(null);
   const [genStage, setGenStage] = useState<string | null>(null);
@@ -79,6 +76,35 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
       setDragToast({ kind: 'error', msg: 'Impossible : ' + e.message });
       setTimeout(() => setDragToast(null), 3600);
     }
+  }
+
+  // V9.1 §2 — Heatmap perf : impressions moyennes par jour de semaine
+  const weekdayPerf = useMemo(() => {
+    const sum: Record<number, { total: number; count: number }> = {};
+    for (const p of posts) {
+      if (p.status !== 'published' || !p.impressions || !p.scheduled_at) continue;
+      const dow = new Date(p.scheduled_at).getDay();
+      if (!sum[dow]) sum[dow] = { total: 0, count: 0 };
+      sum[dow].total += p.impressions;
+      sum[dow].count++;
+    }
+    const avgs: Record<number, number> = {};
+    let max = 0;
+    for (const [k, v] of Object.entries(sum)) {
+      const a = v.total / v.count;
+      avgs[parseInt(k)] = a;
+      if (a > max) max = a;
+    }
+    return { avgs, max };
+  }, [posts]);
+
+  function perfTint(d: Date): string {
+    const avg = weekdayPerf.avgs[d.getDay()];
+    if (!avg || !weekdayPerf.max) return '';
+    const intensity = avg / weekdayPerf.max;
+    if (intensity > 0.8) return 'bg-emerald-50/60';
+    if (intensity > 0.5) return 'bg-emerald-50/30';
+    return '';
   }
 
   const byDate = useMemo(() => {
@@ -273,7 +299,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
                     setDragOverKey(null);
                     setDraggingId(null);
                   }}
-                  className={`group relative rounded-xl p-2 min-h-[124px] border transition-all duration-200 ${isToday ? 'border-brand-400 bg-brand-50/30 shadow-elev' : isWeekend ? 'border-ink-100 bg-ink-50/40' : 'border-ink-200 bg-white hover:border-ink-300 hover:shadow-xs'} ${isOtherMonth ? 'opacity-40' : ''} ${isPast && !isToday ? 'opacity-75' : ''} ${dragOverKey === k && draggingId ? 'ring-2 ring-brand-500 ring-offset-2 bg-brand-50/80 scale-[1.02]' : ''}`}
+                  className={`group relative rounded-xl p-2 min-h-[124px] border transition-all duration-200 ${isToday ? 'border-brand-400 bg-brand-50/30 shadow-elev' : isWeekend ? 'border-ink-100 bg-ink-50/40' : `border-ink-200 ${perfTint(d) || 'bg-white'} hover:border-ink-300 hover:shadow-xs`} ${isOtherMonth ? 'opacity-40' : ''} ${isPast && !isToday ? 'opacity-75' : ''} ${dragOverKey === k && draggingId ? 'ring-2 ring-brand-500 ring-offset-2 bg-brand-50/80 scale-[1.02]' : ''}`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className={`text-xs font-semibold ${isToday ? 'text-brand-700' : isWeekend ? 'text-ink-400' : 'text-ink-700'}`}>{d.getDate()}</span>
@@ -358,15 +384,19 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
         </div>
       )}
 
-      {/* Legend */}
-      <div className="card p-4 text-sm">
-        <div className="flex items-center gap-5 flex-wrap text-xs">
-          <span className="flex items-center gap-2"><span className="dot bg-warn-500" /> À valider <span className="text-ink-400">(cron ne publie pas)</span></span>
-          <span className="flex items-center gap-2"><span className="dot bg-brand-500" /> Programmé <span className="text-ink-400">(validé pour cron)</span></span>
-          <span className="flex items-center gap-2"><span className="text-success-700">✓</span> Publié</span>
-          <span className="flex items-center gap-2"><span className="text-danger-500">⚠</span> En retard</span>
-        </div>
-        <p className="mt-2 text-xs text-ink-500">Le cron Vercel publie quotidiennement uniquement les drafts marqués « validés » via l'éditeur.</p>
+      {/* Legend — discrète V9.1 */}
+      <div className="text-xs text-ink-500 flex items-center gap-5 flex-wrap pt-2 border-t border-ink-100">
+        <span className="flex items-center gap-1.5"><span className="dot bg-warn-500" /> à valider</span>
+        <span className="flex items-center gap-1.5"><span className="dot bg-brand-500" /> programmé</span>
+        <span className="flex items-center gap-1.5"><span className="text-success-700">✓</span> publié</span>
+        <span className="flex items-center gap-1.5"><span className="text-danger-500">⚠</span> en retard</span>
+        {weekdayPerf.max > 0 && (
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded bg-emerald-50/60 border border-emerald-100" />
+            jours forts en moyenne
+          </span>
+        )}
+        <span className="ml-auto text-ink-400">Cron publie uniquement les drafts validés.</span>
       </div>
     </div>
   );
