@@ -28,10 +28,13 @@ const STATIC_BANNED = [
   'Aucune formule « non, X ne suffit pas ».',
   'Aucune formule « la vérité, c\'est que ».',
   'Aucune formule « spoiler ».',
-  'Aucun mot creux IA : seamless, robust, delve, unlock, unleash, deep dive, game changer, révolutionner, booster, libérer le potentiel, « dans un monde où… ».',
+  'Aucune formule signature : « Résultat : », « Et c\'est là que… », « La vérité c\'est que… », « Voici pourquoi : », « Le vrai problème c\'est… ».',
+  'Aucune phrase qui démarre par « Pas parce que… » (cliché IA "not because X but because Y").',
+  'Aucun mot creux IA : impactant, insight, seamless, robust, delve, unlock, unleash, deep dive, game changer, révolutionner, booster, libérer le potentiel, « dans un monde où… », disruption, révolutionnaire.',
   'Pas de hashtags génériques (#leadership, #motivation). Hashtags ciblés uniquement (#DAF, #PME, #treso).',
-  'Pas plus de 3 emojis dans tout le post.',
+  'Aucun emoji. Préférer mots ou chiffres.',
   'Pas de mots en MAJUSCULES (sauf acronymes ≤ 4 lettres : DAF, SaaS, PME, FEC, FAE, FNP).',
+  'Pas de phrases ultra courtes en rafale (staccato IA) : éviter 3+ phrases consécutives de ≤ 5 mots.',
   'Pas de confidentialité client risquée : pas de nom, pas de chiffres internes identifiables, secteur générique.',
   'Pas de tutoiement. Pas de claims exagérés. Pas de conclusion générique.'
 ];

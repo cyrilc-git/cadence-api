@@ -19,8 +19,25 @@ export const VOIX = {
 export const ANTI_PATTERNS = [
   { id: 'em_dash',      label: 'Tiret long (— ou –)', pattern: /[—–]/g, severity: 'critical' },
   { id: 'not_x_y',      label: '"Ce n\'est pas X, c\'est Y" et variantes', pattern: /\b(c['e]?st|n['e]?st)\s+pas\s+\w+[\s,]+c['e]?st\s+\w+/gi, severity: 'critical' },
-  { id: 'seamless',     label: 'Mots creux IA (seamless, robust, delve…)', pattern: /\b(seamless|robust|delve|leverage|unlock|unleash|deep dive|game[- ]?changer|dans un monde où)\b/gi, severity: 'high' },
-  { id: 'emoji_burst',  label: 'Plus de 3 emojis dans le post', test: (t: string) => (t.match(/\p{Extended_Pictographic}/gu) || []).length > 3, severity: 'medium' },
+  // V9.1.1 — mots creux étendus : impactant, insight, game-changer (déjà présent), etc.
+  { id: 'mots_creux',   label: 'Mots creux IA (impactant, insight, game-changer, seamless…)', pattern: /\b(impactant|impactante|insight|insights|game[- ]?changer|seamless|robust|delve|leverage|unlock|unleash|deep[- ]dive|dans un monde où|révolutionnaire|disrupter|disruption)\b/gi, severity: 'high' },
+  // V9.1.1 — formules signature : "Résultat :", "Et c'est là que…", "La vérité c'est que…"
+  { id: 'resultat_formule', label: 'Formule signature ("Résultat :", "Et c\'est là…", "La vérité c\'est…")', pattern: /(?:^|\n|\.\s+)\s*(?:R[ée]sultat\s*:|Et\s+c['e]?st\s+l[àa]\s+que|La\s+v[ée]rit[ée]\s+c['e]?st\s+que|Voici\s+pourquoi\s*:|Le\s+vrai\s+probl[èe]me\s*c['e]?st)/gi, severity: 'high' },
+  // V9.1.1 — "Pas parce que..." en début de phrase (cliché IA "not because... but because...")
+  { id: 'pas_parce_que', label: '"Pas parce que…" en début de phrase (cliché IA)', pattern: /(?:^|\n|\.\s+|\?\s+|!\s+)\s*Pas\s+parce\s+qu[e']/gi, severity: 'high' },
+  // V9.1.1 — emoji burst plus strict (>1 emoji = soupçon, >3 = clair)
+  { id: 'emoji',        label: 'Emoji détecté (préférer mots / chiffres)', test: (t: string) => (t.match(/\p{Extended_Pictographic}/gu) || []).length >= 1, severity: 'medium' },
+  // V9.1.1 — staccato : 3+ phrases courtes (<6 mots) consécutives
+  { id: 'staccato',     label: 'Phrases ultra-courtes en rafale (staccato IA)', test: (t: string) => {
+      const sentences = t.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+      let streak = 0, maxStreak = 0;
+      for (const s of sentences) {
+        const words = s.trim().split(/\s+/).length;
+        if (words > 0 && words <= 5) { streak++; if (streak > maxStreak) maxStreak = streak; }
+        else streak = 0;
+      }
+      return maxStreak >= 3;
+    }, severity: 'medium' },
   { id: 'all_caps',     label: 'Mot en MAJUSCULES (>1 mot consécutif)', pattern: /\b[A-Z]{4,}\s+[A-Z]{4,}/g, severity: 'medium' },
   { id: 'tutoiement',   label: 'Tutoiement détecté', pattern: /\b(tu|toi|ton|ta|tes)\b/gi, severity: 'high' }
 ];
