@@ -124,6 +124,21 @@ lib/
 - Pas de tests automatisés actifs aujourd'hui. Workflows QA dressés dans `_github-workflows-to-install/` (à activer manuellement — le PAT actuel n'a pas le scope `workflow`).
 - Cron Vercel : `/api/cron-publish` quotidien à 07:30. Skip posts non-`validated`.
 
+## 7bis. Quick start (après clone)
+
+```bash
+git clone https://github.com/cyrilc-git/cadence-api.git
+cd cadence-api
+./scripts/setup.sh        # crée .env.local, installe deps, typecheck
+# édite .env.local (6 vars depuis Vercel)
+npm run dev               # http://localhost:3000
+```
+
+Pour activer les CI GitHub Actions une fois ton PAT régénéré avec scope `workflow` :
+```bash
+./scripts/activate-workflows.sh
+```
+
 ## 8. Variables d'environnement (à mettre dans `.env.local`)
 
 ```bash
