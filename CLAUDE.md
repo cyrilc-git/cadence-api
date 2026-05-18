@@ -141,32 +141,11 @@ Pour activer les CI GitHub Actions une fois ton PAT régénéré avec scope `wor
 
 ## 8. Variables d'environnement (à mettre dans `.env.local`)
 
-```bash
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://hzbsvnubmnqsbsgcblfv.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...
+Voir `.env.example` à la racine — il contient tous les noms exacts utilisés par le code et les indications. Synthèse :
 
-# Chiffrement credentials (32 bytes hex = 64 caractères)
-CADENCE_CRYPTO_KEY=...
+**Obligatoires** : `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `MASTER_ENCRYPTION_KEY` (≥ 32 chars, doit matcher la prod), `NOTION_API_TOKEN`, `NOTION_LINKEDIN_DS_ID`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `LINKEDIN_REDIRECT_URI`, `CRON_SECRET`, `COCKPIT_SECRET`.
 
-# Anthropic + OpenAI : stockés en DB chiffrés (table credentials), pas en env.
-# Mais override via env possible :
-ANTHROPIC_API_KEY=sk-ant-...    # optionnel si déjà en DB
-OPENAI_API_KEY=sk-...           # optionnel si déjà en DB
-
-# LinkedIn OAuth
-LINKEDIN_CLIENT_ID=...
-LINKEDIN_CLIENT_SECRET=...
-LINKEDIN_REDIRECT_URI=https://cadence-api-ruddy.vercel.app/api/auth/linkedin/callback
-
-# Notion : stocké via le bouton "Connecter Notion" dans /sources/notion
-# (token + database_id sauvés en DB chiffrés)
-
-# GitHub (optionnel pour Radar)
-GITHUB_TOKEN=ghp_...
-GITHUB_REPOS=cyrilc-git/cadence-api,cyrilc-git/heelio-decode
-```
+**Optionnelles** : `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (sinon lues depuis DB chiffrée via MASTER_ENCRYPTION_KEY). `GITHUB_TOKEN` + `GITHUB_REPOS` pour le Radar.
 
 ## 9. Comment ajouter une feature
 
