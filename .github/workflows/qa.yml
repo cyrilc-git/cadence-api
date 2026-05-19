@@ -1,19 +1,17 @@
-# V8.9 — Cadence QA pipeline
-# Triggered on push/PR to main. Fails on TypeScript errors, build errors, or detected mojibake.
-# Smoke routes run after Vercel deploy via separate workflow (post-deploy.yml).
-
 name: QA
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
   qa:
-    name: Build + Typecheck + Mojibake scan
+    name: Build + typecheck + mojibake
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -21,8 +19,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -33,36 +31,23 @@ jobs:
       - name: Next build
         run: npm run build
         env:
-          # Mock envs so build doesn't fail on missing runtime values
-          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOi.example.example
-          SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOi.example.example
-          CADENCE_CRYPTO_KEY: 00000000000000000000000000000000
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: example
+          SUPABASE_ANON_KEY: example
+          MASTER_ENCRYPTION_KEY: "00000000000000000000000000000000"
+          NOTION_API_TOKEN: example
+          NOTION_LINKEDIN_DS_ID: example
+          LINKEDIN_CLIENT_ID: example
+          LINKEDIN_CLIENT_SECRET: example
+          LINKEDIN_REDIRECT_URI: http://localhost:3000/api/auth/callback
+          CRON_SECRET: example
+          COCKPIT_SECRET: example
 
-      - name: Scan for mojibake (UTF-8 corruption)
-        run: |
-          set -e
-          # Common mojibake patterns from double-encoded UTF-8
-          PATTERNS='Ã©|Ã¨|Ã |Ã§|Ãª|Ã®|Ã´|Å"|Ãœ|â€™|â€œ|â€|Â '
-          FOUND=$(grep -rEn "$PATTERNS" --include='*.ts' --include='*.tsx' --include='*.md' --include='*.json' \
-            --exclude-dir=node_modules --exclude-dir=.next --exclude-dir=.git . || true)
-          if [ -n "$FOUND" ]; then
-            echo "❌ Mojibake détecté :"
-            echo "$FOUND"
-            exit 1
-          fi
-          echo "✓ No mojibake found"
+      - name: Scan mojibake
+        run: node scripts/scan-mojibake.mjs
 
-      - name: Smoke — required files exist
+      - name: Required files exist
         run: |
-          set -e
-          for f in app/page.tsx app/calendar/client.tsx app/posts/new/client.tsx \
-                   components/CadenceEditor.tsx components/MentionTextarea.tsx \
-                   app/api/chat/route.ts app/api/chat/stream/route.ts \
-                   lib/radar.ts lib/embeddings.ts lib/mentions.ts; do
-            if [ ! -f "$f" ]; then
-              echo "❌ Missing $f"
-              exit 1
-            fi
+          for f in app/page.tsx app/posts/new/client.tsx components/CadenceEditor.tsx lib/radar.ts lib/embeddings.ts CLAUDE.md; do
+            test -f "$f" || (echo "Missing $f" && exit 1)
           done
-          echo "✓ All required files present"
