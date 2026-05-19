@@ -5,7 +5,7 @@
 import { readdirSync, statSync, readFileSync } from 'node:fs';
 import { join, extname } from 'node:path';
 
-const EXTS = new Set(['.ts', '.tsx', '.md', '.json']);
+const EXTS = new Set(['.ts', '.tsx', '.json']); // .md exclu : CLAUDE.md liste les anti-patterns à éviter (faux positifs)
 const SKIP = new Set(['node_modules', '.next', '.git', '_github-workflows-to-install']);
 // Common double-encoded UTF-8 mojibake patterns
 const PATTERNS = [
