@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "qa": "node scripts/qa.mjs",
     "qa:mobile": "VIEWPORT=mobile node scripts/qa.mjs",
-    "qa:desktop": "VIEWPORT=desktop node scripts/qa.mjs"
+    "qa:desktop": "VIEWPORT=desktop node scripts/qa.mjs",
+    "setup": "node scripts/setup.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.3",
