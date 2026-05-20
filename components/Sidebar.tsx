@@ -11,6 +11,7 @@ const NAV: NavItem[] = [
   { href: '/',                label: 'Dashboard',         icon: 'home',    group: 'cockpit' },
   { href: '/suggestions',     label: 'Radar',             icon: 'spark',   group: 'cockpit' },
   { href: '/calendar',        label: 'Calendrier',        icon: 'cal',     group: 'cockpit' },
+  { href: '/cerveau',         label: 'Mémoire',           icon: 'brain',   group: 'cockpit' },
   // Contenu : production
   { href: '/posts',           label: 'Bibliothèque',      icon: 'doc',     group: 'content' },
   { href: '/posts/new',       label: 'Nouveau post',      icon: 'plus',    group: 'content' },
@@ -23,7 +24,7 @@ const NAV: NavItem[] = [
   { href: '/settings',        label: 'Paramètres',        icon: 'gear',    group: 'config' }
 ];
 
-type IconName = 'home'|'doc'|'plus'|'cal'|'star'|'eye'|'chart'|'spark'|'plug'|'gear'|'palette';
+type IconName = 'home'|'doc'|'plus'|'cal'|'star'|'eye'|'chart'|'spark'|'plug'|'gear'|'palette'|'brain';
 
 function Icon({ name }: { name: IconName }) {
   const cls = 'w-[18px] h-[18px] stroke-[1.6]';
@@ -39,6 +40,7 @@ function Icon({ name }: { name: IconName }) {
     case 'plug':    return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 2v6 M15 2v6 M6 8h12v3a6 6 0 01-6 6 6 6 0 01-6-6V8z M12 17v5"/></svg>;
     case 'gear':    return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33 1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.07.34.24.65.49.9.25.25.56.42.9.49H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>;
     case 'palette': return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 22a10 10 0 110-20 10 10 0 014 19c-1 .5-2 0-2-1l1-2c.5-1-.5-2-1.5-1.5l-1 .5c-1 .5-2-.5-1.5-1.5l.5-1c.5-1-.5-2-1.5-1.5l-2 .5C5 14 4 13 4.5 12"/><circle cx="7.5" cy="9.5" r="1.5"/><circle cx="12" cy="6.5" r="1.5"/><circle cx="16.5" cy="9.5" r="1.5"/></svg>;
+    case 'brain':   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 4a3 3 0 00-3 3v1a3 3 0 00-2 2.83V13a3 3 0 002 2.83V17a3 3 0 003 3h1V4H9z M15 4a3 3 0 013 3v1a3 3 0 012 2.83V13a3 3 0 01-2 2.83V17a3 3 0 01-3 3h-1V4h1z M12 8v8 M9 10h1.5 M13.5 10H15 M9 14h1.5 M13.5 14H15"/></svg>;
   }
   return null;
 }

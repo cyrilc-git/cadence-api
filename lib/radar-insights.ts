@@ -39,7 +39,7 @@ const KNOWN_PILIERS = [
 ];
 
 // Mots-clés des projets / sujets attendus de Cyril. Ajustables au fil du temps.
-const TRACKED_TOPICS = [
+export const TRACKED_TOPICS = [
   { key: 'Heelio', synonyms: ['heelio', 'trésorerie', 'tréso', 'cashflow'] },
   { key: 'Decode', synonyms: ['decode', 'therapilot', 'thérapeute'] },
   { key: 'Studio OS', synonyms: ['studio os', 'studio-os', 'plateforme apps'] },
