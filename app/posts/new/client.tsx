@@ -173,7 +173,7 @@ export default function NewPostClient({
   const hasText = text.trim().length > 0;
 
   return (
-    <div className="-mx-5 lg:-mx-10 -my-7 lg:-my-9 min-h-screen flex flex-col bg-white">
+    <div className="-mx-5 lg:-mx-10 -my-7 lg:-my-9 min-h-screen min-h-[100dvh] flex flex-col bg-white">
       <header className="flex items-center gap-2 px-5 lg:px-8 h-14 sm:h-12 relative pt-[env(safe-area-inset-top)]">
         <Link href="/posts" className="text-ink-500 hover:text-ink-900 transition w-10 h-10 sm:w-8 sm:h-8 inline-flex items-center justify-center -ml-2 sm:-ml-1" aria-label="Retour à la bibliothèque" title="Retour">←</Link>
 
