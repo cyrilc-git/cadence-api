@@ -40,6 +40,33 @@ async function detectUnknownSources(): Promise<SourceHint[]> {
   return unknown;
 }
 
+function CoverageStat({ label, value, hint, tone }: { label: string; value: number; hint: string; tone: 'linkedin' | 'notion' | 'success' | 'amber' | 'muted' }) {
+  const valueColor = {
+    linkedin: 'text-[#0A66C2]',
+    notion: 'text-ink-900',
+    success: 'text-emerald-700',
+    amber: 'text-amber-700',
+    muted: 'text-ink-400',
+  }[tone];
+  const dotColor = {
+    linkedin: 'bg-[#0A66C2]',
+    notion: 'bg-ink-700',
+    success: 'bg-emerald-500',
+    amber: 'bg-amber-500',
+    muted: 'bg-ink-300',
+  }[tone];
+  return (
+    <div className="rounded-xl border border-ink-100 p-3">
+      <div className="flex items-center gap-2">
+        <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} aria-hidden />
+        <span className="text-2xs uppercase tracking-wider font-semibold text-ink-500">{label}</span>
+      </div>
+      <div className={`mt-1.5 text-2xl font-semibold tabular-nums ${valueColor}`}>{value.toLocaleString('fr-FR')}</div>
+      <div className="mt-0.5 text-2xs text-ink-500">{hint}</div>
+    </div>
+  );
+}
+
 function pilierTone(p: { count: number; daysSinceLast: number | null }) {
   if (p.count === 0) return { dot: 'bg-ink-300', text: 'aucun post' };
   if (p.daysSinceLast === null) return { dot: 'bg-ink-300', text: 'date inconnue' };
@@ -84,6 +111,33 @@ export default async function BrainPage() {
           </p>
           <div className="mt-3">
             <Link href="/sources/linkedin" className="btn-primary text-xs">Importer mes posts →</Link>
+          </div>
+        </section>
+      )}
+
+      {/* === SECTION 0 : Couverture des sources === V9.5 */}
+      {brain.totalIndexed > 0 && (
+        <section>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Couverture</h2>
+          <div className="grid grid-cols-3 gap-4">
+            <CoverageStat
+              label="LinkedIn"
+              value={brain.coverage.linkedinCount}
+              hint={brain.coverage.linkedinCount > 0 ? 'importé' : 'à importer'}
+              tone={brain.coverage.linkedinCount > 0 ? 'linkedin' : 'muted'}
+            />
+            <CoverageStat
+              label="Notion"
+              value={brain.coverage.notionCount}
+              hint={brain.coverage.notionCount > 0 ? 'lu' : 'silencieux'}
+              tone={brain.coverage.notionCount > 0 ? 'notion' : 'muted'}
+            />
+            <CoverageStat
+              label="Embeddings"
+              value={brain.coverage.embeddingsTotal}
+              hint={`${brain.coverage.confirmedPct}% confirmés`}
+              tone={brain.coverage.confirmedPct >= 50 ? 'success' : brain.coverage.confirmedPct >= 20 ? 'amber' : 'muted'}
+            />
           </div>
         </section>
       )}
@@ -279,6 +333,25 @@ export default async function BrainPage() {
               </ul>
             </details>
           )}
+        </section>
+      )}
+
+      {/* === SECTION 6bis : Zones d'incertitude V9.5 === */}
+      {brain.uncertainties.length > 0 && (
+        <section>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Zones d&apos;incertitude</h2>
+          <p className="text-xs text-ink-500 leading-relaxed mb-3">Ce que Cadence ne peut pas certifier, dit clairement.</p>
+          <ul className="space-y-2.5">
+            {brain.uncertainties.map((u, i) => {
+              const dotTone = u.severity === 'high' ? 'bg-danger-500' : u.severity === 'medium' ? 'bg-amber-500' : 'bg-ink-400';
+              return (
+                <li key={i} className="flex items-start gap-3">
+                  <span className={`w-1.5 h-1.5 rounded-full mt-2 shrink-0 ${dotTone}`} aria-hidden />
+                  <p className="text-sm text-ink-800 leading-relaxed">{u.message}</p>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
 

@@ -18,6 +18,12 @@ export type BrainTopic = {
   count60d: number;
 };
 
+export type BrainUncertainty = {
+  kind: 'no_linkedin_import' | 'no_analytics' | 'orphan_published' | 'embeddings_stale' | 'low_volume';
+  message: string;
+  severity: 'low' | 'medium' | 'high';
+};
+
 export type BrainRecyclable = {
   id: string;
   source: string;
@@ -43,6 +49,15 @@ export type BrainState = {
   inferredCount: number;           // Notion brouillons / archives non certifiées
   confirmedSources: BrainSourceBreakdown[];
   inferredSources: BrainSourceBreakdown[];
+
+  // V9.5 — Couverture par source + zones d'incertitude
+  coverage: {
+    linkedinCount: number;         // imports LinkedIn (archive)
+    notionCount: number;           // posts indexés depuis Notion
+    embeddingsTotal: number;       // total indexé
+    confirmedPct: number;          // 0-100, ratio confirmedCount / total
+  };
+  uncertainties: BrainUncertainty[];
 
   // Couverture
   piliers: PilierStat[];
@@ -192,6 +207,62 @@ export async function computeBrainState(unknownSourcesInput?: { kind: string; la
   const topInsight = sorted[0] || null;
   const otherInsights = sorted.slice(1, 4);
 
+  // V9.5 — Couverture
+  const linkedinCount = sourceCounts['linkedin_archive'] || 0;
+  const notionCount = sourceCounts['notion'] || 0;
+  const confirmedPct = total > 0 ? Math.round((confirmedCount / total) * 100) : 0;
+
+  // V9.5 — Zones d'incertitude : ce que Cadence ne peut pas certifier
+  const uncertainties: BrainUncertainty[] = [];
+  if (total < 10) {
+    uncertainties.push({
+      kind: 'low_volume',
+      severity: 'high',
+      message: `Seulement ${total} post${total > 1 ? 's' : ''} en mémoire. Les patterns détectés ne sont pas représentatifs tant que vous n'avez pas indexé une trentaine de posts.`,
+    });
+  }
+  if (linkedinCount === 0 && notionCount > 0) {
+    uncertainties.push({
+      kind: 'no_linkedin_import',
+      severity: 'high',
+      message: 'Aucun import LinkedIn n\'a été fait. Cadence ne peut pas certifier ce qui a réellement été publié ni mesurer les performances réelles.',
+    });
+  }
+  // Posts Notion publiés sans URL : compte via notionPosts si on en a déjà chargés ailleurs.
+  // Approximation côté embeddings : status published mais source notion (déduit, pas confirmé).
+  const orphanPublished = (bySource || []).filter((r: any) => r.source === 'notion' && r.status === 'published').length;
+  if (orphanPublished >= 3) {
+    uncertainties.push({
+      kind: 'orphan_published',
+      severity: 'medium',
+      message: `${orphanPublished} posts Notion sont marqués publié sans URL LinkedIn vérifiée. Ils restent en archive Notion, pas en publication confirmée.`,
+    });
+  }
+  if (lastIndexedAt) {
+    const daysSinceIndex = Math.floor((Date.now() - new Date(lastIndexedAt).getTime()) / 86_400_000);
+    if (daysSinceIndex > 14) {
+      uncertainties.push({
+        kind: 'embeddings_stale',
+        severity: 'low',
+        message: `La dernière indexation date d'il y a ${daysSinceIndex} jours. Une réindexation rendra le radar et les insights plus pertinents.`,
+      });
+    }
+  }
+  // Analytics manquantes : approximation via post_embeddings.meta?.impressions
+  const { count: withImpressions } = await supabase
+    .from('post_embeddings')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'published')
+    .not('meta->impressions', 'is', null);
+  const publishedTotal = publishedKnown;
+  if (publishedTotal > 0 && (withImpressions || 0) < publishedTotal * 0.3) {
+    uncertainties.push({
+      kind: 'no_analytics',
+      severity: 'medium',
+      message: `Cadence connaît les impressions de ${withImpressions || 0} post${(withImpressions || 0) > 1 ? 's' : ''} sur ${publishedTotal} publiés. Les patterns de performance restent partiels.`,
+    });
+  }
+
   return {
     totalIndexed: total,
     sources,
@@ -204,6 +275,13 @@ export async function computeBrainState(unknownSourcesInput?: { kind: string; la
     inferredCount,
     confirmedSources,
     inferredSources,
+    coverage: {
+      linkedinCount,
+      notionCount,
+      embeddingsTotal: total,
+      confirmedPct,
+    },
+    uncertainties,
     piliers,
     pilierActiveCount,
     pilierSilentCount,
