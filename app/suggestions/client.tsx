@@ -17,6 +17,26 @@ const FORMAT_LABELS: Record<string, string> = {
   carousel: 'Carrousel', list: 'Liste', text: 'Texte court'
 };
 
+// V9.6 — Effort estimé selon format (court / standard / long-form)
+const FORMAT_EFFORT: Record<string, { label: string; tone: 'easy' | 'medium' | 'hard' }> = {
+  text:       { label: 'Effort faible',  tone: 'easy' },
+  opinion:    { label: 'Effort faible',  tone: 'easy' },
+  list:       { label: 'Effort moyen',   tone: 'medium' },
+  pedagogie:  { label: 'Effort moyen',   tone: 'medium' },
+  produit:    { label: 'Effort moyen',   tone: 'medium' },
+  cas:        { label: 'Effort fort',    tone: 'hard' },
+  carousel:   { label: 'Effort fort',    tone: 'hard' },
+  build:      { label: 'Effort moyen',   tone: 'medium' },
+};
+
+// V9.6 — Confidence du radar : score haut = confiance, bas = exploratoire.
+function radarConfidence(s: { score: number; payload?: any }): { label: string; tone: 'high' | 'medium' | 'low' } {
+  const novelty = s.payload?.novelty;
+  if (s.score >= 75 && novelty != null && novelty > 0.5) return { label: 'Forte confiance', tone: 'high' };
+  if (s.score >= 50) return { label: 'Confiance moyenne', tone: 'medium' };
+  return { label: 'Exploration', tone: 'low' };
+}
+
 type Suggestion = {
   id: string;
   source: string;
@@ -129,7 +149,7 @@ export default function SuggestionsClient() {
             <svg className="w-6 h-6 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg>
             Radar
           </h1>
-          <p className="mt-1 text-sm text-ink-500 lead">Idées de posts détectées par Cadence à partir de vos sources. Ouvrez celles qui résonnent ; ignorez les autres.</p>
+          <p className="mt-1 text-sm text-ink-500 lead">Top 3 idées par défaut, avec angle, effort et raison du moment. Cadence affiche peu pour ne pas saturer.</p>
         </div>
         <button onClick={refresh} disabled={refreshing} className="btn-primary">
           {refreshing ? (
@@ -197,12 +217,12 @@ export default function SuggestionsClient() {
                   )}
                   {s.why && (
                     <p className="mt-2 text-xs text-ink-500">
-                      <span className="font-semibold text-ink-600">Pourquoi : </span>{s.why}
+                      <span className="font-semibold text-ink-600">Pourquoi maintenant : </span>{s.why}
                     </p>
                   )}
                   {s.payload?.saturation > 2 && s.payload?.nearest_title && (
                     <p className="mt-1.5 text-xs text-warn-700">
-                      <span className="font-semibold">Attention :</span> sujet déjà traité récemment ({s.payload.saturation} posts similaires). Le plus proche : « {s.payload.nearest_title.slice(0, 80)} »
+                      <span className="font-semibold">Risque de répétition :</span> sujet déjà traité récemment ({s.payload.saturation} posts similaires). Le plus proche : « {s.payload.nearest_title.slice(0, 80)} ». Préférez un angle opinion ou contre-exemple.
                     </p>
                   )}
                   {(s.visual_idea || s.payload?.visual_idea) && (
@@ -210,6 +230,30 @@ export default function SuggestionsClient() {
                       <span className="font-semibold text-ink-600">Visuel : </span>{(s.visual_idea || s.payload?.visual_idea)}
                     </p>
                   )}
+                  {/* V9.6 — Méta stratégique : confidence + effort */}
+                  <div className="mt-3 flex items-center gap-3 flex-wrap text-2xs text-ink-500">
+                    {(() => {
+                      const conf = radarConfidence(s);
+                      const toneClass = conf.tone === 'high' ? 'text-emerald-700' : conf.tone === 'medium' ? 'text-ink-700' : 'text-amber-700';
+                      const dotClass = conf.tone === 'high' ? 'bg-emerald-500' : conf.tone === 'medium' ? 'bg-ink-500' : 'bg-amber-500';
+                      return (
+                        <span className={`inline-flex items-center gap-1 ${toneClass}`} title="Confiance du radar (score + nouveauté)">
+                          <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} aria-hidden />
+                          {conf.label}
+                        </span>
+                      );
+                    })()}
+                    {(() => {
+                      const fmt = (s.format || s.payload?.format) as string | undefined;
+                      const eff = fmt ? FORMAT_EFFORT[fmt] : null;
+                      if (!eff) return null;
+                      const toneClass = eff.tone === 'easy' ? 'text-emerald-700' : eff.tone === 'medium' ? 'text-ink-700' : 'text-amber-700';
+                      return <span className={`inline-flex items-center gap-1 ${toneClass}`} title="Effort de rédaction estimé">{eff.label}</span>;
+                    })()}
+                    {s.payload?.novelty != null && (
+                      <span className="text-ink-500" title="Nouveauté du sujet vs vos archives">Nouveauté {Math.round(s.payload.novelty * 100)}%</span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="mt-4 flex items-center gap-2 flex-wrap pl-16">
