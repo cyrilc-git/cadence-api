@@ -1,21 +1,28 @@
-# CI à installer manuellement
+# CI Cadence
 
-Le PAT utilisé par Claude n'a pas le scope `workflow`, donc je ne peux pas pousser les workflows. Tu dois soit :
+Workflows actifs dans `.github/workflows/`.
 
-**Option A — Le plus simple (en local)**
-```bash
-mkdir -p .github/workflows
-mv _github-workflows-to-install/qa.yml .github/workflows/
-mv _github-workflows-to-install/smoke.yml .github/workflows/
-mv _github-workflows-to-install/INSTALL.md .github/workflows/README.md
-rm -r _github-workflows-to-install
-git add -A && git commit -m "ci: enable QA + smoke workflows" && git push
-```
+## qa.yml
 
-**Option B — Donner le scope workflow au PAT**
-GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → édit le token utilisé, ajouter scope `workflow`. Puis je peux pousser direct la prochaine fois.
+Sur chaque push et PR vers `main` :
+- `npm ci` install
+- `npx tsc --noEmit` typecheck
+- `npm run build` Next build avec env vars factices
+- `node scripts/scan-mojibake.mjs` scan UTF-8
+- Vérification des fichiers critiques (`app/page.tsx`, `components/CadenceEditor.tsx`, etc.)
 
-## Contenu
+## smoke.yml
 
-- `qa.yml` — sur chaque push : install + typecheck + build + scan mojibake + vérif fichiers critiques
-- `smoke.yml` — toutes les 6h : ping routes prod, fail si 5xx
+Toutes les 6h et sur trigger manuel. Ping les routes prod :
+- Pages : `/`, `/calendar`, `/posts`, `/posts/new`, `/suggestions`, `/sources`, `/sources/notion`, `/sources/linkedin`, `/cerveau`, `/analytics`, `/brand-dna`, `/design-visuel`, `/inspirations`, `/settings`
+- API : `/api/health`, `/api/insights`, `/api/content-items?limit=1`
+
+Codes acceptés : 200, 3xx, 401, 403, 404. Fail si 5xx ou pas de réponse.
+
+## V10.1+ — Pistes futures
+
+- **Playwright headless** : screenshots de référence par page, comparaison entre déploiements. Nécessite l'install des binaires Chromium dans le runner (`npx playwright install --with-deps chromium`, ~3 min). À ajouter quand on aura besoin d'un vrai diff visuel.
+- **Lighthouse CI** : audit perf + a11y sur les routes clés.
+- **Console errors check** : extension Playwright qui collecte `console.error` à chaque navigation.
+
+Aucun de ces workflows n'est strictement nécessaire pour la V10 ; ils restent à arbitrer selon le besoin produit.
