@@ -94,16 +94,57 @@ export default async function BrainPage() {
         <p className="text-sm text-ink-800 leading-relaxed">{couvertureSummary}</p>
         {dateRange && <p className="mt-1 text-sm text-ink-600 leading-relaxed">{dateRange}</p>}
         <p className="mt-1 text-xs text-ink-500">{lastAnalysis}</p>
+        <p className="mt-3 text-xs text-ink-500 italic leading-relaxed">
+          Cadence distingue les publications confirmées sur LinkedIn des contenus retrouvés dans Notion.
+        </p>
 
-        {brain.sources.length > 0 && (
-          <ul className="mt-4 divide-y divide-ink-100 border-t border-b border-ink-100">
-            {brain.sources.map(s => (
-              <li key={s.source} className="flex items-center justify-between py-2.5">
-                <span className="text-sm text-ink-800">{s.label}</span>
-                <span className="text-sm tabular-nums text-ink-600">{s.count.toLocaleString('fr-FR')}</span>
-              </li>
-            ))}
-          </ul>
+        {/* Avec certitude (LinkedIn confirmé) */}
+        {brain.confirmedCount > 0 && (
+          <div className="mt-5">
+            <div className="flex items-baseline justify-between mb-2">
+              <h3 className="text-2xs uppercase tracking-wider font-semibold text-[#0A66C2]">Avec certitude</h3>
+              <span className="text-2xs text-ink-500 tabular-nums">{brain.confirmedCount.toLocaleString('fr-FR')} post{brain.confirmedCount > 1 ? 's' : ''}</span>
+            </div>
+            <p className="text-xs text-ink-600 leading-relaxed mb-2">Imports LinkedIn ZIP et publications avec URL LinkedIn vérifiée.</p>
+            <ul className="divide-y divide-ink-100 border-t border-b border-ink-100">
+              {brain.confirmedSources.map(s => (
+                <li key={s.source} className="flex items-center justify-between py-2.5">
+                  <span className="flex items-center gap-2 text-sm text-ink-800">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0A66C2]" aria-hidden />
+                    {s.label}
+                  </span>
+                  <span className="text-sm tabular-nums text-ink-600">{s.count.toLocaleString('fr-FR')}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Déduit depuis Notion */}
+        {brain.inferredCount > 0 && (
+          <div className="mt-5">
+            <div className="flex items-baseline justify-between mb-2">
+              <h3 className="text-2xs uppercase tracking-wider font-semibold text-amber-700">Déduit depuis vos brouillons</h3>
+              <span className="text-2xs text-ink-500 tabular-nums">{brain.inferredCount.toLocaleString('fr-FR')} post{brain.inferredCount > 1 ? 's' : ''}</span>
+            </div>
+            <p className="text-xs text-ink-600 leading-relaxed mb-2">Brouillons Notion, archives non certifiées et idées récurrentes. Pas de garantie de publication réelle sur LinkedIn.</p>
+            <ul className="divide-y divide-ink-100 border-t border-b border-ink-100">
+              {brain.inferredSources.map(s => (
+                <li key={s.source} className="flex items-center justify-between py-2.5">
+                  <span className="flex items-center gap-2 text-sm text-ink-800">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden />
+                    {s.label}
+                  </span>
+                  <span className="text-sm tabular-nums text-ink-600">{s.count.toLocaleString('fr-FR')}</span>
+                </li>
+              ))}
+            </ul>
+            {brain.confirmedCount === 0 && (
+              <p className="mt-3 text-xs text-amber-700 leading-relaxed">
+                Aucun import LinkedIn n&apos;a encore été fait. <Link href="/sources/linkedin" className="underline hover:text-amber-900">Importer mon archive LinkedIn</Link> pour passer en certitude.
+              </p>
+            )}
+          </div>
         )}
       </section>
 

@@ -38,6 +38,12 @@ export type BrainState = {
   publishedKnown: number;
   draftKnown: number;
 
+  // V9.2 §2.5 — Distinction provenance certifiée vs déduite
+  confirmedCount: number;          // Imports LinkedIn ZIP + publis confirmées URL
+  inferredCount: number;           // Notion brouillons / archives non certifiées
+  confirmedSources: BrainSourceBreakdown[];
+  inferredSources: BrainSourceBreakdown[];
+
   // Couverture
   piliers: PilierStat[];
   pilierActiveCount: number;
@@ -118,6 +124,15 @@ export async function computeBrainState(unknownSourcesInput?: { kind: string; la
     .map(([source, count]) => ({ source, label: SOURCE_LABELS[source] || source, count }))
     .sort((a, b) => b.count - a.count);
 
+  // V9.2 §2.5 — Provenance certifiée vs déduite
+  // confirmed : archive LinkedIn (la seule certaine au niveau embeddings actuel)
+  // inferred  : tout le reste (Notion, inspiration, manual sans signal LinkedIn)
+  const CONFIRMED_SOURCES = new Set(['linkedin_archive']);
+  const confirmedSources = sources.filter(s => CONFIRMED_SOURCES.has(s.source));
+  const inferredSources = sources.filter(s => !CONFIRMED_SOURCES.has(s.source));
+  const confirmedCount = confirmedSources.reduce((a, b) => a + b.count, 0);
+  const inferredCount = inferredSources.reduce((a, b) => a + b.count, 0);
+
   // 2. Piliers
   let piliers: PilierStat[] = [];
   try { piliers = await pilierStats(); } catch { piliers = []; }
@@ -185,6 +200,10 @@ export async function computeBrainState(unknownSourcesInput?: { kind: string; la
     newestPostAt,
     publishedKnown,
     draftKnown,
+    confirmedCount,
+    inferredCount,
+    confirmedSources,
+    inferredSources,
     piliers,
     pilierActiveCount,
     pilierSilentCount,

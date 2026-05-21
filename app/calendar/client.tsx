@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import MoveMenu from '@/components/MoveMenu';
+import ProvenanceBadge from '@/components/ProvenanceBadge';
+import { inferFromNotion, type Provenance } from '@/lib/provenance';
 
 // Pilier color tokens — one base color per editorial day
 const PILIER_TONES: Record<string, { bg: string; text: string; ring: string; dot: string }> = {
@@ -25,15 +27,29 @@ function ymd(d: Date): string {
   const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${day}`;
 }
-function statusOf(p: any): 'published' | 'scheduled' | 'needs_validation' | 'late' | 'draft' {
-  if (p.status === 'published') return 'published';
+// V9.2 §2.5 — Provenance prime status : un post Notion publié sans URL LinkedIn = "archive", pas "publié".
+function statusOf(p: any): 'published' | 'archive' | 'scheduled' | 'needs_validation' | 'late' | 'draft' {
+  const prov: Provenance | undefined = p.provenance;
+  if (prov?.source_type === 'linkedin_published' || prov?.source_type === 'linkedin_import_zip') return 'published';
+  if (prov?.source_type === 'notion_archive') return 'archive';
   if (p.late) return 'late';
   if (p.scheduled_at) return p.validated ? 'scheduled' : 'needs_validation';
   return 'draft';
 }
 
+function enrichWithProvenance(list: any[]): any[] {
+  return list.map(p => ({
+    ...p,
+    provenance: inferFromNotion({
+      id: p.id, title: p.title, status: p.status, linkedin_url: p.linkedin_url,
+      notion_url: p.notion_url, scheduled_at: p.scheduled_at, validated: p.validated,
+      cadence_source: p.cadence_source,
+    }),
+  }));
+}
+
 export default function CalendarClient({ initialPosts }: { initialPosts: any[] }) {
-  const [posts, setPosts] = useState(initialPosts);
+  const [posts, setPosts] = useState(() => enrichWithProvenance(initialPosts));
   const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; });
   // V9.1 §2 — vue semaine par défaut (Notion Calendar / Linear style)
   const [view, setView] = useState<'month' | 'week'>('week');
@@ -121,7 +137,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
   async function refresh() {
     try {
       const r = await fetch('/api/notion/posts?limit=200');
-      if (r.ok) { const d = await r.json(); if (Array.isArray(d.posts)) setPosts(d.posts); }
+      if (r.ok) { const d = await r.json(); if (Array.isArray(d.posts)) setPosts(enrichWithProvenance(d.posts)); }
     } catch {/* silent */}
   }
 
@@ -158,7 +174,8 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
           cadence_source: 'cadence',
           cover_url: null
         };
-        setPosts(prev => prev.find(p => p.id === optimistic.id) ? prev : [...prev, optimistic]);
+        const optimisticEnriched = enrichWithProvenance([optimistic])[0];
+        setPosts(prev => prev.find(p => p.id === optimisticEnriched.id) ? prev : [...prev, optimisticEnriched]);
         await new Promise(res => setTimeout(res, 300));
       }
       setGenStage(null);
@@ -195,7 +212,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
 
   // KPIs : count by status for the current month/week
   const stats = useMemo(() => {
-    const counts = { draft: 0, needs_validation: 0, scheduled: 0, published: 0, late: 0 };
+    const counts = { draft: 0, needs_validation: 0, scheduled: 0, published: 0, archive: 0, late: 0 };
     const start = grid[0]?.[0]; const end = grid[grid.length-1]?.[6];
     if (!start || !end) return counts;
     for (const p of posts) {
@@ -243,12 +260,13 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
       )}
 
       {/* KPI strip */}
-      <div className="card p-3 grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
-        <KPI label="Brouillons"  value={stats.draft}            tone="ink"     />
-        <KPI label="À valider"   value={stats.needs_validation} tone="warn"    />
-        <KPI label="Programmés"  value={stats.scheduled}        tone="brand"   />
-        <KPI label="En retard"   value={stats.late}             tone="danger"  />
-        <KPI label="Publiés"     value={stats.published}        tone="success" />
+      <div className="card p-3 grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
+        <KPI label="Brouillons"        value={stats.draft}            tone="ink"     />
+        <KPI label="À valider"         value={stats.needs_validation} tone="warn"    />
+        <KPI label="Programmés"        value={stats.scheduled}        tone="brand"   />
+        <KPI label="En retard"         value={stats.late}             tone="danger"  />
+        <KPI label="Publiés LinkedIn"  value={stats.published}        tone="success" />
+        <KPI label="Archives Notion"   value={stats.archive}          tone="amber"   />
       </div>
 
       {/* Generate result toast — V8.8 with 'Voir les drafts créés' CTA */}
@@ -330,10 +348,12 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
                               </div>
                             )}
                             <span className="flex items-center gap-1 px-1.5 py-1 truncate">
-                              {st === 'published' && <span title="Publié" className="text-success-700">✓</span>}
+                              {st === 'published' && <span title="Publié sur LinkedIn" className="text-success-700">✓</span>}
+                              {st === 'archive' && <span title="Archive Notion" className="dot bg-amber-500" />}
                               {st === 'late' && <span title="En retard" className="text-danger-500">⚠</span>}
                               {st === 'scheduled' && <span title="Programmé" className="dot bg-brand-500" />}
                               {st === 'needs_validation' && <span title="À valider" className="dot bg-warn-500" />}
+                              <ProvenanceBadge provenance={p.provenance} variant="dot" />
                               <span className="font-medium truncate">{p.scheduled_time?.slice(0,5) || ''}</span>
                               <span className="truncate flex-1 opacity-80">{p.title}</span>
                             </span>
@@ -368,7 +388,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
                 <span className={`dot mt-1.5 ${tone(p.pilier).dot}`} />
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-ink-900 truncate">{p.title}</div>
-                  <div className="text-2xs text-ink-500">{p.pilier} · {p.scheduled_time || '—'}</div>
+                  <div className="text-2xs text-ink-500">{p.pilier} · {p.scheduled_time || '00:00'}</div>
                 </div>
               </div>
             ))}
@@ -388,7 +408,8 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
       <div className="text-xs text-ink-500 flex items-center gap-5 flex-wrap pt-2 border-t border-ink-100">
         <span className="flex items-center gap-1.5"><span className="dot bg-warn-500" /> à valider</span>
         <span className="flex items-center gap-1.5"><span className="dot bg-brand-500" /> programmé</span>
-        <span className="flex items-center gap-1.5"><span className="text-success-700">✓</span> publié</span>
+        <span className="flex items-center gap-1.5"><span className="text-success-700">✓</span> publié LinkedIn</span>
+        <span className="flex items-center gap-1.5"><span className="dot bg-amber-500" /> archive Notion</span>
         <span className="flex items-center gap-1.5"><span className="text-danger-500">⚠</span> en retard</span>
         {weekdayPerf.max > 0 && (
           <span className="flex items-center gap-1.5">
@@ -402,8 +423,8 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
   );
 }
 
-function KPI({ label, value, tone }: { label: string; value: number; tone: 'ink'|'warn'|'brand'|'danger'|'success' }) {
-  const color = { ink: 'text-ink-900', warn: 'text-warn-700', brand: 'text-brand-700', danger: 'text-danger-700', success: 'text-success-700' }[tone];
+function KPI({ label, value, tone }: { label: string; value: number; tone: 'ink'|'warn'|'brand'|'danger'|'success'|'amber' }) {
+  const color = { ink: 'text-ink-900', warn: 'text-warn-700', brand: 'text-brand-700', danger: 'text-danger-700', success: 'text-success-700', amber: 'text-amber-700' }[tone];
   return (
     <div className="flex items-baseline gap-2">
       <span className={`text-xl font-semibold tabular-nums ${color}`}>{value}</span>
