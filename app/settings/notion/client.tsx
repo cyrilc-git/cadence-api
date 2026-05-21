@@ -28,7 +28,8 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">Notion · Mapping</h1>
-          <p className="mt-1 text-sm text-ink-500 lead">Configuration de la database Cadence. Vos posts historiques restent visibles côté Notion mais Cadence ne les modifie jamais sans action explicite.</p>
+          <p className="mt-1 text-sm text-ink-500 lead">Notion est votre espace de travail éditorial. LinkedIn reste la source des publications réellement publiées.</p>
+          <p className="mt-1 text-xs text-ink-500 leading-relaxed max-w-2xl">Brouillons, validations, planification et notes vivent ici. Les colonnes ci-dessous décrivent ce que Cadence lit dans votre database. Aucun post n&apos;est modifié sans action explicite.</p>
         </div>
         <Link href="/sources" className="btn-ghost text-xs">← Retour aux sources</Link>
       </header>
