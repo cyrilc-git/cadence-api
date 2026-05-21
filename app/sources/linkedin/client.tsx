@@ -1,12 +1,14 @@
 'use client';
 
-// V9.1 §1 — Import LinkedIn premium
-// — Drag/drop full-zone (ZIP ou CSV).
-// — Auto-extract ZIP via JSZip côté navigateur (RGPD).
-// — Preview riche : count, range dates, top mots-clés, miniature.
-// — Progress bar par batch (par 10 posts).
-// — Dedup côté serveur (par URL hash + title), affiche "X nouveaux / Y déjà connus".
-// — Après import : CTA "Reconstruire la mémoire éditoriale" (re-index embeddings).
+// V9.1 §1 + V9.4 — Import LinkedIn premium et solide
+// - Drag/drop full-zone (ZIP ou CSV).
+// - Auto-extract ZIP via JSZip côté navigateur (RGPD).
+// - Preview riche : count, range dates, top mots-clés.
+// - Progress bar par batch (par 10 posts).
+// - Statut détaillé par post : importé / doublon / erreur.
+// - Résumé enrichi après import : période, piliers dominants, recyclables.
+// - Dédup serveur (par date + 60 chars titre).
+// - Après import : CTA "Reconstruire la mémoire éditoriale" (re-index embeddings).
 
 import { useState, useRef, useCallback, useMemo } from 'react';
 import JSZip from 'jszip';
@@ -89,7 +91,7 @@ export default function LinkedInImportClient() {
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [importResult, setImportResult] = useState<{ created: number; skipped: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ created: number; skipped: number; errors: number; duplicates: number; results: Array<{ index: number; status: 'created'|'duplicate'|'error'|'invalid'; title?: string; error?: string }> } | null>(null);
   const [reindexing, setReindexing] = useState(false);
   const [reindexed, setReindexed] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -171,7 +173,8 @@ export default function LinkedInImportClient() {
     try {
       const BATCH = 10;
       const toImport = posts.slice(0, 200);
-      let totalCreated = 0, totalSkipped = 0;
+      let totalCreated = 0, totalSkipped = 0, totalErrors = 0, totalDuplicates = 0;
+      const allResults: Array<{ index: number; status: 'created'|'duplicate'|'error'|'invalid'; title?: string; error?: string }> = [];
       for (let i = 0; i < toImport.length; i += BATCH) {
         const chunk = toImport.slice(i, i + BATCH);
         const r = await fetch('/api/sources/linkedin/import', {
@@ -183,9 +186,15 @@ export default function LinkedInImportClient() {
         if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
         totalCreated += d.created || 0;
         totalSkipped += d.skipped || 0;
+        totalErrors += d.errors || 0;
+        const batchResults: any[] = Array.isArray(d.results) ? d.results : [];
+        for (const br of batchResults) {
+          allResults.push({ ...br, index: i + (br.index || 0) });
+          if (br.status === 'duplicate') totalDuplicates++;
+        }
         setProgress({ done: i + chunk.length, total: toImport.length });
       }
-      setImportResult({ created: totalCreated, skipped: totalSkipped });
+      setImportResult({ created: totalCreated, skipped: totalSkipped, errors: totalErrors, duplicates: totalDuplicates, results: allResults });
     } catch (e: any) { setError(e.message); }
     finally { setImporting(false); setProgress(null); }
   }
@@ -224,7 +233,7 @@ export default function LinkedInImportClient() {
           <div className="text-center">
             <div className="w-12 h-12 rounded-2xl bg-ink-50 mx-auto mb-3 flex items-center justify-center text-ink-300 text-xl">↓</div>
             <p className="text-sm text-ink-700 font-medium">Glissez votre archive LinkedIn</p>
-            <p className="mt-1 text-xs text-ink-500">ZIP officiel ou Shares.csv — tout reste dans votre navigateur jusqu'à validation</p>
+            <p className="mt-1 text-xs text-ink-500">ZIP officiel ou Shares.csv, tout reste dans votre navigateur jusqu&apos;à validation.</p>
             <label className="mt-4 inline-block">
               <span className="btn-primary text-xs cursor-pointer">Choisir un fichier</span>
               <input ref={fileInputRef} type="file" accept=".zip,.csv,text/csv" hidden onChange={onFileInput} />
@@ -260,7 +269,7 @@ export default function LinkedInImportClient() {
         <section className="space-y-4 animate-fade-in">
           <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Ce que Cadence voit</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <Stat label="Période" value={stats.first && stats.last ? `${stats.first.getFullYear()} → ${stats.last.getFullYear()}` : '—'} />
+            <Stat label="Période" value={stats.first && stats.last ? `${stats.first.getFullYear()} → ${stats.last.getFullYear()}` : '...'} />
             <Stat label="Posts" value={posts.length} />
             <Stat label="Longueur moy." value={`${stats.avgLen} car.`} />
             <Stat label="Sera importé" value={Math.min(posts.length, 200)} />
@@ -310,13 +319,53 @@ export default function LinkedInImportClient() {
             </div>
           )}
 
-          {/* Résultat */}
+          {/* Résultat enrichi V9.4 */}
           {importResult && (
-            <div className="pt-2 border-t border-ink-100 space-y-3 animate-fade-in">
-              <p className="text-sm text-ink-800">
-                <strong className="text-success-700">{importResult.created} posts importés.</strong>
-                {importResult.skipped > 0 && <span className="text-ink-500"> {importResult.skipped} étaient déjà connus.</span>}
-              </p>
+            <div className="pt-2 border-t border-ink-100 space-y-4 animate-fade-in">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <ResultStat label="Importés"   value={importResult.created}    tone="success" />
+                <ResultStat label="Doublons"   value={importResult.duplicates} tone="ink" />
+                <ResultStat label="Erreurs"    value={importResult.errors}     tone={importResult.errors > 0 ? 'danger' : 'ink'} />
+                <ResultStat label="Total traité" value={importResult.created + importResult.skipped} tone="ink" />
+              </div>
+              {stats && (
+                <div className="rounded-lg border border-ink-100 p-3 text-xs text-ink-600 leading-relaxed">
+                  <p>
+                    Période couverte : {stats.first && stats.last
+                      ? `${stats.first.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })} → ${stats.last.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}`
+                      : 'inconnue'}.
+                    {' '}Longueur moyenne {stats.avgLen} caractères.
+                  </p>
+                  {stats.topPiliers.length > 0 && (
+                    <p className="mt-1">
+                      Piliers dominants : {stats.topPiliers.map(([k, v]) => `${k} (${v})`).join(', ')}.
+                    </p>
+                  )}
+                  {(() => {
+                    const oldCutoff = Date.now() - 90 * 86_400_000;
+                    const recyclables = posts.filter(p => {
+                      const t = new Date(p.date).getTime();
+                      return !isNaN(t) && t < oldCutoff;
+                    }).length;
+                    if (recyclables === 0) return null;
+                    return (
+                      <p className="mt-1">
+                        {recyclables} post{recyclables > 1 ? 's' : ''} publié{recyclables > 1 ? 's' : ''} depuis plus de 90 jours, candidat{recyclables > 1 ? 's' : ''} au recyclage.
+                      </p>
+                    );
+                  })()}
+                </div>
+              )}
+              {importResult.errors > 0 && (
+                <details className="text-xs text-ink-500 hover:text-ink-700">
+                  <summary className="select-none cursor-pointer">Voir le détail des {importResult.errors} erreur{importResult.errors > 1 ? 's' : ''}</summary>
+                  <ul className="mt-2 space-y-1 pl-3 list-disc">
+                    {importResult.results.filter(r => r.status === 'error').slice(0, 10).map((r, i) => (
+                      <li key={i}>{r.title || `Post #${r.index + 1}`} : <span className="text-danger-700">{r.error || 'erreur inconnue'}</span></li>
+                    ))}
+                  </ul>
+                </details>
+              )}
               {importResult.created > 0 && (
                 reindexed === null ? (
                   <div className="flex items-center gap-3 flex-wrap">
@@ -361,6 +410,16 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
       <div className="text-xl font-semibold text-ink-900 tabular-nums">{value}</div>
+      <div className="text-2xs text-ink-500 mt-0.5">{label}</div>
+    </div>
+  );
+}
+
+function ResultStat({ label, value, tone }: { label: string; value: number; tone: 'success' | 'danger' | 'ink' }) {
+  const color = { success: 'text-success-700', danger: 'text-danger-700', ink: 'text-ink-900' }[tone];
+  return (
+    <div>
+      <div className={`text-xl font-semibold tabular-nums ${color}`}>{value}</div>
       <div className="text-2xs text-ink-500 mt-0.5">{label}</div>
     </div>
   );
