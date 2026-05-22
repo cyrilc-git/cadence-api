@@ -246,7 +246,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
             {generating ? (
               <><span className="dot bg-white animate-pulse-soft" /> Génération…</>
             ) : (
-              <><span aria-hidden>✨</span> Générer la semaine</>
+              <>Générer la semaine</>
             )}
           </button>
         </div>
@@ -259,15 +259,20 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
         </div>
       )}
 
-      {/* KPI strip */}
-      <div className="card p-3 grid grid-cols-2 sm:grid-cols-6 gap-3 text-sm">
-        <KPI label="Brouillons"        value={stats.draft}            tone="ink"     />
-        <KPI label="À valider"         value={stats.needs_validation} tone="warn"    />
-        <KPI label="Programmés"        value={stats.scheduled}        tone="brand"   />
-        <KPI label="En retard"         value={stats.late}             tone="danger"  />
-        <KPI label="Publiés LinkedIn"  value={stats.published}        tone="success" />
-        <KPI label="Archives Notion"   value={stats.archive}          tone="amber"   />
-      </div>
+      {/* V10.4 — État éditorial en prose, plus dashboard */}
+      <p className="text-sm text-ink-600 leading-relaxed">
+        {(() => {
+          const parts: string[] = [];
+          if (stats.published > 0) parts.push(`${stats.published} publié${stats.published > 1 ? 's' : ''} sur LinkedIn`);
+          if (stats.scheduled > 0) parts.push(`${stats.scheduled} programmé${stats.scheduled > 1 ? 's' : ''}`);
+          if (stats.needs_validation > 0) parts.push(`${stats.needs_validation} à valider`);
+          if (stats.late > 0) parts.push(`${stats.late} en retard`);
+          if (stats.archive > 0) parts.push(`${stats.archive} archive${stats.archive > 1 ? 's' : ''} Notion`);
+          if (stats.draft > 0) parts.push(`${stats.draft} brouillon${stats.draft > 1 ? 's' : ''}`);
+          if (parts.length === 0) return 'Rien sur cette fenêtre.';
+          return parts.join(' · ');
+        })()}
+      </p>
 
       {/* Generate result toast — V8.8 with 'Voir les drafts créés' CTA */}
       {genResult && (
@@ -423,12 +428,3 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
   );
 }
 
-function KPI({ label, value, tone }: { label: string; value: number; tone: 'ink'|'warn'|'brand'|'danger'|'success'|'amber' }) {
-  const color = { ink: 'text-ink-900', warn: 'text-warn-700', brand: 'text-brand-700', danger: 'text-danger-700', success: 'text-success-700', amber: 'text-amber-700' }[tone];
-  return (
-    <div className="flex items-baseline gap-2">
-      <span className={`text-xl font-semibold tabular-nums ${color}`}>{value}</span>
-      <span className="text-xs text-ink-500">{label}</span>
-    </div>
-  );
-}
