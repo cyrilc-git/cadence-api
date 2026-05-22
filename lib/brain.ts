@@ -136,6 +136,7 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 const PRIORITY: Record<RadarInsight['kind'], number> = {
+  weekday_opportunity: 0,
   topic_never: 1,
   pilier_silence: 2,
   topic_saturated: 3,

@@ -23,7 +23,7 @@ export type TopicCluster = {
 };
 
 export type RadarInsight = {
-  kind: 'pilier_silence' | 'topic_recyclable' | 'topic_saturated' | 'topic_never' | 'angle_winning' | 'low_data';
+  kind: 'pilier_silence' | 'topic_recyclable' | 'topic_saturated' | 'topic_never' | 'angle_winning' | 'weekday_opportunity' | 'low_data';
   message: string;
   cta_label?: string;
   cta_href?: string;
@@ -211,6 +211,59 @@ export async function computeRadarInsights(): Promise<RadarInsight[]> {
           message: `Vos posts longs (>500 chars) performent ~${Math.round(avgLong / Math.max(avgShort, 1) * 100 - 100)}% mieux que les courts.`,
           data: { avgShort: Math.round(avgShort), avgLong: Math.round(avgLong) }
         });
+      }
+    }
+  } catch { /* silent */ }
+
+  // 3d. V11.4 §7 — Weekday opportunity : si on n'a aucun post prévu dans les 7
+  // prochains jours pour le meilleur weekday détecté, on signale l'opportunité.
+  try {
+    const { data: pubs } = await supabase
+      .from('post_embeddings')
+      .select('scheduled_at, meta')
+      .eq('status', 'published')
+      .limit(120);
+    const dayPerf: Record<number, { sum: number; n: number }> = {};
+    const FR_DAYS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+    for (const p of (pubs || [])) {
+      const imp = typeof (p.meta as any)?.impressions === 'number' ? (p.meta as any).impressions : 0;
+      if (!p.scheduled_at || imp <= 0) continue;
+      const dow = new Date(p.scheduled_at).getDay();
+      if (!dayPerf[dow]) dayPerf[dow] = { sum: 0, n: 0 };
+      dayPerf[dow].sum += imp;
+      dayPerf[dow].n += 1;
+    }
+    const sorted = Object.entries(dayPerf)
+      .filter(([, v]) => v.n >= 3)
+      .map(([d, v]) => ({ dow: parseInt(d, 10), avg: v.sum / v.n }))
+      .sort((a, b) => b.avg - a.avg);
+    if (sorted.length >= 2) {
+      const best = sorted[0];
+      const worst = sorted[sorted.length - 1];
+      // Seulement si le meilleur jour fait au moins +30% vs la moyenne
+      if (best.avg > worst.avg * 1.3) {
+        // Cherche-t-on déjà un post programmé sur ce jour dans les 7 prochains ?
+        const { data: planned } = await supabase
+          .from('post_embeddings')
+          .select('scheduled_at')
+          .gte('scheduled_at', new Date().toISOString())
+          .lte('scheduled_at', new Date(Date.now() + 7 * 86_400_000).toISOString());
+        const hasPlanned = (planned || []).some(p => p.scheduled_at && new Date(p.scheduled_at).getDay() === best.dow);
+        if (!hasPlanned) {
+          // Date du prochain "best day"
+          const today = new Date();
+          const offset = (best.dow - today.getDay() + 7) % 7 || 7;
+          const next = new Date(today.getTime() + offset * 86_400_000);
+          const niceDay = FR_DAYS[best.dow];
+          const niceDate = next.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' });
+          insights.push({
+            kind: 'weekday_opportunity',
+            message: `Vos posts du ${niceDay} performent environ ${Math.round(best.avg / Math.max(worst.avg, 1) * 100 - 100)}% mieux. Rien n'est prévu pour le prochain (${niceDate}).`,
+            cta_label: 'Préparer un post',
+            cta_href: `/posts/new?date=${next.toISOString().slice(0, 10)}`,
+            data: { dow: best.dow, dayLabel: niceDay, nextDate: next.toISOString().slice(0, 10), avgBest: Math.round(best.avg) },
+          });
+        }
       }
     }
   } catch { /* silent */ }

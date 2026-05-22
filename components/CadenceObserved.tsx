@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type Insight = {
-  kind: 'pilier_silence' | 'topic_recyclable' | 'topic_saturated' | 'topic_never' | 'angle_winning' | 'low_data';
+  kind: 'pilier_silence' | 'topic_recyclable' | 'topic_saturated' | 'topic_never' | 'angle_winning' | 'weekday_opportunity' | 'low_data';
   message: string;
   cta_label?: string;
   cta_href?: string;
@@ -16,16 +16,19 @@ type Insight = {
 };
 
 const KIND_TONE: Record<Insight['kind'], { dot: string; icon: string }> = {
-  pilier_silence:    { dot: 'bg-amber-500',   icon: '◷' },
-  topic_recyclable:  { dot: 'bg-violet-500',  icon: '↻' },
-  topic_saturated:   { dot: 'bg-pink-500',    icon: '⌃' },
-  topic_never:       { dot: 'bg-emerald-500', icon: '✦' },
-  angle_winning:     { dot: 'bg-brand-500',   icon: '▲' },
-  low_data:          { dot: 'bg-ink-400',     icon: '◌' }
+  weekday_opportunity: { dot: 'bg-brand-500',   icon: '▶' },
+  pilier_silence:      { dot: 'bg-amber-500',   icon: '◷' },
+  topic_recyclable:    { dot: 'bg-violet-500',  icon: '↻' },
+  topic_saturated:     { dot: 'bg-pink-500',    icon: '⌃' },
+  topic_never:         { dot: 'bg-emerald-500', icon: '✦' },
+  angle_winning:       { dot: 'bg-brand-500',   icon: '▲' },
+  low_data:            { dot: 'bg-ink-400',     icon: '◌' }
 };
 
-// Ordre de priorité : un topic jamais publié et un pilier silencieux > saturé > recyclable > angle > low_data
+// V11.4 §7 — weekday_opportunity (anticipation calendaire) prioritaire :
+// c'est de l'action concrète à venir, pas une observation.
 const PRIORITY: Record<Insight['kind'], number> = {
+  weekday_opportunity: 0,
   topic_never: 1,
   pilier_silence: 2,
   topic_saturated: 3,
