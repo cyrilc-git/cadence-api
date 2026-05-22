@@ -126,16 +126,22 @@ export default async function AnalyticsPage() {
         )}
       </section>
 
-      {/* === CHIFFRES DE BASE — discrets === */}
-      <section className="pt-6 border-t border-ink-100">
-        <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Vue d'ensemble</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <Stat label="Posts publiés" value={published.length} />
-          <Stat label="Impressions cumulées" value={sumImpr.toLocaleString('fr-FR')} />
-          <Stat label="Likes" value={sumLikes.toLocaleString('fr-FR')} />
-          <Stat label="Commentaires" value={sumComments.toLocaleString('fr-FR')} />
-        </div>
-      </section>
+      {/* === V11.4 §3 — Vue d'ensemble en prose, plus en grille KPI === */}
+      {published.length > 0 && (
+        <section className="pt-6 border-t border-ink-100">
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Vue d&apos;ensemble</h2>
+          <p className="text-sm text-ink-800 leading-relaxed">
+            {published.length} post{published.length > 1 ? 's' : ''} publié{published.length > 1 ? 's' : ''} à ce jour.
+            {sumImpr > 0 && ` Cumul de ${sumImpr.toLocaleString('fr-FR')} impressions`}
+            {sumLikes > 0 && `, ${sumLikes.toLocaleString('fr-FR')} réactions`}
+            {sumComments > 0 && ` et ${sumComments.toLocaleString('fr-FR')} commentaires`}
+            {(sumImpr > 0 || sumLikes > 0) && '.'}
+            {published.length > 0 && sumImpr > 0 && (
+              <span className="text-ink-500">{' '}Moyenne d&apos;environ {Math.round(sumImpr / published.length).toLocaleString('fr-FR')} impressions par post.</span>
+            )}
+          </p>
+        </section>
+      )}
 
       {/* === TOP 5 === */}
       {top.length > 0 && (
@@ -162,6 +168,9 @@ export default async function AnalyticsPage() {
   );
 }
 
+// V11.4 §3 — Stat retiré (grille KPI froide), gardé comme stub pour
+// éviter une régression import si réutilisé ailleurs. Au prochain audit
+// si toujours mort : suppression.
 function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div>
