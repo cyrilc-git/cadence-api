@@ -302,6 +302,90 @@ export async function syncContentItems(opts?: { limit?: number }): Promise<SyncR
   return res;
 }
 
+// V11.1 — Adapter ContentItem -> NotionPostSummary-like
+// Le format utilisé par /posts /calendar /dashboard est NotionPostSummary.
+// Cet adapter permet de basculer la lecture UI sur la couche canonique sans
+// refondre les clients existants. Tous les champs sont reconstruits depuis
+// les colonnes content_items + meta.
+import type { NotionPostSummary } from './notion';
+
+export function contentItemToPostSummary(item: ContentItem): NotionPostSummary {
+  const sourceType = item.provenance.source_type;
+  let status: 'draft' | 'scheduled' | 'published' | 'error' = 'draft';
+  if (sourceType === 'linkedin_published' || sourceType === 'linkedin_import_zip' || sourceType === 'notion_archive') {
+    status = 'published';
+  } else if (item.scheduled_at) {
+    status = 'scheduled';
+  }
+
+  const scheduledIso = item.scheduled_at || item.published_at || null;
+  let scheduledTime: string | null = null;
+  if (scheduledIso) {
+    try {
+      const d = new Date(scheduledIso);
+      scheduledTime = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
+    } catch {}
+  }
+
+  const cadenceSource: string | null =
+    sourceType === 'cadence_generated' ? 'cadence' :
+    sourceType === 'linkedin_import_zip' ? 'linkedin_archive' :
+    null;
+
+  const isLate = scheduledIso ? (status === 'scheduled' && new Date(scheduledIso).getTime() < Date.now()) : false;
+
+  return {
+    id: item.provenance.notion_page_id || item.id,
+    title: item.title,
+    excerpt: item.excerpt || '',
+    pilier: item.pilier || undefined,
+    status,
+    scheduled_at: scheduledIso,
+    scheduled_time: scheduledTime,
+    notion_url: item.notion_url
+      || (item.meta && item.meta.notion_url)
+      || (item.provenance.canonical_source === 'notion' ? (item.provenance.canonical_url || '') : ''),
+    linkedin_url: item.linkedin_url || undefined,
+    validated: !!item.validated,
+    late: isLate,
+    cadence_source: cadenceSource,
+    cover_url: (item.meta && item.meta.cover_url) || null,
+    impressions: item.meta?.impressions,
+    likes: item.meta?.likes,
+    comments: item.meta?.comments,
+    reposts: item.meta?.reposts,
+  };
+}
+
+// V11.1 — Fire-and-forget : déclenche un syncContentItems en background si la
+// dernière sync est trop ancienne. Garantit une fraîcheur sans bloquer le TTFB.
+export async function ensureFreshContentItems(maxAgeMinutes = 120): Promise<void> {
+  try {
+    const { data } = await supabase
+      .from('content_items')
+      .select('last_synced_at')
+      .order('last_synced_at', { ascending: false })
+      .limit(1);
+    const lastSync = data?.[0]?.last_synced_at;
+    if (!lastSync) {
+      // Aucune sync encore : on lance en background.
+      syncContentItems({ limit: 200 }).catch(() => {});
+      return;
+    }
+    const ageMs = Date.now() - new Date(lastSync).getTime();
+    if (ageMs > maxAgeMinutes * 60 * 1000) {
+      syncContentItems({ limit: 200 }).catch(() => {});
+    }
+  } catch { /* silent */ }
+}
+
+// V11.1 — Lecture haut-niveau prête pour l'UI : retourne directement des
+// NotionPostSummary depuis content_items.
+export async function listPostSummaries(opts?: { limit?: number }): Promise<NotionPostSummary[]> {
+  const items = await listContentItems({ limit: opts?.limit ?? 200 });
+  return items.map(contentItemToPostSummary);
+}
+
 // Compteurs par provenance (utilisé par /cerveau et la Bibliothèque).
 export async function countByProvenance(opts?: { limit?: number }): Promise<Record<SourceType, number>> {
   const items = await listContentItems({ limit: opts?.limit ?? 500 });
