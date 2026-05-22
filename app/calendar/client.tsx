@@ -422,7 +422,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
             jours forts en moyenne
           </span>
         )}
-        <span className="ml-auto text-ink-400">Cron publie uniquement les drafts validés.</span>
+        <span className="ml-auto text-ink-400">Aucune publication sans validation explicite.</span>
       </div>
     </div>
   );
