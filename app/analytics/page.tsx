@@ -33,6 +33,28 @@ export default async function AnalyticsPage() {
 
   const top = published.filter(p => p.impressions && p.impressions > 0).sort((a, b) => (b.impressions || 0) - (a.impressions || 0)).slice(0, 5);
 
+  // V10.6 — Rythme publication + évolution
+  const now = Date.now();
+  const thirtyAgo = now - 30 * 86_400_000;
+  const sixtyAgo = now - 60 * 86_400_000;
+  const last30 = published.filter(p => p.scheduled_at && new Date(p.scheduled_at).getTime() >= thirtyAgo);
+  const prev30 = published.filter(p => {
+    if (!p.scheduled_at) return false;
+    const t = new Date(p.scheduled_at).getTime();
+    return t >= sixtyAgo && t < thirtyAgo;
+  });
+  const rythmeWeek30 = +(last30.length / (30 / 7)).toFixed(1);
+  const rythmeWeekPrev = +(prev30.length / (30 / 7)).toFixed(1);
+  const rythmeDelta = rythmeWeekPrev > 0 ? Math.round((rythmeWeek30 / rythmeWeekPrev - 1) * 100) : null;
+  const rythmePhrase = (() => {
+    if (last30.length === 0 && prev30.length === 0) return null;
+    if (last30.length === 0) return `Aucun post sur les 30 derniers jours. ${prev30.length} sur les 30 précédents.`;
+    const base = `Rythme actuel : ${rythmeWeek30} post${rythmeWeek30 > 1 ? 's' : ''} par semaine sur les 30 derniers jours.`;
+    if (rythmeDelta === null) return base;
+    if (Math.abs(rythmeDelta) < 15) return `${base} Stable vs le mois précédent.`;
+    return `${base} ${rythmeDelta > 0 ? `Accélération de ${rythmeDelta}%` : `Ralentissement de ${Math.abs(rythmeDelta)}%`} vs le mois précédent.`;
+  })();
+
   return (
     <div className="space-y-10 max-w-3xl mx-auto">
       <header>
@@ -75,6 +97,14 @@ export default async function AnalyticsPage() {
           </p>
         )}
       </section>
+
+      {/* === V10.6 — Rythme de publication === */}
+      {rythmePhrase && (
+        <section>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Rythme</h2>
+          <p className="text-sm text-ink-800 leading-relaxed">{rythmePhrase}</p>
+        </section>
+      )}
 
       {/* === INSIGHTS HUMAINS === V9.0 §3 */}
       <section>
