@@ -1,0 +1,47 @@
+# V11.6 — Lighthouse CI manual dispatch.
+# Run manuellement depuis l'onglet Actions GitHub : "Lighthouse > Run workflow".
+# Génère un rapport Lighthouse sur les routes clés en prod et l'upload
+# en artifact. Pas de blocage CI, pas de schedule pour rester safe sur
+# le quota Hobby GitHub Actions.
+#
+# Pour automatiser plus tard :
+# - ajouter une section "schedule" (cron) si besoin
+# - ajouter "on: push" + assertions de seuil dans .lighthouserc.json
+# - pour bloquer le merge si score < 80, voir lhci assert
+
+name: Lighthouse
+
+on:
+  workflow_dispatch:
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.13.x
+
+      - name: Run Lighthouse on production URLs
+        run: |
+          lhci collect \
+            --url=https://cadence-api-ruddy.vercel.app/ \
+            --url=https://cadence-api-ruddy.vercel.app/posts \
+            --url=https://cadence-api-ruddy.vercel.app/calendar \
+            --url=https://cadence-api-ruddy.vercel.app/cerveau \
+            --url=https://cadence-api-ruddy.vercel.app/suggestions \
+            --numberOfRuns=1
+
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-reports
+          path: .lighthouseci
+          retention-days: 14
