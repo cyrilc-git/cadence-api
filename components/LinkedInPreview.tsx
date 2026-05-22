@@ -176,7 +176,7 @@ export default function LinkedInPreview({
               <span className="w-4 h-4 rounded-full bg-[#0a66c2] flex items-center justify-center"><svg className="w-2.5 h-2.5 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M2 8h4v12H2zm6.5 0h4v2c.6-1.4 2-2 4-2 3 0 5 2 5 5v7h-4v-6c0-1.5-1-2.5-2.5-2.5S12.5 12.5 12.5 14v6h-4V8zm-4.5-1.5a2 2 0 100-4 2 2 0 000 4z"/></svg></span>
               <span className="w-4 h-4 rounded-full bg-[#df704d] flex items-center justify-center text-[8px]">❤</span>
             </div>
-            <span className="ml-2 italic">Aucune réaction — la publication n'a pas encore eu lieu.</span>
+            <span className="ml-2 italic">Aucune réaction, la publication n&apos;a pas encore eu lieu.</span>
           </div>
 
           {/* Actions row */}

@@ -28,9 +28,9 @@ const SOURCES: Source[] = [
   { kind: 'anthropic', label: 'Claude',       description: 'Rédaction + visuels (Sonnet 4.6, Vision).',              category: 'ai',      configRoute: '/settings',         accent: '#C96342' },
   { kind: 'openai',    label: 'OpenAI',       description: 'Embeddings éditoriaux + DALL-E 3 optionnel.',           category: 'ai',      configRoute: '/settings',         accent: '#000000' },
   { kind: 'github',    label: 'GitHub',       description: 'Détecte commits, releases, signaux produit.',           category: 'signal',  configRoute: '/sources/github',   accent: '#181717' },
-  { kind: 'gmail',     label: 'Gmail',        description: 'À venir — questions clients récurrentes.',              category: 'signal',  soon: true,                       accent: '#EA4335' },
-  { kind: 'gdrive',    label: 'Google Drive', description: 'À venir — docs stratégiques.',                          category: 'signal',  soon: true,                       accent: '#1FA463' },
-  { kind: 'onedrive',  label: 'OneDrive',     description: 'À venir — fichiers produits.',                          category: 'signal',  soon: true,                       accent: '#0078D4' },
+  { kind: 'gmail',     label: 'Gmail',        description: 'À venir : questions clients récurrentes.',              category: 'signal',  soon: true,                       accent: '#EA4335' },
+  { kind: 'gdrive',    label: 'Google Drive', description: 'À venir : docs stratégiques.',                          category: 'signal',  soon: true,                       accent: '#1FA463' },
+  { kind: 'onedrive',  label: 'OneDrive',     description: 'À venir : fichiers produits.',                          category: 'signal',  soon: true,                       accent: '#0078D4' },
 ];
 
 const CATEGORIES: { key: Source['category']; label: string }[] = [

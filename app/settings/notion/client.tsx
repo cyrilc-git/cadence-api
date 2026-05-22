@@ -187,7 +187,7 @@ function EditorialMemoryCard() {
     try {
       let total = 0, indexed = 0;
       for (let pass = 0; pass < 5; pass++) {
-        setProgress(`Pass ${pass + 1}/5 — indexation par lots de 30…`);
+        setProgress(`Pass ${pass + 1}/5 : indexation par lots de 30…`);
         const r = await fetch('/api/embeddings/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 30 }) });
         const d = await r.json();
         if (!r.ok) throw new Error(d.error);

@@ -297,7 +297,7 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
         >
           <span>{showAdvanced ? '▾' : '▸'}</span>
           <span>Tokens avancés ({tokens.filter(t => t.category !== 'moodboard').length})</span>
-          <span className="text-ink-400">— pour ceux qui veulent contrôler les hex, radius, polices</span>
+          <span className="text-ink-400">pour contrôler hex, radius, polices</span>
         </button>
 
         {showAdvanced && (
