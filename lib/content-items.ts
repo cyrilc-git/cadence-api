@@ -27,13 +27,15 @@ export type ContentItem = {
 };
 
 // Détecte si la table content_items existe et contient des lignes utiles.
+// V10.1.3 — n'utilise plus head:true (count peut être null) : on lit 1 row.
 async function contentItemsAvailable(): Promise<{ ok: boolean; count: number; error?: string }> {
   try {
-    const { count, error } = await supabase
+    const { data, error } = await supabase
       .from('content_items')
-      .select('id', { count: 'exact', head: true });
+      .select('id')
+      .limit(1);
     if (error) return { ok: false, count: 0, error: error.message };
-    return { ok: (count || 0) > 0, count: count || 0 };
+    return { ok: (data?.length || 0) > 0, count: data?.length || 0 };
   } catch (e: any) {
     return { ok: false, count: 0, error: e?.message || 'exception' };
   }
