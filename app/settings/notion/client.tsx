@@ -27,47 +27,36 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">Notion · Mapping</h1>
-          <p className="mt-1 text-sm text-ink-500 lead">Notion est votre espace de travail éditorial. LinkedIn reste la source des publications réellement publiées.</p>
-          <p className="mt-1 text-xs text-ink-500 leading-relaxed max-w-2xl">Brouillons, validations, planification et notes vivent ici. Les colonnes ci-dessous décrivent ce que Cadence lit dans votre database. Aucun post n&apos;est modifié sans action explicite.</p>
+          <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Sources · Notion</p>
+          <h1 className="mt-1 text-2xl font-semibold text-ink-900 tracking-tight">Espace de travail éditorial</h1>
+          <p className="mt-2 text-sm text-ink-500 leading-relaxed max-w-2xl">Vos brouillons, validations, planification et notes vivent ici. LinkedIn reste la source des publications réellement publiées.</p>
         </div>
-        <Link href="/sources" className="btn-ghost text-xs">← Retour aux sources</Link>
+        <Link href="/sources" className="text-xs text-ink-500 hover:text-ink-900 transition">← Sources</Link>
       </header>
 
-      {/* Current DB */}
-      <section className="card p-5">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h2 className="font-semibold text-ink-900">Database connectée</h2>
-            <p className="text-xs text-ink-500 mt-0.5">Tous les drafts générés par Cadence atterrissent ici. Filtre « Créés par Cadence » dans la Bibliothèque pour les distinguer.</p>
-          </div>
-          {status.ok
-            ? <span className="chip chip-success"><span className="dot bg-success-500" /> Accessible</span>
-            : <span className="chip chip-danger"><span className="dot bg-danger-500" /> Erreur</span>}
+      {/* V11.4 §6 — Database : prose calme, plus de nested cards admin */}
+      <section>
+        <div className="flex items-center gap-2 mb-2">
+          <span className={`w-1.5 h-1.5 rounded-full ${status.ok ? 'bg-emerald-500' : 'bg-danger-500'}`} aria-hidden />
+          <span className="text-2xs uppercase tracking-wider font-semibold text-ink-500">{status.ok ? 'Connecté' : 'Erreur'}</span>
         </div>
         {dbInfo ? (
-          <div className="mt-4 grid sm:grid-cols-2 gap-3">
-            <div className="card p-3 bg-ink-50/40 border-ink-100">
-              <div className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Titre</div>
-              <a href={dbInfo.url} target="_blank" rel="noopener" className="block mt-1 font-medium text-ink-900 hover:text-brand-700 truncate">{dbInfo.title} <span className="text-ink-400">↗</span></a>
-            </div>
-            <div className="card p-3 bg-ink-50/40 border-ink-100">
-              <div className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Identifiant</div>
-              <button
-                onClick={() => navigator.clipboard?.writeText(dbInfo.id)}
-                className="mt-1 text-xs text-ink-500 hover:text-brand-700 transition inline-flex items-center gap-1.5"
-                title="Copier l'identifiant complet"
-              >
-                <span>Copier l&apos;identifiant</span>
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path strokeLinecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
-              </button>
-            </div>
-          </div>
+          <p className="text-sm text-ink-700 leading-relaxed">
+            Database <a href={dbInfo.url} target="_blank" rel="noopener" className="text-brand-700 hover:text-brand-900 transition font-medium">{dbInfo.title}</a>.
+            {' '}Les brouillons générés par Cadence y atterrissent et restent filtrables dans la <Link href="/posts?provenance=cadence_generated" className="text-brand-700 hover:text-brand-900 transition">Bibliothèque</Link>.
+            {' '}
+            <button
+              onClick={() => navigator.clipboard?.writeText(dbInfo.id)}
+              className="text-ink-500 hover:text-ink-900 transition underline decoration-dotted underline-offset-2"
+              title="Copier l'identifiant complet dans le presse-papier"
+            >
+              copier l&apos;identifiant
+            </button>
+          </p>
         ) : (
-          <div className="mt-3 card p-3 bg-danger-50/30 border-danger-100">
-            <p className="text-sm text-danger-700">Impossible de récupérer la database.</p>
-            <p className="text-xs text-ink-500 mt-1">Vérifiez les variables d'env <code className="font-mono bg-white px-1 rounded">NOTION_API_TOKEN</code> et <code className="font-mono bg-white px-1 rounded">NOTION_LINKEDIN_DS_ID</code> sur Vercel.</p>
-          </div>
+          <p className="text-sm text-danger-700 leading-relaxed">
+            Impossible d&apos;atteindre la database Notion. Vérifiez vos credentials dans <Link href="/settings" className="underline">Paramètres</Link>.
+          </p>
         )}
       </section>
 
