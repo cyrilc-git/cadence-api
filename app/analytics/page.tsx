@@ -1,8 +1,10 @@
 // V9.0 §3 — Analytics humain, prose-driven.
 // V9.9 — Distinction confirmé LinkedIn vs déduit Notion, transparence sur la
 // provenance des chiffres.
+// V11.1 — Lecture canonique content_items via listPostSummaries.
 import Link from 'next/link';
-import { listNotionPosts, notionStatus } from '@/lib/notion';
+import { notionStatus } from '@/lib/notion';
+import { listPostSummaries, ensureFreshContentItems } from '@/lib/content-items';
 import { computeHumanInsights } from '@/lib/analytics-insights';
 import { inferFromNotion } from '@/lib/provenance';
 
@@ -10,7 +12,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function AnalyticsPage() {
   const status = await notionStatus();
-  const posts = status.ok ? await listNotionPosts(150) : [];
+  if (status.ok) ensureFreshContentItems(120);
+  const posts = status.ok ? await listPostSummaries({ limit: 200 }) : [];
   const published = posts.filter(p => p.status === 'published');
 
   // V9.9 — Sépare confirmé (URL LinkedIn ou import) vs déduit (Notion seul)

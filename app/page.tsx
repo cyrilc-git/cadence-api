@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { listNotionPosts, notionStatus } from '@/lib/notion';
+import { notionStatus } from '@/lib/notion';
+import { listPostSummaries, ensureFreshContentItems } from '@/lib/content-items';
 import { getActiveToken, publishedThisMonthCount } from '@/lib/supabase';
 import { validateToken } from '@/lib/linkedin';
 import { suggestionsList } from '@/lib/db';
@@ -29,7 +30,12 @@ async function getDashboardData() {
   }
 
   let posts: any[] = [];
-  if (notion.ok) { try { posts = await listNotionPosts(150); } catch {} }
+  if (notion.ok) {
+    try {
+      ensureFreshContentItems(120);
+      posts = await listPostSummaries({ limit: 200 });
+    } catch {}
+  }
   const drafts = posts.filter(p => p.status === 'draft');
   const scheduledFuture = posts.filter(p => p.status === 'scheduled' && !p.late);
   const needsValidation = scheduledFuture.filter(p => !p.validated);
