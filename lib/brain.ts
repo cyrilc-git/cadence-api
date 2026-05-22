@@ -425,7 +425,7 @@ function countMatches(text: string, dict: Set<string>): number {
   return n;
 }
 
-async function buildEditorialDrifts(): Promise<EditorialDrift[]> {
+export async function buildEditorialDrifts(): Promise<EditorialDrift[]> {
   const drifts: EditorialDrift[] = [];
   try {
     const sixtyAgo = new Date(Date.now() - 60 * 86_400_000).toISOString();

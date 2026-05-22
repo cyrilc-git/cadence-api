@@ -4,6 +4,7 @@ import { listPostSummaries } from './content-items';
 import { noveltyScore } from './embeddings';
 import { whyNowFor } from './radar-insights';
 import { supabase } from './supabase';
+import { buildEditorialDrifts } from './brain';
 
 // === Notion deep radar ===
 // V8  : reads actual content of recent posts, detects recyclables, surfaces drafts.
@@ -238,11 +239,103 @@ export async function radarHeuristics(): Promise<number> {
   return count;
 }
 
+// === V11.2 — Radar enrichi par drift éditorial ===
+// Quand le Cerveau détecte un drift (ton corporate, pilier sur-utilisé, hooks
+// qui s'allongent), on génère une suggestion contrepoids ciblée. L'idée :
+// Cadence ne se contente pas de remarquer le drift dans /cerveau, il pousse
+// une action concrète dans /suggestions.
+export async function radarFromDrift(): Promise<number> {
+  let count = 0;
+  try {
+    const drifts = await buildEditorialDrifts();
+    for (const d of drifts) {
+      if (d.kind === 'corporate_tone' && /corporate/.test(d.message)) {
+        await suggestionUpsert({
+          source: 'heuristic',
+          source_ref: 'drift-corporate-counter',
+          title: 'Un cas anonymisé concret cette semaine',
+          hook: 'Pas de jargon. Un dirigeant, un problème chiffré, un déclic.',
+          angle: 'Storytelling court, vocabulaire personnel, exemple anonymisé. Évitez les mots "ROI / KPI / framework" cette semaine.',
+          pilier: 'Lundi · Cas client',
+          score: 78,
+          why: 'Cadence remarque un glissement vers un vocabulaire plus corporate. Un cas concret personnel rééquilibre la perception.',
+          payload: { format: 'cas', visual_idea: 'Photo silhouette ou symbole humain, pas de schéma data', from_drift: 'corporate_tone' },
+        });
+        count++;
+      } else if (d.kind === 'pilier_concentration') {
+        // Extract le pilier dominant depuis le message
+        const m = d.message.match(/pilier "([^"]+)"/);
+        const dominant = m?.[1] || '';
+        // Choisir un pilier opposé thématique
+        const opposite = pickOppositePilier(dominant);
+        await suggestionUpsert({
+          source: 'heuristic',
+          source_ref: `drift-pilier-counter-${opposite.split(' ')[0].toLowerCase()}`,
+          title: `Varier l'angle avec un post "${opposite.split(' · ')[1] || opposite}"`,
+          hook: pickHookForPilier(opposite),
+          angle: `Le pilier "${dominant}" concentre vos posts récents. Un post "${opposite}" recadre la perception sans rien renier.`,
+          pilier: opposite,
+          score: 76,
+          why: `Diversification éditoriale. Cadence détecte que "${dominant}" domine trop sur les 60 derniers jours.`,
+          payload: { format: inferFormat(opposite), visual_idea: visualIdeaFor(opposite), from_drift: 'pilier_concentration' },
+        });
+        count++;
+      } else if (d.kind === 'hook_length' && /allongent/.test(d.message)) {
+        await suggestionUpsert({
+          source: 'heuristic',
+          source_ref: 'drift-hook-short',
+          title: 'Un hook court, une seule phrase',
+          hook: 'Une ligne. Pas deux.',
+          angle: 'Test format : hook en moins de 80 caractères, sans virgule. Le reste du post peut respirer.',
+          pilier: 'Mardi · Pédagogie',
+          score: 70,
+          why: 'Cadence remarque que vos hooks s\'allongent depuis 60 jours. Un hook court relance l\'attention.',
+          payload: { format: 'text', visual_idea: null, from_drift: 'hook_length' },
+        });
+        count++;
+      }
+    }
+  } catch (e) {
+    console.error('radarFromDrift error:', e);
+  }
+  return count;
+}
+
+function pickOppositePilier(dominant: string): string {
+  const all = ['Lundi · Cas client', 'Mardi · Pédagogie', 'Mercredi · Produit', 'Jeudi · Opinion', 'Vendredi · Build in public'];
+  // Opposés thématiques heuristiques : Cas client <-> Opinion, Produit <-> Build, Pédagogie reste pivot.
+  const opposites: Record<string, string> = {
+    'Cas client': 'Jeudi · Opinion',
+    'Pédagogie': 'Vendredi · Build in public',
+    'Produit': 'Lundi · Cas client',
+    'Opinion': 'Mardi · Pédagogie',
+    'Build in public': 'Mercredi · Produit',
+  };
+  const key = dominant.replace(/^[^·]+·\s*/, '').trim();
+  if (opposites[key]) return opposites[key];
+  // Fallback : prendre un pilier différent du dominant
+  return all.find(p => p !== dominant && !p.includes(key)) || 'Jeudi · Opinion';
+}
+
+function pickHookForPilier(pilier: string): string {
+  const key = pilier.toLowerCase();
+  if (key.includes('opinion')) return 'Ce que personne ne dit sur ce sujet.';
+  if (key.includes('build')) return 'Les chiffres bruts de la semaine.';
+  if (key.includes('produit')) return 'Voici ce qui change concrètement pour vous.';
+  if (key.includes('cas')) return 'Un dirigeant. Un blocage. Un déclic.';
+  return 'Le réflexe que vous oubliez tous.';
+}
+
 export async function runAllRadars() {
-  const [n, g, h] = await Promise.all([radarFromNotion(), radarFromGitHub(), radarHeuristics()]);
+  const [n, g, h, d] = await Promise.all([
+    radarFromNotion(),
+    radarFromGitHub(),
+    radarHeuristics(),
+    radarFromDrift(),
+  ]);
   let enriched = 0;
   try { enriched = await enrichSuggestionsWithNovelty(40); } catch (e) { /* silent */ }
-  return { notion: n, github: g, heuristic: h, total: n + g + h, enriched };
+  return { notion: n, github: g, heuristic: h, drift: d, total: n + g + h + d, enriched };
 }
 
 export async function enrichSuggestionsWithNovelty(limit = 40): Promise<number> {
