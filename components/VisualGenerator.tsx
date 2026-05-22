@@ -153,7 +153,7 @@ export default function VisualGenerator({
       <div className="flex items-center justify-between mb-1">
         <label className="text-xs font-medium text-ink-700">Brief visuel</label>
         <button onClick={suggestBrief} disabled={briefLoading} className="btn-ghost text-2xs">
-          {briefLoading ? 'Réflexion…' : '✨ Suggérer un brief'}
+          {briefLoading ? 'Réflexion…' : 'Suggérer un brief'}
         </button>
       </div>
       <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3} placeholder={TEMPLATES[template].example} className="input text-sm" />

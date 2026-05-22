@@ -16,7 +16,7 @@ const CATEGORY_META: Record<string, { label: string; description: string; icon: 
   layout:     { label: 'Cards & boutons',               description: 'Radius, ombres, paddings',         icon: '▢' },
   format:     { label: 'Formats visuels',               description: 'Tailles, ratios, exports',         icon: '↔' },
   style:      { label: "Styles d'illustration",         description: 'Direction artistique, ambiance',   icon: '✎' },
-  prompt:     { label: 'Prompts visuels réutilisables', description: 'Briefs et instructions Claude',    icon: '✨' },
+  prompt:     { label: 'Prompts visuels réutilisables', description: 'Briefs et instructions Claude',    icon: '⊞' },
   moodboard:  { label: 'Moodboard',                     description: 'Images de référence',              icon: '▦' },
   misc:       { label: 'Autres',                        description: 'Paramètres divers',                icon: '⋯' }
 };

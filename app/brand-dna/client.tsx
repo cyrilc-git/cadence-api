@@ -95,7 +95,7 @@ export default function BrandDnaClient({ initial, initialPlan = [] }: { initial:
           <div className="flex gap-2 flex-wrap">
             <button onClick={() => generate('day')}   disabled={!!generating} className="btn-secondary text-xs">{generating === 'day' ? 'Gén…' : 'Générer 1 jour'}</button>
             <button onClick={() => generate('week')}  disabled={!!generating} className="btn-primary text-xs">
-              {generating === 'week' ? (<><span className="dot bg-white animate-pulse-soft" /> Génération…</>) : (<><span aria-hidden>✨</span> Générer ma semaine</>)}
+              {generating === 'week' ? (<><span className="dot bg-white animate-pulse-soft" /> Génération…</>) : (<>Générer ma semaine</>)}
             </button>
             <button onClick={() => generate('month')} disabled={!!generating} className="btn-secondary text-xs">{generating === 'month' ? 'Gén…' : 'Générer 1 mois'}</button>
           </div>
