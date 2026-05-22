@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server';
 import { upsertDraft, replacePageContent, listNotionPosts } from '@/lib/notion';
 import { markCadenceDraft } from '@/lib/db';
+import { syncContentItems } from '@/lib/content-items';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-// V9.4 — Import LinkedIn enrichi : statut détaillé par post, dédup explicite,
-// log structuré. Compatibilité descendante (champs created/skipped conservés).
+// V9.4 — Import LinkedIn enrichi : statut détaillé par post, dédup explicite, log structuré.
+// V10.4.3 — Auto-sync content_items après import si created > 0 (non bloquant pour la
+//           réponse, mais on attend pour avoir le résumé canonical à jour).
 
 type Incoming = { date: string; text: string; url?: string; sharedUrl?: string };
 type ResultStatus = 'created' | 'duplicate' | 'error' | 'invalid';
@@ -60,12 +62,25 @@ export async function POST(req: Request) {
       }
     }
 
+    // V10.4.3 — Sync content_items immédiate si des posts ont été créés.
+    // Best effort : on logge mais on ne fail pas la réponse import si la sync échoue.
+    let synced: { fromNotion: number; fromEmbeddings: number; errors: number } | null = null;
+    if (created > 0) {
+      try {
+        const res = await syncContentItems({ limit: 500 });
+        synced = { fromNotion: res.fromNotion, fromEmbeddings: res.fromEmbeddings, errors: res.errors };
+      } catch {
+        synced = null;
+      }
+    }
+
     return NextResponse.json({
       created,
       skipped,
       errors,
       total: incoming.length,
       results,
+      synced,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
