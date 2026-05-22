@@ -16,9 +16,15 @@ export type SourceType =
 
 export type ConfidenceLevel = 'confirmed' | 'inferred' | 'unknown';
 
+// V10.1 — source canonique : qui détient la vérité pour ce post
+export type CanonicalSource = 'linkedin' | 'notion' | 'cadence' | 'unknown';
+export type EmbeddingsState = 'indexed' | 'pending' | 'absent';
+export type AnalyticsState = 'confirmed' | 'inferred' | 'absent';
+
 export type Provenance = {
   source_type: SourceType;
   confidence: ConfidenceLevel;
+  canonical_source: CanonicalSource;    // V10.1 — qui certifie ce post
   source_id: string;                    // id Notion, source_ref pgvector, ou hash fallback
   canonical_url?: string | null;        // URL LinkedIn si dispo, sinon URL Notion
   notion_page_id?: string | null;
@@ -28,8 +34,26 @@ export type Provenance = {
   scheduled_at?: string | null;
   validation_status?: 'validated' | 'pending' | null;
   sync_status?: 'synced' | 'pending' | 'not_synced' | null;
+  embeddings_state?: EmbeddingsState | null;
+  analytics_state?: AnalyticsState | null;
   last_synced_at?: string | null;
 };
+
+// V10.1 — Helper : déduit la canonical_source à partir du source_type
+function canonicalSourceFor(t: SourceType): CanonicalSource {
+  switch (t) {
+    case 'linkedin_published':
+    case 'linkedin_import_zip':
+      return 'linkedin';
+    case 'notion_draft':
+    case 'notion_archive':
+      return 'notion';
+    case 'cadence_generated':
+      return 'cadence';
+    default:
+      return 'unknown';
+  }
+}
 
 // === Inputs acceptés (subsets typés des objets existants) ===
 export type NotionPostInput = {
@@ -72,8 +96,7 @@ export function inferFromNotion(post: NotionPostInput): Provenance {
 
   // 1. Créé par Cadence
   if (post.cadence_source === 'cadence') {
-    // Confirmed si on a déjà un lien LinkedIn (donc publié), sinon inferred
-    return {
+    return withCanonical({
       source_type: 'cadence_generated',
       confidence: hasLinkedInLink ? 'confirmed' : 'inferred',
       source_id: post.id,
@@ -85,12 +108,12 @@ export function inferFromNotion(post: NotionPostInput): Provenance {
       published_at: post.status === 'published' ? post.scheduled_at || null : null,
       validation_status: post.validated ? 'validated' : 'pending',
       sync_status: hasLinkedInLink ? 'synced' : 'pending',
-    };
+    });
   }
 
   // 2. Import LinkedIn archive (ZIP/CSV)
   if (post.cadence_source === 'linkedin_archive') {
-    return {
+    return withCanonical({
       source_type: 'linkedin_import_zip',
       confidence: 'confirmed',
       source_id: post.id,
@@ -100,12 +123,12 @@ export function inferFromNotion(post: NotionPostInput): Provenance {
       linkedin_urn: urn,
       published_at: post.scheduled_at || null,
       sync_status: 'synced',
-    };
+    });
   }
 
   // 3. Publié confirmé LinkedIn (URL présente + status published)
   if (post.status === 'published' && hasLinkedInLink) {
-    return {
+    return withCanonical({
       source_type: 'linkedin_published',
       confidence: 'confirmed',
       source_id: post.id,
@@ -115,12 +138,12 @@ export function inferFromNotion(post: NotionPostInput): Provenance {
       linkedin_urn: urn,
       published_at: post.scheduled_at || null,
       sync_status: 'synced',
-    };
+    });
   }
 
   // 4. Brouillon ou programmé Notion
   if (post.status === 'draft' || post.status === 'scheduled') {
-    return {
+    return withCanonical({
       source_type: 'notion_draft',
       confidence: 'inferred',
       source_id: post.id,
@@ -129,12 +152,12 @@ export function inferFromNotion(post: NotionPostInput): Provenance {
       scheduled_at: post.scheduled_at || null,
       validation_status: post.validated ? 'validated' : 'pending',
       sync_status: 'not_synced',
-    };
+    });
   }
 
   // 5. Notion dit "publié" mais sans URL LinkedIn : archive Notion
   if (post.status === 'published') {
-    return {
+    return withCanonical({
       source_type: 'notion_archive',
       confidence: 'inferred',
       source_id: post.id,
@@ -142,17 +165,23 @@ export function inferFromNotion(post: NotionPostInput): Provenance {
       notion_page_id: post.id,
       published_at: post.scheduled_at || null,
       sync_status: 'not_synced',
-    };
+    });
   }
 
   // 6. Fallback
-  return {
+  return withCanonical({
     source_type: 'unknown',
     confidence: 'unknown',
     source_id: post.id,
     canonical_url: post.notion_url || null,
     notion_page_id: post.id,
-  };
+  });
+}
+
+// Injecte canonical_source en fin de chaîne pour éviter de le répéter dans
+// chaque retour de inferFromNotion / inferFromEmbedding.
+function withCanonical(p: Omit<Provenance, 'canonical_source'>): Provenance {
+  return { ...p, canonical_source: canonicalSourceFor(p.source_type) };
 }
 
 // === Inférence depuis une ligne post_embeddings ===
@@ -162,7 +191,7 @@ export function inferFromEmbedding(row: EmbeddingPostInput): Provenance {
   const urn = extractLinkedinUrn(linkedinUrl);
 
   if (row.source === 'linkedin_archive') {
-    return {
+    return withCanonical({
       source_type: 'linkedin_import_zip',
       confidence: 'confirmed',
       source_id: id,
@@ -171,13 +200,12 @@ export function inferFromEmbedding(row: EmbeddingPostInput): Provenance {
       linkedin_urn: urn,
       published_at: row.scheduled_at || null,
       sync_status: 'synced',
-    };
+    });
   }
 
   if (row.source === 'notion') {
-    // On retombe sur la logique notion mais on n'a pas linkedin_url ici la plupart du temps
     if (row.status === 'published' && linkedinUrl) {
-      return {
+      return withCanonical({
         source_type: 'linkedin_published',
         confidence: 'confirmed',
         source_id: id,
@@ -187,41 +215,41 @@ export function inferFromEmbedding(row: EmbeddingPostInput): Provenance {
         linkedin_urn: urn,
         published_at: row.scheduled_at || null,
         sync_status: 'synced',
-      };
+      });
     }
     if (row.status === 'published') {
-      return {
+      return withCanonical({
         source_type: 'notion_archive',
         confidence: 'inferred',
         source_id: id,
         notion_page_id: row.source_ref || null,
         published_at: row.scheduled_at || null,
         sync_status: 'not_synced',
-      };
+      });
     }
-    return {
+    return withCanonical({
       source_type: 'notion_draft',
       confidence: 'inferred',
       source_id: id,
       notion_page_id: row.source_ref || null,
       scheduled_at: row.scheduled_at || null,
       sync_status: 'not_synced',
-    };
+    });
   }
 
   if (row.source === 'inspiration') {
-    return {
+    return withCanonical({
       source_type: 'unknown',
       confidence: 'unknown',
       source_id: id,
-    };
+    });
   }
 
-  return {
+  return withCanonical({
     source_type: 'unknown',
     confidence: 'unknown',
     source_id: id,
-  };
+  });
 }
 
 // === Façade : détecte le type d'input et délègue ===
