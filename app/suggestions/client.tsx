@@ -220,13 +220,14 @@ export default function SuggestionsClient() {
           {[1,2,3].map(i => <div key={i} className="card p-5 space-y-3"><div className="skeleton h-4 w-3/4" /><div className="skeleton h-3 w-1/2" /><div className="skeleton h-12 w-full" /></div>)}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="card p-12 text-center">
-          <div className="w-12 h-12 rounded-full bg-brand-50 flex items-center justify-center mx-auto mb-3">
-            <svg className="w-6 h-6 text-brand-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg>
-          </div>
-          <p className="text-ink-900 font-semibold">Aucune idée pour l'instant.</p>
-          <p className="mt-1 text-sm text-ink-500">Cliquez « Rafraîchir le radar » pour scanner vos sources. Cadence détecte les drafts Notion, les commits GitHub, les schémas récurrents dans vos posts publiés.</p>
-          <button onClick={refresh} disabled={refreshing} className="btn-primary mt-4">Lancer un scan</button>
+        <div className="py-12 max-w-md">
+          <p className="text-sm text-ink-700 leading-relaxed">
+            Cadence n&apos;a rien de neuf à proposer pour l&apos;instant. Le radar lit vos brouillons Notion, vos commits GitHub et la mémoire éditoriale.
+            {' '}
+            <button onClick={refresh} disabled={refreshing} className="text-brand-700 hover:text-brand-900 underline decoration-dotted underline-offset-2 transition">
+              {refreshing ? 'Cadence cherche…' : 'Cherchez maintenant'}
+            </button>
+          </p>
         </div>
       ) : (
         <div className="grid gap-3">

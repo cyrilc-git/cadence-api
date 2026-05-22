@@ -215,9 +215,12 @@ export default function PostsLibraryClient({ initial }: { initial: any[] }) {
 
       {/* Results */}
       {filtered.length === 0 ? (
-        <div className="card p-10 text-center text-sm text-ink-500">
-          <p className="font-medium text-ink-700">Aucun post.</p>
-          <p className="mt-1">Ajustez les filtres ou créez un nouveau post.</p>
+        <div className="py-12 max-w-md">
+          <p className="text-sm text-ink-700 leading-relaxed">
+            Rien ne correspond à ces filtres pour le moment.{' '}
+            <Link href="/posts/new" className="text-brand-700 hover:text-brand-900 underline decoration-dotted underline-offset-2 transition">Écrire un nouveau post</Link>
+            {' '}ou relâchez un filtre pour élargir.
+          </p>
         </div>
       ) : grouped ? (
         <div className="space-y-5">
