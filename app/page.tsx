@@ -64,14 +64,38 @@ function pilierTone(pilier?: string) {
   return { 'Lundi': 'bg-blue-500', 'Mardi': 'bg-emerald-500', 'Mercredi': 'bg-violet-500', 'Jeudi': 'bg-amber-500', 'Vendredi': 'bg-pink-500' }[day] || 'bg-ink-400';
 }
 
-// V9.0 §2 — État éditorial en 1 ligne prose (remplace les colonnes verbeuses)
+// V11.4 — État éditorial en phrase humaine (au lieu d'un agglutinat de compteurs)
 function editorialStateLine({ validated, needsVal, drafts, publishedCount }: { validated: number; needsVal: number; drafts: number; publishedCount: number }) {
-  const parts: string[] = [];
-  if (publishedCount > 0) parts.push(`${publishedCount} publié${publishedCount > 1 ? 's' : ''} ce mois`);
-  if (validated > 0) parts.push(`${validated} programmé${validated > 1 ? 's' : ''}`);
-  if (needsVal > 0) parts.push(`${needsVal} à valider`);
-  if (drafts > 0) parts.push(`${drafts} brouillon${drafts > 1 ? 's' : ''}`);
-  return parts.length ? parts.join(' · ') : 'Aucun post pour l\'instant.';
+  // Si la semaine est vide : phrase de calme.
+  if (publishedCount === 0 && validated === 0 && needsVal === 0 && drafts === 0) {
+    return 'Le mois est vierge.';
+  }
+  // Priorité 1 : à valider (action utilisateur immédiate)
+  if (needsVal > 0) {
+    return needsVal === 1
+      ? `Un post programmé attend votre validation.`
+      : `${needsVal} posts programmés attendent votre validation.`;
+  }
+  // Priorité 2 : tout est prêt
+  if (validated > 0 && drafts === 0) {
+    return validated === 1
+      ? `Un post est validé pour partir. Rien d'autre en attente.`
+      : `${validated} posts sont validés pour partir. Rien d'autre en attente.`;
+  }
+  // Priorité 3 : brouillons à finir
+  if (drafts > 0 && validated === 0) {
+    return drafts === 1
+      ? `Un brouillon en cours, pas de programmation en attente.`
+      : `${drafts} brouillons en cours, pas de programmation en attente.`;
+  }
+  // Mix : on garde court et humain
+  if (validated > 0 && drafts > 0) {
+    return `${validated} validé${validated > 1 ? 's' : ''} prêt${validated > 1 ? 's' : ''} à partir, ${drafts} brouillon${drafts > 1 ? 's' : ''} encore en chantier.`;
+  }
+  if (publishedCount > 0) {
+    return `${publishedCount} post${publishedCount > 1 ? 's' : ''} publié${publishedCount > 1 ? 's' : ''} ce mois. Rien dans le tiroir.`;
+  }
+  return 'Le mois est vierge.';
 }
 
 export default async function HomePage() {
@@ -168,13 +192,12 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* === ÉTAT ÉDITORIAL — 1 ligne prose ──────────────── V9.0 §2 */}
+      {/* === V11.4 — État éditorial en prose humaine === */}
       <section className="pt-2 border-t border-ink-100">
-        <p className="text-xs text-ink-500">
-          <span className="font-medium text-ink-600">État : </span>
+        <p className="text-xs text-ink-500 leading-relaxed">
           {editorialStateLine({ validated: validatedAndScheduled.length, needsVal: needsValidation.length, drafts: drafts.length, publishedCount })}
           {(needsValidation.length > 0 || drafts.length > 0) && (
-            <Link href="/posts" className="ml-2 text-brand-700 hover:text-brand-900 transition">Bibliothèque →</Link>
+            <Link href="/posts" className="ml-2 text-brand-700 hover:text-brand-900 transition">Voir la bibliothèque →</Link>
           )}
         </p>
       </section>
