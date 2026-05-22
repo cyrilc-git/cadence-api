@@ -1,15 +1,17 @@
 import { suggestionUpsert, suggestionsList, Suggestion } from './db';
-import { listNotionPosts, getNotionPost } from './notion';
+import { getNotionPost } from './notion';
+import { listPostSummaries } from './content-items';
 import { noveltyScore } from './embeddings';
 import { whyNowFor } from './radar-insights';
 import { supabase } from './supabase';
 
 // === Notion deep radar ===
-// V8 : reads actual content of recent posts, detects recyclables, surfaces drafts.
+// V8  : reads actual content of recent posts, detects recyclables, surfaces drafts.
+// V11.1 : lit la couche canonique content_items (au lieu de Notion direct).
 export async function radarFromNotion(): Promise<number> {
   let count = 0;
   try {
-    const posts = await listNotionPosts(80);
+    const posts = await listPostSummaries({ limit: 120 });
     const now = Date.now();
     const SIX_MONTHS = 1000 * 60 * 60 * 24 * 180;
 
