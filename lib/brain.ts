@@ -92,6 +92,15 @@ export type BrainState = {
 
   // V10.2 — Apprentissage récent (semaine en cours vs semaine d'avant)
   weeklyLearnings: BrainLearning[];
+
+  // V10.2 — Timeline éditoriale (12 derniers mois)
+  timeline: BrainTimelinePoint[];
+};
+
+export type BrainTimelinePoint = {
+  yearMonth: string;       // 'YYYY-MM'
+  label: string;           // 'janv. 26'
+  count: number;
 };
 
 export type BrainLearning = {
@@ -366,7 +375,30 @@ export async function computeBrainState(unknownSourcesInput?: { kind: string; la
       embeddings: embeddingsScore,
     },
     weeklyLearnings,
+    timeline: buildTimeline(bySource),
   };
+}
+
+// V10.2 — Timeline des 12 derniers mois construite depuis les posts indexés.
+function buildTimeline(rows: any[] | null): BrainTimelinePoint[] {
+  const points: BrainTimelinePoint[] = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }).replace('.', '');
+    points.push({ yearMonth: ym, label, count: 0 });
+  }
+  for (const r of rows || []) {
+    const iso = r.scheduled_at || r.indexed_at;
+    if (!iso) continue;
+    const t = new Date(iso);
+    if (Number.isNaN(t.getTime())) continue;
+    const ym = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}`;
+    const p = points.find(x => x.yearMonth === ym);
+    if (p) p.count++;
+  }
+  return points;
 }
 
 // Helper format date FR court : "le 14 mars 2025" → utilisé côté page.

@@ -40,6 +40,30 @@ async function detectUnknownSources(): Promise<SourceHint[]> {
   return unknown;
 }
 
+function Timeline({ points }: { points: Array<{ yearMonth: string; label: string; count: number }> }) {
+  const max = Math.max(1, ...points.map(p => p.count));
+  return (
+    <div className="flex items-end gap-1.5 h-20">
+      {points.map(p => {
+        const h = Math.max(2, Math.round((p.count / max) * 72));
+        const isEmpty = p.count === 0;
+        return (
+          <div key={p.yearMonth} className="flex-1 flex flex-col items-center gap-1 min-w-0">
+            <div className="flex-1 flex items-end w-full">
+              <div
+                className={`w-full rounded-sm transition-colors ${isEmpty ? 'bg-ink-100' : 'bg-brand-400 hover:bg-brand-500'}`}
+                style={{ height: `${h}px` }}
+                title={`${p.label} : ${p.count} post${p.count > 1 ? 's' : ''}`}
+              />
+            </div>
+            <span className="text-[10px] text-ink-400 tabular-nums truncate w-full text-center">{p.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ConfidenceRing({ overall, memory, linkedin, embeddings }: { overall: number; memory: number; linkedin: number; embeddings: number }) {
   const pct = Math.max(0, Math.min(100, overall));
   const radius = 38;
@@ -176,6 +200,27 @@ export default async function BrainPage() {
           <div className="mt-3">
             <Link href="/sources/linkedin" className="btn-primary text-xs">Importer mes posts →</Link>
           </div>
+        </section>
+      )}
+
+      {/* === V10.2 — Timeline éditoriale 12 mois === */}
+      {brain.timeline.some(p => p.count > 0) && (
+        <section>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Timeline éditoriale</h2>
+          <Timeline points={brain.timeline} />
+          <p className="mt-2 text-xs text-ink-500 leading-relaxed">
+            Posts indexés mois par mois sur les 12 derniers mois.
+            {(() => {
+              const lastSix = brain.timeline.slice(-6).reduce((s, p) => s + p.count, 0);
+              const prevSix = brain.timeline.slice(0, 6).reduce((s, p) => s + p.count, 0);
+              if (prevSix === 0 || lastSix === 0) return null;
+              const delta = Math.round((lastSix / prevSix - 1) * 100);
+              if (Math.abs(delta) < 15) return ' Rythme stable sur les six derniers mois.';
+              return delta > 0
+                ? ` Volume en hausse de ${delta}% sur les six derniers mois vs les six précédents.`
+                : ` Volume en baisse de ${Math.abs(delta)}% sur les six derniers mois vs les six précédents.`;
+            })()}
+          </p>
         </section>
       )}
 
