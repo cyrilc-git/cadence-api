@@ -235,13 +235,10 @@ export default function SuggestionsClient() {
               <div className="flex items-start gap-4">
                 <ScoreRing score={s.score} />
                 <div className="flex-1 min-w-0">
+                  {/* V11.4 §4 — Header allégé : source + pilier seulement, le reste passe en details */}
                   <div className="flex items-center gap-2 flex-wrap mb-1.5">
                     <SourceBadge source={s.source} />
-                    {s.pilier && <span className="chip chip-brand">{s.pilier}</span>}
-                    {(s.format || s.payload?.format) && FORMAT_LABELS[(s.format || s.payload?.format) as string] && <span className="chip chip-neutral">{FORMAT_LABELS[(s.format || s.payload?.format) as string]}</span>}
-                    {/* V8.1 — novelty / saturation chips */}
-                    {s.payload?.novelty != null && s.payload.novelty > 0.7 && <span className="chip chip-success" title={`Score nouveauté ${Math.round(s.payload.novelty * 100)}%`}>Angle inédit</span>}
-                    {s.payload?.saturation > 2 && <span className="chip chip-warn" title={`${s.payload.saturation} posts récents similaires`}>Sujet déjà couvert</span>}
+                    {s.pilier && <span className="chip chip-neutral">{s.pilier.replace(' · ', ' ')}</span>}
                     {s.created_at && <span className="ml-auto text-2xs text-ink-400">{timeAgo(s.created_at)}</span>}
                   </div>
                   <h3 className="font-semibold text-ink-900 text-base leading-snug">{s.title}</h3>
@@ -251,44 +248,40 @@ export default function SuggestionsClient() {
                     </div>
                   )}
                   {s.why && (
-                    <p className="mt-2 text-xs text-ink-500">
-                      <span className="font-semibold text-ink-600">Pourquoi maintenant : </span>{s.why}
-                    </p>
+                    <p className="mt-2 text-xs text-ink-500 leading-relaxed">{s.why}</p>
                   )}
-                  {s.payload?.saturation > 2 && s.payload?.nearest_title && (
-                    <p className="mt-1.5 text-xs text-warn-700">
-                      <span className="font-semibold">Risque de répétition :</span> sujet déjà traité récemment ({s.payload.saturation} posts similaires). Le plus proche : « {s.payload.nearest_title.slice(0, 80)} ». Préférez un angle opinion ou contre-exemple.
-                    </p>
-                  )}
-                  {(s.visual_idea || s.payload?.visual_idea) && (
-                    <p className="mt-1.5 text-xs text-ink-500">
-                      <span className="font-semibold text-ink-600">Visuel : </span>{(s.visual_idea || s.payload?.visual_idea)}
-                    </p>
-                  )}
-                  {/* V9.6 — Méta stratégique : confidence + effort */}
-                  <div className="mt-3 flex items-center gap-3 flex-wrap text-2xs text-ink-500">
-                    {(() => {
-                      const conf = radarConfidence(s);
-                      const toneClass = conf.tone === 'high' ? 'text-emerald-700' : conf.tone === 'medium' ? 'text-ink-700' : 'text-amber-700';
-                      const dotClass = conf.tone === 'high' ? 'bg-emerald-500' : conf.tone === 'medium' ? 'bg-ink-500' : 'bg-amber-500';
-                      return (
-                        <span className={`inline-flex items-center gap-1 ${toneClass}`} title="Confiance du radar (score + nouveauté)">
-                          <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} aria-hidden />
-                          {conf.label}
-                        </span>
-                      );
-                    })()}
-                    {(() => {
-                      const fmt = (s.format || s.payload?.format) as string | undefined;
-                      const eff = fmt ? FORMAT_EFFORT[fmt] : null;
-                      if (!eff) return null;
-                      const toneClass = eff.tone === 'easy' ? 'text-emerald-700' : eff.tone === 'medium' ? 'text-ink-700' : 'text-amber-700';
-                      return <span className={`inline-flex items-center gap-1 ${toneClass}`} title="Effort de rédaction estimé">{eff.label}</span>;
-                    })()}
-                    {s.payload?.novelty != null && (
-                      <span className="text-ink-500" title="Nouveauté du sujet vs vos archives">Nouveauté {Math.round(s.payload.novelty * 100)}%</span>
-                    )}
-                  </div>
+                  {/* V11.4 §4 — Détails repliés par défaut : meta + visuel + risque répétition */}
+                  {(() => {
+                    const fmt = (s.format || s.payload?.format) as string | undefined;
+                    const eff = fmt ? FORMAT_EFFORT[fmt] : null;
+                    const conf = radarConfidence(s);
+                    const hasNovelty = s.payload?.novelty != null;
+                    const hasSaturationDetail = s.payload?.saturation > 2 && s.payload?.nearest_title;
+                    const hasVisual = !!(s.visual_idea || s.payload?.visual_idea);
+                    const hasAnyDetail = eff || hasNovelty || hasSaturationDetail || hasVisual || fmt;
+                    if (!hasAnyDetail) return null;
+                    return (
+                      <details className="mt-3 text-xs text-ink-500 group/details">
+                        <summary className="inline-flex items-center gap-1.5 cursor-pointer hover:text-ink-700 transition select-none">
+                          <span className={`w-1.5 h-1.5 rounded-full ${conf.tone === 'high' ? 'bg-emerald-500' : conf.tone === 'medium' ? 'bg-ink-500' : 'bg-amber-500'}`} aria-hidden />
+                          <span>{conf.label}</span>
+                          {eff && <span className="text-ink-400">· {eff.label}</span>}
+                          {hasSaturationDetail && <span className="text-amber-600">· risque de répétition</span>}
+                          <span className="text-ink-300 ml-1">détail</span>
+                        </summary>
+                        <div className="mt-2 pl-3 space-y-1.5 leading-relaxed">
+                          {fmt && FORMAT_LABELS[fmt] && <p>Format : {FORMAT_LABELS[fmt]}.</p>}
+                          {hasNovelty && <p>Nouveauté du sujet vs vos archives : {Math.round(s.payload.novelty * 100)}%.</p>}
+                          {hasSaturationDetail && (
+                            <p className="text-amber-700">
+                              Sujet déjà traité ({s.payload.saturation} posts similaires). Le plus proche : « {s.payload.nearest_title.slice(0, 80)} ». Préférez un angle opinion ou contre-exemple.
+                            </p>
+                          )}
+                          {hasVisual && <p>Visuel suggéré : {(s.visual_idea || s.payload?.visual_idea)}</p>}
+                        </div>
+                      </details>
+                    );
+                  })()}
                 </div>
               </div>
               <div className="mt-4 flex items-center gap-2 flex-wrap pl-16">
