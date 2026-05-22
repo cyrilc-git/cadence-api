@@ -99,6 +99,15 @@ export type BrainState = {
 
   // V10.6.2 — Formats qui progressent / fatiguent (extraits de computeHumanInsights)
   formatTrends: FormatTrend[];
+
+  // V11.3 — Drift éditorial : hooks plus génériques, ton plus corporate, etc.
+  editorialDrifts: EditorialDrift[];
+};
+
+export type EditorialDrift = {
+  kind: 'hook_length' | 'hook_generic' | 'corporate_tone' | 'pilier_concentration';
+  message: string;
+  severity: 'low' | 'medium';
 };
 
 export type FormatTrend = {
@@ -388,7 +397,124 @@ export async function computeBrainState(unknownSourcesInput?: { kind: string; la
     weeklyLearnings,
     timeline: buildTimeline(bySource),
     formatTrends: await buildFormatTrends().catch(() => []),
+    editorialDrifts: await buildEditorialDrifts().catch(() => []),
   };
+}
+
+// V11.3 — Détection drift éditorial : compare 60 derniers jours vs les 60
+// précédents sur 3 dimensions : longueur hook, ton corporate, concentration
+// pilier. Sortie : phrases prose courtes, max 3 messages.
+const CORPORATE_WORDS = new Set([
+  'roi', 'kpi', 'scalable', 'pipeline', 'leverage', 'synergies', 'synergie',
+  'ecosystème', 'écosystème', 'verticale', 'leadership', 'mindset', 'best practice',
+  'best practices', 'agile', 'framework', 'process', 'workflow', 'stack',
+  'enabler', 'enabling', 'value proposition', 'go-to-market', 'gtm',
+]);
+const PERSONAL_WORDS = new Set([
+  'moi', 'mes', 'mon', 'ma', 'je', "j'", 'nous', 'nos', 'notre',
+  'hier', 'aujourd', 'parfois', 'souvent', 'jamais', 'toujours',
+]);
+
+function countMatches(text: string, dict: Set<string>): number {
+  const words = text.toLowerCase().split(/\s+/);
+  let n = 0;
+  for (const w of words) {
+    if (!w) continue;
+    if (dict.has(w) || dict.has(w.replace(/[^a-zàâçéèêëîïôûùüÿñæœ-]/g, ''))) n++;
+  }
+  return n;
+}
+
+async function buildEditorialDrifts(): Promise<EditorialDrift[]> {
+  const drifts: EditorialDrift[] = [];
+  try {
+    const sixtyAgo = new Date(Date.now() - 60 * 86_400_000).toISOString();
+    const oneTwentyAgo = new Date(Date.now() - 120 * 86_400_000).toISOString();
+    const { data: recent } = await supabase
+      .from('post_embeddings')
+      .select('title, content_excerpt, pilier, scheduled_at')
+      .gte('scheduled_at', sixtyAgo)
+      .limit(60);
+    const { data: previous } = await supabase
+      .from('post_embeddings')
+      .select('title, content_excerpt, pilier, scheduled_at')
+      .gte('scheduled_at', oneTwentyAgo)
+      .lt('scheduled_at', sixtyAgo)
+      .limit(60);
+
+    const rec = recent || [];
+    const prev = previous || [];
+    if (rec.length < 4 || prev.length < 4) return drifts;
+
+    // 1. Longueur du hook (première ligne)
+    const hookLen = (rows: any[]) => {
+      const lens = rows
+        .map(r => (r.content_excerpt || r.title || '').split('\n')[0]?.length || 0)
+        .filter(n => n > 0);
+      return lens.length ? lens.reduce((a, b) => a + b, 0) / lens.length : 0;
+    };
+    const hookRec = hookLen(rec);
+    const hookPrev = hookLen(prev);
+    if (hookPrev > 0 && hookRec / hookPrev > 1.25) {
+      drifts.push({
+        kind: 'hook_length',
+        severity: 'low',
+        message: `Vos hooks s'allongent : en moyenne ${Math.round(hookRec)} caractères ces 60 derniers jours contre ${Math.round(hookPrev)} avant. Un hook plus court accroche souvent mieux.`,
+      });
+    } else if (hookPrev > 0 && hookRec / hookPrev < 0.8) {
+      drifts.push({
+        kind: 'hook_length',
+        severity: 'low',
+        message: `Vos hooks raccourcissent : en moyenne ${Math.round(hookRec)} caractères ces 60 derniers jours contre ${Math.round(hookPrev)} avant. Resserrement intéressant à confirmer.`,
+      });
+    }
+
+    // 2. Ton corporate (heuristique)
+    const tally = (rows: any[]) => {
+      let corp = 0, pers = 0, total = 0;
+      for (const r of rows) {
+        const txt = (r.content_excerpt || '') + ' ' + (r.title || '');
+        corp += countMatches(txt, CORPORATE_WORDS);
+        pers += countMatches(txt, PERSONAL_WORDS);
+        total += txt.split(/\s+/).length;
+      }
+      return { corp, pers, total };
+    };
+    const tRec = tally(rec);
+    const tPrev = tally(prev);
+    const corpRecRatio = tRec.total ? tRec.corp / tRec.total : 0;
+    const corpPrevRatio = tPrev.total ? tPrev.corp / tPrev.total : 0;
+    if (corpPrevRatio > 0 && corpRecRatio / corpPrevRatio > 1.5 && tRec.corp >= 3) {
+      drifts.push({
+        kind: 'corporate_tone',
+        severity: 'medium',
+        message: `Votre vocabulaire devient plus corporate : ${tRec.corp} mots type "ROI / KPI / framework" ces 60 derniers jours, contre ${tPrev.corp} avant. À surveiller si vos meilleurs posts sont plus personnels.`,
+      });
+    } else if (corpRecRatio > 0 && corpPrevRatio / corpRecRatio > 1.5 && tPrev.corp >= 3) {
+      drifts.push({
+        kind: 'corporate_tone',
+        severity: 'low',
+        message: `Votre vocabulaire s'allège du jargon corporate : ${tRec.corp} mots techniques ces 60 derniers jours contre ${tPrev.corp} avant.`,
+      });
+    }
+
+    // 3. Concentration pilier (un seul pilier > 60% des posts récents)
+    const pilierCount: Record<string, number> = {};
+    for (const r of rec) {
+      const p = r.pilier?.split(' · ')[1]?.trim() || r.pilier || 'sans pilier';
+      pilierCount[p] = (pilierCount[p] || 0) + 1;
+    }
+    const top = Object.entries(pilierCount).sort((a, b) => b[1] - a[1])[0];
+    if (top && top[1] / rec.length > 0.6) {
+      drifts.push({
+        kind: 'pilier_concentration',
+        severity: 'medium',
+        message: `Le pilier "${top[0]}" concentre ${Math.round(top[1] / rec.length * 100)}% de vos posts récents. Diversifier les angles renforcerait la perception générale.`,
+      });
+    }
+  } catch { /* silent */ }
+
+  return drifts.slice(0, 3);
 }
 
 // V10.6.2 — Extrait les piliers qui progressent ou fatiguent depuis humanInsights.

@@ -445,6 +445,27 @@ export default async function BrainPage() {
         </section>
       )}
 
+      {/* === V11.3 — Évolution de votre ligne éditoriale === */}
+      {brain.editorialDrifts && brain.editorialDrifts.length > 0 && (
+        <section>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Évolution de votre ligne éditoriale</h2>
+          <p className="text-xs text-ink-500 leading-relaxed mb-3">
+            Ce que Cadence remarque entre vos 60 derniers jours et les 60 précédents.
+          </p>
+          <ul className="space-y-2.5">
+            {brain.editorialDrifts.map((d, i) => {
+              const dotClass = d.severity === 'medium' ? 'bg-amber-500' : 'bg-ink-400';
+              return (
+                <li key={i} className="flex items-start gap-3">
+                  <span className={`w-1.5 h-1.5 rounded-full mt-2 shrink-0 ${dotClass}`} aria-hidden />
+                  <p className="text-sm text-ink-800 leading-relaxed">{d.message}</p>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {/* === V10.6.2 — Formats qui bougent === */}
       {brain.formatTrends && brain.formatTrends.length > 0 && (
         <section>
