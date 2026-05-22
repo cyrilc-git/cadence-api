@@ -5,6 +5,7 @@
 import { supabase } from './supabase';
 import { indexedCount } from './embeddings';
 import { pilierStats, trackedTopicStatus, computeRadarInsights, TRACKED_TOPICS, type PilierStat, type RadarInsight } from './radar-insights';
+import { computeHumanInsights, type HumanInsight } from './analytics-insights';
 
 export type BrainSourceBreakdown = {
   source: string;
@@ -95,6 +96,16 @@ export type BrainState = {
 
   // V10.2 — Timeline éditoriale (12 derniers mois)
   timeline: BrainTimelinePoint[];
+
+  // V10.6.2 — Formats qui progressent / fatiguent (extraits de computeHumanInsights)
+  formatTrends: FormatTrend[];
+};
+
+export type FormatTrend = {
+  pilier: string;
+  direction: 'progresse' | 'fatigue';
+  deltaPct: number;       // -100..+999 (signé)
+  message: string;
 };
 
 export type BrainTimelinePoint = {
@@ -376,7 +387,29 @@ export async function computeBrainState(unknownSourcesInput?: { kind: string; la
     },
     weeklyLearnings,
     timeline: buildTimeline(bySource),
+    formatTrends: await buildFormatTrends().catch(() => []),
   };
+}
+
+// V10.6.2 — Extrait les piliers qui progressent ou fatiguent depuis humanInsights.
+async function buildFormatTrends(): Promise<FormatTrend[]> {
+  const insights = await computeHumanInsights();
+  const trends: FormatTrend[] = [];
+  for (const ins of insights) {
+    if (ins.kind !== 'pilier') continue;
+    const msg = ins.message || '';
+    const data = (ins as any).data || {};
+    if (/progressent/.test(msg) && data.pilier && typeof data.avgRec === 'number' && typeof data.avgPrev === 'number') {
+      const delta = Math.round((data.avgRec / Math.max(data.avgPrev, 1) - 1) * 100);
+      trends.push({ pilier: data.pilier, direction: 'progresse', deltaPct: delta, message: msg });
+    } else if (/fatiguent/.test(msg) && data.pilier && typeof data.avgRec === 'number' && typeof data.avgPrev === 'number') {
+      const delta = Math.round((data.avgRec / Math.max(data.avgPrev, 1) - 1) * 100);
+      trends.push({ pilier: data.pilier, direction: 'fatigue', deltaPct: delta, message: msg });
+    }
+  }
+  // Tri : progressions d'abord (positif), puis fatigues (négatif)
+  trends.sort((a, b) => b.deltaPct - a.deltaPct);
+  return trends.slice(0, 4);
 }
 
 // V10.2 — Timeline des 12 derniers mois construite depuis les posts indexés.

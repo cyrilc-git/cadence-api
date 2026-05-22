@@ -445,6 +445,36 @@ export default async function BrainPage() {
         </section>
       )}
 
+      {/* === V10.6.2 — Formats qui bougent === */}
+      {brain.formatTrends && brain.formatTrends.length > 0 && (
+        <section>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Formats qui bougent</h2>
+          <p className="text-xs text-ink-500 leading-relaxed mb-3">
+            Impressions moyennes sur les 30 derniers jours vs les 30 précédents, par pilier.
+          </p>
+          <ul className="space-y-2.5">
+            {brain.formatTrends.map((t, i) => {
+              const isUp = t.direction === 'progresse';
+              const dotClass = isUp ? 'bg-emerald-500' : 'bg-amber-500';
+              const textClass = isUp ? 'text-emerald-700' : 'text-amber-700';
+              const arrow = isUp ? '↑' : '↓';
+              return (
+                <li key={i} className="flex items-start gap-3">
+                  <span className={`w-1.5 h-1.5 rounded-full mt-2 shrink-0 ${dotClass}`} aria-hidden />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-sm font-medium text-ink-900">{t.pilier}</span>
+                      <span className={`text-2xs tabular-nums ${textClass}`}>{arrow} {t.deltaPct > 0 ? '+' : ''}{t.deltaPct}%</span>
+                    </div>
+                    <p className="text-xs text-ink-600 leading-relaxed mt-0.5">{t.message}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
       {/* === SECTION 6bis : Zones d'incertitude V9.5 === */}
       {brain.uncertainties.length > 0 && (
         <section>
