@@ -105,7 +105,7 @@ export type BrainState = {
 };
 
 export type EditorialDrift = {
-  kind: 'hook_length' | 'hook_generic' | 'corporate_tone' | 'pilier_concentration';
+  kind: 'hook_length' | 'hook_generic' | 'corporate_tone' | 'pilier_concentration' | 'format_dropoff' | 'topic_avoidance';
   message: string;
   severity: 'low' | 'medium';
 };
@@ -500,9 +500,14 @@ export async function buildEditorialDrifts(): Promise<EditorialDrift[]> {
 
     // 3. Concentration pilier (un seul pilier > 60% des posts récents)
     const pilierCount: Record<string, number> = {};
+    const pilierCountPrev: Record<string, number> = {};
     for (const r of rec) {
       const p = r.pilier?.split(' · ')[1]?.trim() || r.pilier || 'sans pilier';
       pilierCount[p] = (pilierCount[p] || 0) + 1;
+    }
+    for (const r of prev) {
+      const p = r.pilier?.split(' · ')[1]?.trim() || r.pilier || 'sans pilier';
+      pilierCountPrev[p] = (pilierCountPrev[p] || 0) + 1;
     }
     const top = Object.entries(pilierCount).sort((a, b) => b[1] - a[1])[0];
     if (top && top[1] / rec.length > 0.6) {
@@ -512,9 +517,78 @@ export async function buildEditorialDrifts(): Promise<EditorialDrift[]> {
         message: `Le pilier "${top[0]}" concentre ${Math.round(top[1] / rec.length * 100)}% de vos posts récents. Diversifier les angles renforcerait la perception générale.`,
       });
     }
+
+    // 4. V11.3 — Hook genericity : ratio des hooks commençant par formules
+    // génériques (Voici, Comment, 5 erreurs, X choses, Pourquoi…)
+    const GENERIC_HOOK_REGEX = /^(voici|comment|pourquoi|\d+\s+(erreurs|raisons|choses|astuces|étapes|leçons|conseils)|les?\s+\d+|ce que|c'est ce que)/i;
+    const countGeneric = (rows: any[]) => {
+      let g = 0, t = 0;
+      for (const r of rows) {
+        const hook = (r.content_excerpt || r.title || '').split('\n')[0]?.trim() || '';
+        if (!hook) continue;
+        t++;
+        if (GENERIC_HOOK_REGEX.test(hook)) g++;
+      }
+      return { g, t };
+    };
+    const genRec = countGeneric(rec);
+    const genPrev = countGeneric(prev);
+    if (genRec.t >= 5 && genPrev.t >= 5) {
+      const rRec = genRec.g / genRec.t;
+      const rPrev = genPrev.g / genPrev.t;
+      if (rRec > 0.4 && rRec / Math.max(rPrev, 0.01) > 1.5) {
+        drifts.push({
+          kind: 'hook_generic',
+          severity: 'medium',
+          message: `Vos hooks deviennent plus génériques : ${Math.round(rRec * 100)}% commencent par "Voici", "Comment", "5 X…" ces 60 derniers jours, contre ${Math.round(rPrev * 100)}% avant. Un hook plus pointu se démarque davantage.`,
+        });
+      }
+    }
+
+    // 5. V11.3 — Format dropoff : un pilier qui disparait complètement entre
+    // les 60 jours précédents et les 60 récents.
+    for (const p of Object.keys(pilierCountPrev)) {
+      if (pilierCountPrev[p] >= 3 && !pilierCount[p]) {
+        drifts.push({
+          kind: 'format_dropoff',
+          severity: 'medium',
+          message: `Vos posts "${p}" ont disparu : ${pilierCountPrev[p]} sur les 60 jours précédents, zéro ces 60 derniers jours.`,
+        });
+        break; // un seul max
+      }
+    }
+
+    // 6. V11.3 — Topic avoidance : un sujet tracké absent depuis plus de 42 jours
+    // alors qu'il était présent avant. (utilise content_excerpt + title)
+    const TRACKED_KEYWORDS = ['trésorerie', 'tresorerie', 'dso', 'cash', 'recouvrement', 'agent ia', 'agent', 'cadence', 'heelio'];
+    const sixWeeksAgo = Date.now() - 42 * 86_400_000;
+    const recentTouches: Record<string, boolean> = {};
+    const olderLatest: Record<string, number> = {};
+    const scan = (rows: any[]) => {
+      for (const r of rows) {
+        const txt = ((r.title || '') + ' ' + (r.content_excerpt || '')).toLowerCase();
+        const t = r.scheduled_at ? new Date(r.scheduled_at).getTime() : 0;
+        for (const k of TRACKED_KEYWORDS) {
+          if (txt.includes(k)) {
+            if (t >= sixWeeksAgo) recentTouches[k] = true;
+            else if (t > (olderLatest[k] || 0)) olderLatest[k] = t;
+          }
+        }
+      }
+    };
+    scan(rec); scan(prev);
+    const avoidedTopic = Object.keys(olderLatest).find(k => !recentTouches[k] && olderLatest[k] > 0);
+    if (avoidedTopic) {
+      const weeks = Math.floor((Date.now() - olderLatest[avoidedTopic]) / (7 * 86_400_000));
+      drifts.push({
+        kind: 'topic_avoidance',
+        severity: 'low',
+        message: `Vous n'avez plus parlé de "${avoidedTopic}" depuis ${weeks} semaines. Un angle frais sur ce sujet pourrait surprendre votre audience.`,
+      });
+    }
   } catch { /* silent */ }
 
-  return drifts.slice(0, 3);
+  return drifts.slice(0, 4);
 }
 
 // V10.6.2 — Extrait les piliers qui progressent ou fatiguent depuis humanInsights.

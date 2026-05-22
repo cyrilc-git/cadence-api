@@ -293,6 +293,53 @@ export async function radarFromDrift(): Promise<number> {
           payload: { format: 'text', visual_idea: null, from_drift: 'hook_length' },
         });
         count++;
+      } else if (d.kind === 'hook_generic') {
+        await suggestionUpsert({
+          source: 'heuristic',
+          source_ref: 'drift-hook-pointu',
+          title: 'Un hook personnel et précis',
+          hook: 'Évitez "Voici" et "Comment". Commencez par un fait concret de votre semaine.',
+          angle: 'Test format : remplacer le hook générique par un détail vécu, anonymisé si besoin.',
+          pilier: 'Jeudi · Opinion',
+          score: 72,
+          why: 'Cadence remarque que vos hooks deviennent plus génériques ces 60 derniers jours.',
+          payload: { format: 'text', visual_idea: null, from_drift: 'hook_generic' },
+        });
+        count++;
+      } else if (d.kind === 'format_dropoff') {
+        const m = d.message.match(/posts "([^"]+)"/);
+        const lost = m?.[1] || 'cas client';
+        await suggestionUpsert({
+          source: 'heuristic',
+          source_ref: `drift-revive-${lost.toLowerCase().replace(/\s+/g, '-').slice(0, 30)}`,
+          title: `Revenir au format "${lost}"`,
+          hook: `Votre dernier post "${lost}" date d'il y a plus de deux mois.`,
+          angle: `Reprendre ce format sans le forcer. Un seul cas, anonymisé, avec un avant/après chiffré.`,
+          pilier: lost.toLowerCase().includes('cas') ? 'Lundi · Cas client'
+                : lost.toLowerCase().includes('produit') ? 'Mercredi · Produit'
+                : lost.toLowerCase().includes('opinion') ? 'Jeudi · Opinion'
+                : lost.toLowerCase().includes('build') ? 'Vendredi · Build in public'
+                : 'Mardi · Pédagogie',
+          score: 74,
+          why: `Cadence remarque que ce format a disparu de vos publications récentes.`,
+          payload: { format: 'text', visual_idea: null, from_drift: 'format_dropoff' },
+        });
+        count++;
+      } else if (d.kind === 'topic_avoidance') {
+        const m = d.message.match(/de "([^"]+)"/);
+        const topic = m?.[1] || 'ce sujet';
+        await suggestionUpsert({
+          source: 'heuristic',
+          source_ref: `drift-revive-topic-${topic.toLowerCase().replace(/\s+/g, '-').slice(0, 30)}`,
+          title: `Reprendre "${topic}" sous un nouvel angle`,
+          hook: `Le sujet "${topic}" a disparu de vos publications.`,
+          angle: `Aborder le sujet par un angle nouveau : retour d'expérience récent, pivot, ou contre-prise.`,
+          pilier: 'Jeudi · Opinion',
+          score: 76,
+          why: `Cadence remarque que vous évitez ce sujet depuis plusieurs semaines, alors qu'il faisait partie de votre matière.`,
+          payload: { format: 'opinion', visual_idea: null, from_drift: 'topic_avoidance', topic },
+        });
+        count++;
       }
     }
   } catch (e) {
