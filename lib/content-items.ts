@@ -206,13 +206,16 @@ export async function syncContentItems(opts?: { limit?: number }): Promise<SyncR
   const limit = opts?.limit ?? 500;
   const res: SyncResult = { fromNotion: 0, fromEmbeddings: 0, skipped: 0, errors: 0, totalAfter: 0, errorMessages: [] };
 
-  // 1. Préchargement embeddings pour enrichir l'analytics_state / embeddings_state.
-  const embeddedRows = await listIndexed({ limit }).catch(() => [] as any[]);
+  // 1. Préchargement embeddings (avec content_excerpt) pour enrichir analytics / excerpt.
+  const { data: embeddedRows } = await supabase
+    .from('post_embeddings')
+    .select('id, source, source_ref, title, pilier, status, scheduled_at, content_excerpt, meta')
+    .order('scheduled_at', { ascending: false, nullsFirst: false })
+    .limit(limit);
+  const allEmbedded = (embeddedRows || []) as any[];
   const embeddedByNotionRef = new Map<string, any>();
-  const embeddedBySourceRef = new Map<string, any>();
-  for (const e of embeddedRows) {
+  for (const e of allEmbedded) {
     if (e.source === 'notion' && e.source_ref) embeddedByNotionRef.set(e.source_ref, e);
-    if (e.source_ref) embeddedBySourceRef.set(`${e.source}:${e.source_ref}`, e);
   }
 
   // 2. Notion : upsert chaque post avec provenance enrichie.
@@ -234,7 +237,7 @@ export async function syncContentItems(opts?: { limit?: number }): Promise<SyncR
       };
       const row = provenanceToRow(provEnriched, {
         title: p.title,
-        excerpt: p.excerpt,
+        excerpt: (embedded && embedded.content_excerpt) || p.excerpt || null,
         pilier: p.pilier,
         meta: {
           impressions: p.impressions,
@@ -258,13 +261,14 @@ export async function syncContentItems(opts?: { limit?: number }): Promise<SyncR
 
   // 3. Embeddings : ajout des items présents en pgvector mais absents du flux Notion (ex : import LinkedIn).
   const seenSourceIds = new Set(notionPosts.map(p => `notion-derived:${p.id}`));
-  for (const e of embeddedRows) {
+  for (const e of allEmbedded) {
     if (e.source === 'notion') continue; // déjà couvert par la passe Notion
     if (!e.source_ref) continue;
     try {
       const prov = inferFromEmbedding({
         id: e.id, source: e.source, source_ref: e.source_ref,
         status: e.status, scheduled_at: e.scheduled_at,
+        meta: e.meta,
       });
       const key = `${prov.source_type}:${prov.source_id}`;
       if (seenSourceIds.has(key)) { res.skipped++; continue; }
@@ -276,8 +280,9 @@ export async function syncContentItems(opts?: { limit?: number }): Promise<SyncR
       };
       const row = provenanceToRow(provEnriched, {
         title: e.title || 'Sans titre',
+        excerpt: e.content_excerpt || null,
         pilier: e.pilier,
-        meta: {},
+        meta: e.meta || {},
       });
       const { error } = await supabase.from('content_items').upsert(row, { onConflict: 'source_type,source_id' });
       if (error) {
