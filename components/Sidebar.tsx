@@ -46,9 +46,9 @@ function Icon({ name }: { name: IconName }) {
 }
 
 const SECTIONS: { key: string; label: string; group: NavItem['group'] }[] = [
-  { key: 'cockpit', label: 'Cockpit',       group: 'cockpit' },
-  { key: 'content', label: 'Contenu',       group: 'content' },
-  { key: 'config',  label: 'Configuration', group: 'config' }
+  { key: 'cockpit', label: 'Pilotage',  group: 'cockpit' },
+  { key: 'content', label: 'Écriture',  group: 'content' },
+  { key: 'config',  label: 'Réglages',  group: 'config' }
 ];
 
 export default function Sidebar({ compact = false }: { compact?: boolean } = {}) {
@@ -76,13 +76,13 @@ export default function Sidebar({ compact = false }: { compact?: boolean } = {})
           <Logo />
           <div className={`${compact ? 'lg:hidden lg:group-hover/sidebar:block' : ''}`}>
             <div className="font-semibold text-ink-900 leading-tight tracking-tight whitespace-nowrap">Cadence</div>
-            <div className="text-2xs text-ink-500 leading-tight font-medium uppercase tracking-wider whitespace-nowrap">LinkedIn publishing</div>
+            <div className="text-2xs text-ink-500 leading-tight whitespace-nowrap">éditorial LinkedIn</div>
           </div>
         </div>
         <nav className={`overflow-y-auto h-[calc(100vh-64px-72px)] pt-20 lg:pt-3 space-y-5 ${compact ? 'lg:px-1 lg:group-hover/sidebar:px-3 px-3 py-3 lg:py-4' : 'px-3 py-3 lg:py-4'}`}>
           {SECTIONS.map(section => (
             <div key={section.key}>
-              <div className={`px-3 pb-1.5 text-2xs font-semibold uppercase tracking-wider text-ink-400 ${compact ? 'lg:hidden lg:group-hover/sidebar:block' : ''}`}>{section.label}</div>
+              <div className={`px-3 pb-1.5 text-2xs font-medium text-ink-400 ${compact ? 'lg:hidden lg:group-hover/sidebar:block' : ''}`}>{section.label}</div>
               <div className="space-y-0.5">
                 {NAV.filter(n => n.group === section.group).map(item => {
                   const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
@@ -101,7 +101,7 @@ export default function Sidebar({ compact = false }: { compact?: boolean } = {})
         </nav>
         <div className={`absolute bottom-0 left-0 right-0 border-t border-ink-100 bg-white ${compact ? 'lg:px-2 lg:py-2 lg:group-hover/sidebar:px-5 lg:group-hover/sidebar:py-3.5 px-5 py-3.5' : 'px-5 py-3.5'}`}>
           <div className={`flex items-center gap-3 ${compact ? 'lg:justify-center lg:group-hover/sidebar:justify-start' : ''}`} title={compact ? 'Cyril Coulange · cyril@heelio.io' : undefined}>
-            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center text-white text-sm font-semibold shrink-0">CC</div>
+            <div className="w-9 h-9 rounded-full bg-ink-100 text-ink-700 flex items-center justify-center text-sm font-semibold shrink-0 ring-1 ring-inset ring-ink-200">CC</div>
             <div className={`flex-1 min-w-0 ${compact ? 'lg:hidden lg:group-hover/sidebar:block' : ''}`}>
               <div className="text-sm font-medium text-ink-900 leading-tight truncate">Cyril Coulange</div>
               <div className="text-xs text-ink-500 leading-tight truncate">cyril@heelio.io</div>
@@ -118,8 +118,8 @@ export default function Sidebar({ compact = false }: { compact?: boolean } = {})
 
 function Logo() {
   return (
-    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-sm">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+    <div className="w-9 h-9 rounded-xl bg-ink-900 flex items-center justify-center">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
         <path d="M9 12 Q9 7 12 7 Q15 7 16 9 M9 12 Q9 17 12 17 Q15 17 16 15" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
       </svg>
     </div>
