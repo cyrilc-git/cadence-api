@@ -87,8 +87,15 @@ function SourceBadge({ source }: { source: string }) {
   );
 }
 
+// V10.3 — Type insights radar (synchro avec /api/insights)
+type RadarSignal = {
+  kind: 'pilier_silence' | 'topic_recyclable' | 'topic_saturated' | 'topic_never' | 'angle_winning' | 'low_data';
+  message: string;
+};
+
 export default function SuggestionsClient() {
   const [items, setItems] = useState<Suggestion[]>([]);
+  const [signals, setSignals] = useState<RadarSignal[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,10 +106,17 @@ export default function SuggestionsClient() {
   async function load() {
     setLoading(true); setError(null);
     try {
-      const r = await fetch('/api/suggestions?status=pending', { cache: 'no-store' });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || 'Erreur chargement');
+      const [sugRes, sigRes] = await Promise.all([
+        fetch('/api/suggestions?status=pending', { cache: 'no-store' }),
+        fetch('/api/insights', { cache: 'no-store' }).catch(() => null),
+      ]);
+      const d = await sugRes.json();
+      if (!sugRes.ok) throw new Error(d.error || 'Erreur chargement');
       setItems(d.suggestions || []);
+      if (sigRes && sigRes.ok) {
+        const sd = await sigRes.json();
+        setSignals((sd.insights || []) as RadarSignal[]);
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -162,6 +176,27 @@ export default function SuggestionsClient() {
 
       {error && <div className="card p-3 text-sm text-danger-700 border-danger-100 bg-danger-50/40">{error}</div>}
 
+      {/* V10.3 — Pourquoi Cadence pense à ces idées (signaux amont du radar) */}
+      {signals.length > 0 && signals.filter(s => s.kind !== 'low_data').length > 0 && (
+        <section>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Pourquoi maintenant</h2>
+          <ul className="space-y-1.5">
+            {signals
+              .filter(s => s.kind !== 'low_data')
+              .slice(0, 3)
+              .map((s, i) => {
+                const dot = s.kind === 'topic_saturated' ? 'bg-amber-500' : s.kind === 'pilier_silence' ? 'bg-warn-500' : s.kind === 'angle_winning' ? 'bg-emerald-500' : 'bg-brand-500';
+                return (
+                  <li key={i} className="flex items-start gap-3">
+                    <span className={`w-1.5 h-1.5 rounded-full mt-2 shrink-0 ${dot}`} aria-hidden />
+                    <p className="text-sm text-ink-800 leading-relaxed">{s.message}</p>
+                  </li>
+                );
+              })}
+          </ul>
+        </section>
+      )}
+
       {/* Filter bar */}
       <div className="flex items-center gap-2 flex-wrap">
         {sources.map(f => (
@@ -205,8 +240,8 @@ export default function SuggestionsClient() {
                     {s.pilier && <span className="chip chip-brand">{s.pilier}</span>}
                     {(s.format || s.payload?.format) && FORMAT_LABELS[(s.format || s.payload?.format) as string] && <span className="chip chip-neutral">{FORMAT_LABELS[(s.format || s.payload?.format) as string]}</span>}
                     {/* V8.1 — novelty / saturation chips */}
-                    {s.payload?.novelty != null && s.payload.novelty > 0.7 && <span className="chip chip-success" title={`Score nouveauté ${Math.round(s.payload.novelty * 100)}%`}>✨ Nouveau</span>}
-                    {s.payload?.saturation > 2 && <span className="chip chip-warn" title={`${s.payload.saturation} posts récents similaires`}>⚠ Déjà couvert</span>}
+                    {s.payload?.novelty != null && s.payload.novelty > 0.7 && <span className="chip chip-success" title={`Score nouveauté ${Math.round(s.payload.novelty * 100)}%`}>Angle inédit</span>}
+                    {s.payload?.saturation > 2 && <span className="chip chip-warn" title={`${s.payload.saturation} posts récents similaires`}>Sujet déjà couvert</span>}
                     {s.created_at && <span className="ml-auto text-2xs text-ink-400">{timeAgo(s.created_at)}</span>}
                   </div>
                   <h3 className="font-semibold text-ink-900 text-base leading-snug">{s.title}</h3>
