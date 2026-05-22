@@ -2,6 +2,7 @@
   "crons": [
     { "path": "/api/cron-publish",         "schedule": "30 5 * * *" },
     { "path": "/api/scrape-analytics",     "schedule": "0 22 * * *" },
-    { "path": "/api/content-items/sync",   "schedule": "0 6 * * *" }
+    { "path": "/api/content-items/sync",   "schedule": "0 6 * * *" },
+    { "path": "/api/suggestions/refresh",  "schedule": "0 7 * * *" }
   ]
 }
