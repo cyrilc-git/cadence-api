@@ -242,11 +242,16 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
             <button onClick={() => setCursor(new Date(new Date().getFullYear(), new Date().getMonth(), 1))} className="btn-secondary text-xs">Aujourd'hui</button>
             <button onClick={() => { const d = new Date(cursor); d.setMonth(d.getMonth() + 1); setCursor(d); }} className="btn-secondary w-9 h-9 p-0" aria-label="Mois suivant">›</button>
           </div>
-          <button onClick={generateWeek} disabled={generating} className="btn-primary">
+          <button
+            onClick={generateWeek}
+            disabled={generating}
+            className="text-xs text-ink-500 hover:text-ink-900 transition px-2 py-1 rounded-md hover:bg-ink-50 inline-flex items-center gap-1.5"
+            title="Cadence prépare 5 brouillons non validés pour la semaine prochaine"
+          >
             {generating ? (
-              <><span className="dot bg-white animate-pulse-soft" /> Génération…</>
+              <><span className="w-1.5 h-1.5 rounded-full bg-brand-500 animate-pulse-soft" /> Cadence prépare la semaine</>
             ) : (
-              <>Générer la semaine</>
+              <>Préparer la semaine</>
             )}
           </button>
         </div>

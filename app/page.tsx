@@ -111,11 +111,11 @@ export default async function HomePage() {
       {/* === CADENCE A REMARQUÉ — insight prioritaire ────── V9.0 §2 */}
       <CadenceObserved />
 
-      {/* === NEXT BEST ACTION ─────────────────────────────── V9.0 §2 */}
+      {/* === V11.6 §2 — Idée du moment (label éditorial calme, pas injonctif) === */}
       {topSuggestion ? (
         <section className="animate-fade-in">
-          <div className="text-2xs uppercase tracking-wider font-semibold text-brand-700 mb-2">Prochaine meilleure action</div>
-          <div className="border-l-2 border-brand-300 pl-4">
+          <div className="text-2xs font-medium text-ink-500 mb-2">Cadence pense à</div>
+          <div className="border-l-2 border-ink-300 pl-4">
             <h2 className="text-lg font-semibold text-ink-900 leading-snug">{topSuggestion.title}</h2>
             {topSuggestion.hook && topSuggestion.hook !== topSuggestion.title && (
               <p className="mt-1.5 text-sm text-ink-600 italic">« {topSuggestion.hook} »</p>
@@ -124,8 +124,8 @@ export default async function HomePage() {
               <p className="mt-2 text-2xs text-ink-500">{topSuggestion.why}</p>
             )}
             <div className="mt-3 flex items-center gap-3 text-xs">
-              <Link href={`/posts/new?suggest=${topSuggestion.id}&pilier=${encodeURIComponent(topSuggestion.pilier || '')}&hook=${encodeURIComponent(topSuggestion.hook || '')}&brief=${encodeURIComponent(topSuggestion.title)}`} className="btn-primary text-xs">
-                Écrire ce post →
+              <Link href={`/posts/new?suggest=${topSuggestion.id}&pilier=${encodeURIComponent(topSuggestion.pilier || '')}&hook=${encodeURIComponent(topSuggestion.hook || '')}&brief=${encodeURIComponent(topSuggestion.title)}`} className="text-brand-700 hover:text-brand-900 font-medium transition">
+                Écrire →
               </Link>
               {otherSuggestions.length > 0 && (
                 <Link href="/suggestions" className="text-ink-500 hover:text-ink-900 transition">
@@ -137,7 +137,7 @@ export default async function HomePage() {
         </section>
       ) : (
         <section className="text-sm text-ink-500 animate-fade-in">
-          Pas de suggestion fraîche. <Link href="/suggestions" className="text-brand-700 hover:text-brand-900 font-medium transition">Lancer le Radar →</Link>
+          Cadence cherche encore. <Link href="/suggestions" className="text-brand-700 hover:text-brand-900 font-medium transition">Ouvrir le radar →</Link>
         </section>
       )}
 
