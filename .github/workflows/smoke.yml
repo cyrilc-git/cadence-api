@@ -13,7 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Hit critical routes
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Hit critical routes (status only)
         run: |
           set -e
           BASE="https://cadence-api-ruddy.vercel.app"
@@ -21,11 +27,10 @@ jobs:
           FAILED=0
           for r in "${ROUTES[@]}"; do
             code=$(curl -s -o /dev/null -w "%{http_code}" "$BASE$r" || echo "000")
-            # 200, 307 (redirect), 308 are OK ; 401/403 OK pour API auth ; 404 OK pour health si pas branché
             if [[ "$code" =~ ^(200|3..|401|403|404)$ ]]; then
-              echo "✓ $r → $code"
+              echo "OK $r ($code)"
             else
-              echo "❌ $r → $code"
+              echo "FAIL $r ($code)"
               FAILED=$((FAILED+1))
             fi
           done
@@ -33,3 +38,6 @@ jobs:
             echo "$FAILED route(s) failed"
             exit 1
           fi
+
+      - name: Content smoke (markers HTML)
+        run: node scripts/smoke-content.mjs
