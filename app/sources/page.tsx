@@ -128,7 +128,7 @@ export default async function SourcesPage() {
 
       {/* Trust — discret, prose, pas de card */}
       <section className="pt-4 border-t border-ink-100 text-xs text-ink-500 leading-relaxed">
-        OAuth-first partout où possible. Credentials avancés chiffrés AES-256-GCM côté serveur. Signaux (GitHub, Gmail, Drive) en lecture seule — Cadence n'écrit jamais dans ces sources.
+        OAuth-first partout où possible. Credentials avancés chiffrés AES-256-GCM côté serveur. Signaux (GitHub, Gmail, Drive) en lecture seule, Cadence n&apos;écrit jamais dans ces sources.
       </section>
     </div>
   );
