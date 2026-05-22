@@ -62,7 +62,8 @@ export default function CadenceEditor({
   const abortRef = useRef<AbortController | null>(null);
 
   // V11.2 — Memory check : Cadence se souvient pendant la frappe
-  const [memorySignal, setMemorySignal] = useState<{ kind: 'saturation' | 'novelty' | 'familiar'; message: string } | null>(null);
+  // V11.5 — counterAngle proposé si saturation détectée
+  const [memorySignal, setMemorySignal] = useState<{ kind: 'saturation' | 'novelty' | 'familiar'; message: string; counterAngle?: string | null } | null>(null);
   const memoryAbortRef = useRef<AbortController | null>(null);
   const memoryTimerRef = useRef<any>(null);
 
@@ -83,7 +84,7 @@ export default function CadenceEditor({
         if (!r.ok) return;
         const d = await r.json();
         if (d && d.kind && d.kind !== 'none' && d.message) {
-          setMemorySignal({ kind: d.kind, message: d.message });
+          setMemorySignal({ kind: d.kind, message: d.message, counterAngle: d.counterAngle || null });
         } else {
           setMemorySignal(null);
         }
@@ -361,18 +362,24 @@ export default function CadenceEditor({
         onClose={() => setSlashOpen(false)}
       />
 
-      {/* V11.2 — Memory signal discret pendant la frappe */}
+      {/* V11.2 + V11.5 — Memory signal discret + contre-angle si saturation */}
       {memorySignal && !aiBusy && (
-        <p
-          className={`mt-2 text-2xs italic leading-relaxed ${
-            memorySignal.kind === 'novelty' ? 'text-emerald-700' :
-            memorySignal.kind === 'saturation' ? 'text-amber-700' :
-            'text-ink-500'
-          }`}
-          aria-live="polite"
-        >
-          {memorySignal.message}
-        </p>
+        <div className="mt-2 space-y-0.5" aria-live="polite">
+          <p
+            className={`text-2xs italic leading-relaxed ${
+              memorySignal.kind === 'novelty' ? 'text-emerald-700' :
+              memorySignal.kind === 'saturation' ? 'text-amber-700' :
+              'text-ink-500'
+            }`}
+          >
+            {memorySignal.message}
+          </p>
+          {memorySignal.counterAngle && (
+            <p className="text-2xs text-ink-500 leading-relaxed">
+              {memorySignal.counterAngle}
+            </p>
+          )}
+        </div>
       )}
 
       {/* V8.9 — suggestions de mentions IA discrètes */}

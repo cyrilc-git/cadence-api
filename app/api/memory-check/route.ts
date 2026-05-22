@@ -32,11 +32,24 @@ export async function POST(req: Request) {
       };
     }
 
+    // V11.5 — contre-angle proposé si saturation détectée
+    let counterAngle: string | null = null;
     if (saturation >= 2) {
       kind = 'saturation';
       message = nearestInfo
         ? `Cadence se souvient de ${saturation} posts proches, dont « ${nearestInfo.title.slice(0, 60)} »${nearestInfo.daysAgo !== null ? ` il y a ${nearestInfo.daysAgo} jours` : ''}.`
         : `Cadence se souvient de ${saturation} posts proches dans votre archive.`;
+      // Heuristique : choisir un angle opposé au texte
+      const lower = text.toLowerCase();
+      if (/\bcas\b|client|histoire|témoignage|vécu/.test(lower)) {
+        counterAngle = 'Préférez un angle opinion ou contre-exemple pour éviter la répétition.';
+      } else if (/\bopinion\b|à mon avis|je pense|hot take/.test(lower)) {
+        counterAngle = 'Préférez un cas anonymisé chiffré pour démontrer plutôt que défendre.';
+      } else if (/comment|pourquoi|étape|leçon|conseil/.test(lower)) {
+        counterAngle = 'Préférez un build in public ou un retour d\'expérience pour varier.';
+      } else {
+        counterAngle = 'Décalez l\'angle : opinion tranchée, contre-exemple ou retour chiffré.';
+      }
     } else if (novelty >= 0.7) {
       kind = 'novelty';
       message = 'Angle inédit dans vos archives.';
@@ -48,6 +61,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       kind,
       message,
+      counterAngle,
       novelty: Math.round(novelty * 100),
       saturation,
       nearest: nearestInfo,
