@@ -11,6 +11,7 @@
 // - Après import : CTA "Reconstruire la mémoire éditoriale" (re-index embeddings).
 
 import { useState, useRef, useCallback, useMemo } from 'react';
+import Link from 'next/link';
 import JSZip from 'jszip';
 
 type ParsedPost = { date: string; text: string; url?: string; sharedUrl?: string };
@@ -91,7 +92,7 @@ export default function LinkedInImportClient() {
   const [parsing, setParsing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [importResult, setImportResult] = useState<{ created: number; skipped: number; errors: number; duplicates: number; results: Array<{ index: number; status: 'created'|'duplicate'|'error'|'invalid'; title?: string; error?: string }> } | null>(null);
+  const [importResult, setImportResult] = useState<{ created: number; skipped: number; errors: number; duplicates: number; synced?: { fromNotion: number; fromEmbeddings: number; errors: number } | null; results: Array<{ index: number; status: 'created'|'duplicate'|'error'|'invalid'; title?: string; error?: string }> } | null>(null);
   const [reindexing, setReindexing] = useState(false);
   const [reindexed, setReindexed] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -174,6 +175,7 @@ export default function LinkedInImportClient() {
       const BATCH = 10;
       const toImport = posts.slice(0, 200);
       let totalCreated = 0, totalSkipped = 0, totalErrors = 0, totalDuplicates = 0;
+      let lastSynced: { fromNotion: number; fromEmbeddings: number; errors: number } | null = null;
       const allResults: Array<{ index: number; status: 'created'|'duplicate'|'error'|'invalid'; title?: string; error?: string }> = [];
       for (let i = 0; i < toImport.length; i += BATCH) {
         const chunk = toImport.slice(i, i + BATCH);
@@ -187,6 +189,7 @@ export default function LinkedInImportClient() {
         totalCreated += d.created || 0;
         totalSkipped += d.skipped || 0;
         totalErrors += d.errors || 0;
+        if (d.synced) lastSynced = d.synced;
         const batchResults: any[] = Array.isArray(d.results) ? d.results : [];
         for (const br of batchResults) {
           allResults.push({ ...br, index: i + (br.index || 0) });
@@ -194,7 +197,7 @@ export default function LinkedInImportClient() {
         }
         setProgress({ done: i + chunk.length, total: toImport.length });
       }
-      setImportResult({ created: totalCreated, skipped: totalSkipped, errors: totalErrors, duplicates: totalDuplicates, results: allResults });
+      setImportResult({ created: totalCreated, skipped: totalSkipped, errors: totalErrors, duplicates: totalDuplicates, synced: lastSynced, results: allResults });
     } catch (e: any) { setError(e.message); }
     finally { setImporting(false); setProgress(null); }
   }
@@ -365,6 +368,11 @@ export default function LinkedInImportClient() {
                     ))}
                   </ul>
                 </details>
+              )}
+              {importResult.synced && (importResult.synced.fromNotion + importResult.synced.fromEmbeddings) > 0 && (
+                <p className="text-xs text-emerald-700 leading-relaxed">
+                  Mémoire canonique synchronisée : {importResult.synced.fromNotion + importResult.synced.fromEmbeddings} entrée{(importResult.synced.fromNotion + importResult.synced.fromEmbeddings) > 1 ? 's' : ''} mises à jour. Visible immédiatement dans <Link href="/cerveau" className="underline hover:text-emerald-900">la Mémoire</Link>.
+                </p>
               )}
               {importResult.created > 0 && (
                 reindexed === null ? (
