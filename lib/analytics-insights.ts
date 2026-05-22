@@ -222,10 +222,47 @@ export async function computeHumanInsights(): Promise<HumanInsight[]> {
     }
   }
 
+  // 8. V10.6.1 — Fatigue / progression par pilier (30 derniers jours vs 30-60 jours)
+  // Compare la perf moyenne d'un pilier sur la fenêtre récente à la précédente.
+  // Si delta >= +30% : ce pilier progresse. Si delta <= -30% : ce pilier fatigue.
+  const thirtyAgo = now - 30 * 86_400_000;
+  const sixtyAgo = now - 60 * 86_400_000;
+  const recentByPilier: Record<string, number[]> = {};
+  const previousByPilier: Record<string, number[]> = {};
+  for (const p of withMetrics) {
+    if (!p.scheduled_at) continue;
+    const t = new Date(p.scheduled_at).getTime();
+    if (t < sixtyAgo) continue;
+    const pil = p.pilier?.split(' · ')[1]?.trim() || p.pilier || 'sans pilier';
+    if (t >= thirtyAgo) (recentByPilier[pil] = recentByPilier[pil] || []).push(p.meta.impressions);
+    else (previousByPilier[pil] = previousByPilier[pil] || []).push(p.meta.impressions);
+  }
+  for (const pil of Object.keys(recentByPilier)) {
+    const rec = recentByPilier[pil];
+    const prev = previousByPilier[pil];
+    if (!rec || !prev || rec.length < 2 || prev.length < 2) continue;
+    const avgRec = avg(rec), avgPrev = avg(prev);
+    if (avgPrev === 0) continue;
+    const delta = avgRec / avgPrev - 1;
+    if (delta >= 0.3) {
+      insights.push({
+        kind: 'pilier',
+        message: `Vos posts "${pil}" progressent : +${Math.round(delta * 100)}% d'impressions sur les 30 derniers jours vs les 30 précédents.`,
+        data: { pilier: pil, avgRec: Math.round(avgRec), avgPrev: Math.round(avgPrev) }
+      });
+    } else if (delta <= -0.3) {
+      insights.push({
+        kind: 'pilier',
+        message: `Vos posts "${pil}" fatiguent : ${Math.round(delta * 100)}% d'impressions sur les 30 derniers jours vs les 30 précédents. Tester un autre angle ou une autre fréquence.`,
+        data: { pilier: pil, avgRec: Math.round(avgRec), avgPrev: Math.round(avgPrev) }
+      });
+    }
+  }
+
   if (insights.length === 0) {
     insights.push({
       kind: 'low_data',
-      message: `Aucun pattern statistiquement significatif détecté sur ${withMetrics.length} posts. Continuez à publier — les patterns émergeront.`
+      message: `Aucun pattern statistiquement significatif détecté sur ${withMetrics.length} posts. Continuez à publier, les patterns émergeront.`
     });
   }
 
