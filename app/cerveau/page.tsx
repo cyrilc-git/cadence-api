@@ -40,6 +40,33 @@ async function detectUnknownSources(): Promise<SourceHint[]> {
   return unknown;
 }
 
+function ConfidenceRing({ overall, memory, linkedin, embeddings }: { overall: number; memory: number; linkedin: number; embeddings: number }) {
+  const pct = Math.max(0, Math.min(100, overall));
+  const radius = 38;
+  const circumference = 2 * Math.PI * radius;
+  const dash = (pct / 100) * circumference;
+  const color = pct >= 70 ? '#059669' : pct >= 40 ? '#0A66C2' : '#B45309';
+  return (
+    <div className="flex items-center gap-4">
+      <div className="relative w-24 h-24 shrink-0">
+        <svg className="w-24 h-24 -rotate-90" viewBox="0 0 96 96">
+          <circle cx="48" cy="48" r={radius} fill="none" stroke="#E2E8F0" strokeWidth="6" />
+          <circle cx="48" cy="48" r={radius} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeDasharray={`${dash} ${circumference}`} />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-2xl font-semibold tabular-nums" style={{ color }}>{pct}</span>
+          <span className="text-2xs uppercase tracking-wider text-ink-500">global</span>
+        </div>
+      </div>
+      <ul className="text-xs space-y-1 text-ink-600">
+        <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-ink-700" /> Mémoire <span className="tabular-nums text-ink-900 font-medium">{memory}</span></li>
+        <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-[#0A66C2]" /> LinkedIn <span className="tabular-nums text-ink-900 font-medium">{linkedin}</span></li>
+        <li className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Embeddings <span className="tabular-nums text-ink-900 font-medium">{embeddings}</span></li>
+      </ul>
+    </div>
+  );
+}
+
 function CoverageStat({ label, value, hint, tone }: { label: string; value: number; hint: string; tone: 'linkedin' | 'notion' | 'success' | 'amber' | 'muted' }) {
   const valueColor = {
     linkedin: 'text-[#0A66C2]',
@@ -102,6 +129,43 @@ export default async function BrainPage() {
           Ce que Cadence a digéré, ce qu&apos;il observe, ce qui lui manque encore.
         </p>
       </header>
+
+      {/* === V10.2 — Score de confiance global + apprentissages === */}
+      {brain.totalIndexed > 0 && (
+        <section>
+          <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] gap-5 items-start">
+            <ConfidenceRing
+              overall={brain.confidenceScore.overall}
+              memory={brain.confidenceScore.memory}
+              linkedin={brain.confidenceScore.linkedin}
+              embeddings={brain.confidenceScore.embeddings}
+            />
+            <div className="space-y-2 pt-1">
+              <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Confiance de Cadence</h2>
+              <p className="text-sm text-ink-700 leading-relaxed">
+                {brain.confidenceScore.overall >= 70
+                  ? 'Cadence comprend votre ligne éditoriale. Les patterns détectés sont fiables.'
+                  : brain.confidenceScore.overall >= 40
+                  ? 'Cadence se construit une image cohérente, mais certaines zones restent floues.'
+                  : 'Cadence connaît peu votre historique. Un import LinkedIn complet aiderait à passer un cap.'}
+              </p>
+              {brain.weeklyLearnings.length > 0 && (
+                <div className="pt-2">
+                  <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-1">Cette semaine</p>
+                  <ul className="space-y-1.5">
+                    {brain.weeklyLearnings.slice(0, 3).map((l, i) => (
+                      <li key={i} className="text-sm text-ink-800 leading-relaxed flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-2 shrink-0" aria-hidden />
+                        <span>{l.message}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* === ACTION HÉROÏQUE (si vide) === */}
       {brain.totalIndexed < 10 && (

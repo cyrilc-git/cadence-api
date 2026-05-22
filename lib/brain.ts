@@ -81,6 +81,22 @@ export type BrainState = {
 
   // Sources non connectées vues comme angle mort
   unknownSources: { kind: string; label: string }[];
+
+  // V10.2 — Score de confiance global (0-100) + composantes
+  confidenceScore: {
+    overall: number;
+    memory: number;        // couverture mémoire (volume indexé)
+    linkedin: number;      // couverture LinkedIn (% confirmé)
+    embeddings: number;    // freshness embeddings
+  };
+
+  // V10.2 — Apprentissage récent (semaine en cours vs semaine d'avant)
+  weeklyLearnings: BrainLearning[];
+};
+
+export type BrainLearning = {
+  kind: 'volume_change' | 'format_rising' | 'format_fatiguing' | 'pilier_shift' | 'topic_new';
+  message: string;
 };
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -263,6 +279,56 @@ export async function computeBrainState(unknownSourcesInput?: { kind: string; la
     });
   }
 
+  // V10.2 — Score de confiance global (0-100)
+  // Trois composantes pondérées : memory 30% / linkedin 50% / embeddings 20%.
+  const memoryScore = Math.min(100, Math.round((total / 100) * 100)); // 100 posts = 100%
+  const linkedinScore = confirmedPct;                                  // déjà 0-100
+  const daysSinceEmbed = lastIndexedAt ? Math.floor((Date.now() - new Date(lastIndexedAt).getTime()) / 86_400_000) : 999;
+  const embeddingsScore = total === 0 ? 0 : Math.max(0, Math.min(100, 100 - daysSinceEmbed * 4)); // -4 pts / jour
+  const overallScore = Math.round(memoryScore * 0.3 + linkedinScore * 0.5 + embeddingsScore * 0.2);
+
+  // V10.2 — Ce que Cadence a appris cette semaine
+  const weeklyLearnings: BrainLearning[] = [];
+  try {
+    const sevenDays = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const fourteenDays = new Date(Date.now() - 14 * 86_400_000).toISOString();
+    const { count: thisWeek } = await supabase
+      .from('post_embeddings').select('id', { count: 'exact', head: true })
+      .gte('indexed_at', sevenDays);
+    const { count: lastWeek } = await supabase
+      .from('post_embeddings').select('id', { count: 'exact', head: true })
+      .gte('indexed_at', fourteenDays).lt('indexed_at', sevenDays);
+    const tw = thisWeek || 0, lw = lastWeek || 0;
+    if (tw + lw > 0) {
+      if (tw > lw && lw > 0) {
+        weeklyLearnings.push({
+          kind: 'volume_change',
+          message: `${tw} post${tw > 1 ? 's' : ''} indexé${tw > 1 ? 's' : ''} cette semaine, contre ${lw} la semaine dernière. Vous accélérez.`,
+        });
+      } else if (lw > tw && tw > 0) {
+        weeklyLearnings.push({
+          kind: 'volume_change',
+          message: `${tw} post${tw > 1 ? 's' : ''} cette semaine contre ${lw} la précédente. Rythme en baisse.`,
+        });
+      } else if (tw > 0 && lw === 0) {
+        weeklyLearnings.push({
+          kind: 'volume_change',
+          message: `Reprise cette semaine avec ${tw} post${tw > 1 ? 's' : ''} indexé${tw > 1 ? 's' : ''} après une semaine sans signal.`,
+        });
+      }
+    }
+    // Sujet nouveau cette semaine : topic dont count60d > 0 mais lastDays <= 7
+    for (const t of topics) {
+      if (t.lastDays !== null && t.lastDays <= 7 && t.count60d <= 2) {
+        weeklyLearnings.push({
+          kind: 'topic_new',
+          message: `${t.topic} fait son retour après une absence. C’est le moment de creuser un angle inédit.`,
+        });
+        break;
+      }
+    }
+  } catch { /* silent */ }
+
   return {
     totalIndexed: total,
     sources,
@@ -293,6 +359,13 @@ export async function computeBrainState(unknownSourcesInput?: { kind: string; la
     topInsight,
     otherInsights,
     unknownSources: unknownSourcesInput || [],
+    confidenceScore: {
+      overall: overallScore,
+      memory: memoryScore,
+      linkedin: linkedinScore,
+      embeddings: embeddingsScore,
+    },
+    weeklyLearnings,
   };
 }
 
