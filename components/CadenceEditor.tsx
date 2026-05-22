@@ -61,6 +61,37 @@ export default function CadenceEditor({
   const [preIaText, setPreIaText] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // V11.2 — Memory check : Cadence se souvient pendant la frappe
+  const [memorySignal, setMemorySignal] = useState<{ kind: 'saturation' | 'novelty' | 'familiar'; message: string } | null>(null);
+  const memoryAbortRef = useRef<AbortController | null>(null);
+  const memoryTimerRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (value.trim().length < 80) { setMemorySignal(null); return; }
+    if (memoryTimerRef.current) clearTimeout(memoryTimerRef.current);
+    memoryTimerRef.current = setTimeout(async () => {
+      try {
+        if (memoryAbortRef.current) memoryAbortRef.current.abort();
+        const ctl = new AbortController();
+        memoryAbortRef.current = ctl;
+        const r = await fetch('/api/memory-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: value }),
+          signal: ctl.signal,
+        });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d && d.kind && d.kind !== 'none' && d.message) {
+          setMemorySignal({ kind: d.kind, message: d.message });
+        } else {
+          setMemorySignal(null);
+        }
+      } catch { /* abort or network: silent */ }
+    }, 1500);
+    return () => { if (memoryTimerRef.current) clearTimeout(memoryTimerRef.current); };
+  }, [value]);
+
   function handleTextChange(next: string) {
     onChange(next);
     const ta = ref.current;
@@ -329,6 +360,20 @@ export default function CadenceEditor({
         onSelect={applySlashCommand}
         onClose={() => setSlashOpen(false)}
       />
+
+      {/* V11.2 — Memory signal discret pendant la frappe */}
+      {memorySignal && !aiBusy && (
+        <p
+          className={`mt-2 text-2xs italic leading-relaxed ${
+            memorySignal.kind === 'novelty' ? 'text-emerald-700' :
+            memorySignal.kind === 'saturation' ? 'text-amber-700' :
+            'text-ink-500'
+          }`}
+          aria-live="polite"
+        >
+          {memorySignal.message}
+        </p>
+      )}
 
       {/* V8.9 — suggestions de mentions IA discrètes */}
       {showMentionSuggestions && !aiBusy && (
