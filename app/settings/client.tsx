@@ -7,7 +7,7 @@ import StatusBadge from '@/components/StatusBadge';
 type Connector = { kind: string; status: string; last_error?: string | null; info?: string };
 
 const PROVIDERS: Array<{ key: string; label: string; description: string; oauthRoute?: string; testRoute?: string; secretFields: Array<{ provider: string; label: string; placeholder?: string; hint?: string }> }> = [
-  { key: 'linkedin', label: 'LinkedIn', description: 'OAuth — publication sur votre profil',
+  { key: 'linkedin', label: 'LinkedIn', description: 'OAuth, publication sur votre profil',
     oauthRoute: '/api/auth/linkedin',
     secretFields: [
       { provider: 'linkedin_client_id',     label: 'Client ID',     placeholder: '78ph2kbf3uvjpw' },

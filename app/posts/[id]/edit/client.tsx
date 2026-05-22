@@ -344,7 +344,7 @@ function SaveIndicator({ saving, lastSavedAt, isDirty, error, tick }: { saving: 
   if (error) return <span className="text-2xs text-danger-700 flex items-center gap-1 px-2"><span className="dot bg-danger-500" /> {error}</span>;
   if (saving) return <span className="text-2xs text-ink-500 flex items-center gap-1 animate-pulse-soft px-2"><span className="dot bg-brand-500" /> …</span>;
   if (isDirty) return <span className="text-2xs text-ink-500 flex items-center gap-1 px-2"><span className="dot bg-warn-500" /> Non sauvé</span>;
-  if (!lastSavedAt) return <span className="text-2xs text-ink-400 px-2">—</span>;
+  if (!lastSavedAt) return <span className="text-2xs text-ink-400 px-2">·</span>;
   return <span className="text-2xs text-success-700 flex items-center gap-1 px-2"><span className="dot bg-success-500" /> {formatRelative(lastSavedAt)}</span>;
 }
 

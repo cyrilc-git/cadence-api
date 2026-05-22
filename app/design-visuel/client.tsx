@@ -147,7 +147,7 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
       <header>
         <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Studio</p>
         <h1 className="mt-1 text-3xl font-semibold text-ink-900 tracking-tight">Design visuel</h1>
-        <p className="mt-2 text-sm text-ink-500 max-w-2xl">La direction artistique de Cadence. Inspiration, références, ambiance — tout ce qui guide Claude quand il génère vos illustrations.</p>
+        <p className="mt-2 text-sm text-ink-500 max-w-2xl">La direction artistique de Cadence. Inspiration, références, ambiance : tout ce qui guide Claude quand il génère vos illustrations.</p>
       </header>
 
       {/* Sample previews — 3 styles côte à côte */}

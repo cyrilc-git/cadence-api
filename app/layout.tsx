@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import LayoutShell from '@/components/LayoutShell';
 
 export const metadata: Metadata = {
-  title: 'Cadence — LinkedIn publishing',
+  title: 'Cadence · LinkedIn publishing',
   description: 'Préparez, validez et publiez vos posts LinkedIn depuis une seule app.',
   icons: { icon: '/icon.svg', apple: '/apple-icon.svg' }
 };

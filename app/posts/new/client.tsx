@@ -387,7 +387,7 @@ function StartHint({
     <section className="animate-fade-in">
       <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Nouveau post · {pilier.split('·')[1]?.trim() || pilier}</p>
       <h1 className="mt-2 text-2xl font-semibold text-ink-900 tracking-tight">De quoi voulez-vous parler ?</h1>
-      <p className="mt-1.5 text-sm text-ink-500">Un brief court — Cadence en fera 3 versions. Ou commencez à écrire directement plus bas.</p>
+      <p className="mt-1.5 text-sm text-ink-500">Un brief court : Cadence en fera 3 versions. Ou commencez à écrire directement plus bas.</p>
       <textarea
         value={brief} onChange={e => onBrief(e.target.value)}
         rows={3}

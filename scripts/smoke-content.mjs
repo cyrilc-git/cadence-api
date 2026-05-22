@@ -11,7 +11,7 @@ const base = process.argv[2] || process.env.SMOKE_BASE || 'https://cadence-api-r
 
 const ROUTES = [
   { path: '/',                marker: 'Bonjour' },
-  { path: '/calendar',        marker: 'Cron publie' },
+  { path: '/calendar',        marker: 'Aucune publication sans validation' },
   { path: '/posts',           marker: 'Bibliothèque' },
   { path: '/posts/new',       marker: 'Brouillon' },
   { path: '/suggestions',     marker: 'Radar' },
