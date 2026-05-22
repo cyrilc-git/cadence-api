@@ -55,10 +55,11 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
               <div className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Identifiant</div>
               <button
                 onClick={() => navigator.clipboard?.writeText(dbInfo.id)}
-                className="mt-1 text-xs text-ink-500 hover:text-brand-700 transition flex items-center gap-1"
+                className="mt-1 text-xs text-ink-500 hover:text-brand-700 transition inline-flex items-center gap-1.5"
+                title="Copier l'identifiant complet"
               >
-                <span>•••• {dbInfo.id.slice(-6)}</span>
-                <span className="text-2xs">📋 Copier</span>
+                <span>Copier l&apos;identifiant</span>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path strokeLinecap="round" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" /></svg>
               </button>
             </div>
           </div>
@@ -146,10 +147,9 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
                 <li key={a.id} className="flex items-start gap-3 p-2.5 rounded-lg border border-ink-100">
                   <span className={`chip chip-${meta.tone} text-2xs whitespace-nowrap`}>{meta.label}</span>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm text-ink-800 truncate">{a.detail || '—'}</div>
-                    <div className="text-2xs text-ink-500 mt-0.5 flex items-center gap-2">
-                      <span>{new Date(a.created_at).toLocaleString('fr-FR')}</span>
-                      {a.notion_page_id && <code className="font-mono">{a.notion_page_id.slice(0, 8)}…</code>}
+                    <div className="text-sm text-ink-800 truncate">{a.detail || 'Action'}</div>
+                    <div className="text-2xs text-ink-500 mt-0.5">
+                      {new Date(a.created_at).toLocaleString('fr-FR')}
                     </div>
                   </div>
                   {a.url && <a href={a.url} target="_blank" rel="noopener" className="text-xs text-brand-700 hover:text-brand-800 font-medium whitespace-nowrap">Voir ↗</a>}
