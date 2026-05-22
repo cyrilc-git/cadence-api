@@ -29,12 +29,14 @@ export async function GET(req: Request) {
       : undefined;
 
     const includeCounts = searchParams.get('counts') === '1';
-    const items = await listContentItems({ limit, sourceType });
+    const debug = searchParams.get('debug') === '1';
+    const items: any = await listContentItems({ limit, sourceType, debug });
     const payload: any = {
       items,
       count: items.length,
       generated_at: new Date().toISOString(),
     };
+    if (debug && (items as any)._debug) payload._debug = (items as any)._debug;
     if (includeCounts) payload.counts = await countByProvenance({ limit: 500 });
     return NextResponse.json(payload);
   } catch (e: any) {

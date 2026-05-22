@@ -27,15 +27,15 @@ export type ContentItem = {
 };
 
 // Détecte si la table content_items existe et contient des lignes utiles.
-async function contentItemsAvailable(): Promise<boolean> {
+async function contentItemsAvailable(): Promise<{ ok: boolean; count: number; error?: string }> {
   try {
     const { count, error } = await supabase
       .from('content_items')
       .select('id', { count: 'exact', head: true });
-    if (error) return false;
-    return (count || 0) > 0;
-  } catch {
-    return false;
+    if (error) return { ok: false, count: 0, error: error.message };
+    return { ok: (count || 0) > 0, count: count || 0 };
+  } catch (e: any) {
+    return { ok: false, count: 0, error: e?.message || 'exception' };
   }
 }
 
@@ -154,10 +154,11 @@ async function fromLive(limit: number): Promise<ContentItem[]> {
 }
 
 // Façade principale : utilisée par les routes API et les pages.
-export async function listContentItems(opts?: { limit?: number; sourceType?: SourceType | SourceType[] }): Promise<ContentItem[]> {
+export async function listContentItems(opts?: { limit?: number; sourceType?: SourceType | SourceType[]; debug?: boolean }): Promise<ContentItem[] & { _debug?: any } | ContentItem[]> {
   const limit = opts?.limit ?? 200;
-  const useTable = await contentItemsAvailable();
-  const items = useTable ? await fromTable(limit) : await fromLive(limit);
+  const avail = await contentItemsAvailable();
+  const items = avail.ok ? await fromTable(limit) : await fromLive(limit);
+  if (opts?.debug) (items as any)._debug = { layer: avail.ok ? 'table' : 'live', count: avail.count, error: avail.error };
   if (!opts?.sourceType) return items;
   const allowed = new Set(Array.isArray(opts.sourceType) ? opts.sourceType : [opts.sourceType]);
   return items.filter(i => allowed.has(i.provenance.source_type));
