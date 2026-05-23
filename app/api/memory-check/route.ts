@@ -58,10 +58,15 @@ export async function POST(req: Request) {
       message = `Sujet proche d'un post du ${new Date(nearestInfo.scheduled_at!).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}.`;
     }
 
+    // V12.6 — Visual hint : Cadence suggère un format graphique selon le texte.
+    // Heuristique simple, jamais bavarde (un seul message court si pertinent).
+    const visualHint = inferVisualHint(text);
+
     return NextResponse.json({
       kind,
       message,
       counterAngle,
+      visualHint,
       novelty: Math.round(novelty * 100),
       saturation,
       nearest: nearestInfo,
@@ -69,4 +74,39 @@ export async function POST(req: Request) {
   } catch (e: any) {
     return NextResponse.json({ kind: 'none', message: null, error: e.message }, { status: 200 });
   }
+}
+
+// V12.6 — Détection de format visuel pertinent depuis le texte.
+// Heuristique éditoriale : ce que la structure du texte suggère graphiquement.
+// Toujours optionnel : si rien n'émerge clairement, retourne null.
+function inferVisualHint(text: string): { format: string; message: string } | null {
+  const t = text.toLowerCase();
+  const lines = text.split('\n').filter(l => l.trim()).length;
+  const chars = text.length;
+
+  // 1. Beaucoup de structure (numérotation, étapes, listes) -> schéma
+  const stepMarkers = (text.match(/\b(étape|step|leçon|raison|astuce)\s*\d*/gi) || []).length;
+  const numberedLines = (text.match(/^\s*(\d+\.|\d+\)|[-•])\s+/gm) || []).length;
+  if (stepMarkers >= 2 || numberedLines >= 3) {
+    return { format: 'schema', message: 'Ce post a une structure en étapes : un schéma fonctionnerait mieux qu\'une illustration.' };
+  }
+
+  // 2. Chiffre central marquant -> data visualisation
+  // Détecte au moins 2 chiffres significatifs (≥ 2 caractères) avec % ou unité.
+  const numericHits = (text.match(/\b\d{2,}(\s*[%€$kKMm])?\b/g) || []).length;
+  if (numericHits >= 2 && chars < 1500) {
+    return { format: 'data', message: 'Un chiffre principal en gros, sur fond clair, accroche souvent mieux qu\'une illustration sur ce type de post.' };
+  }
+
+  // 3. Texte long et structuré -> carrousel
+  if (chars > 1500 && lines > 8) {
+    return { format: 'carousel', message: 'Ce volume de texte se prête bien à un carrousel : une idée par slide.' };
+  }
+
+  // 4. Hook très court, peu de texte -> visuel minimaliste
+  if (chars < 400 && lines < 4) {
+    return { format: 'illustration', message: 'Ce hook mérite un visuel minimaliste : un seul élément graphique fort.' };
+  }
+
+  return null;
 }

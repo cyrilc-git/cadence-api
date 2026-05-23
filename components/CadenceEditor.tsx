@@ -63,7 +63,9 @@ export default function CadenceEditor({
 
   // V11.2 — Memory check : Cadence se souvient pendant la frappe
   // V11.5 — counterAngle proposé si saturation détectée
+  // V12.6 — visualHint : Cadence suggère un format graphique selon le texte
   const [memorySignal, setMemorySignal] = useState<{ kind: 'saturation' | 'novelty' | 'familiar'; message: string; counterAngle?: string | null } | null>(null);
+  const [visualHint, setVisualHint] = useState<{ format: string; message: string } | null>(null);
   const memoryAbortRef = useRef<AbortController | null>(null);
   const memoryTimerRef = useRef<any>(null);
 
@@ -88,6 +90,7 @@ export default function CadenceEditor({
         } else {
           setMemorySignal(null);
         }
+        setVisualHint(d?.visualHint || null);
       } catch { /* abort or network: silent */ }
     }, 1500);
     return () => { if (memoryTimerRef.current) clearTimeout(memoryTimerRef.current); };
@@ -362,21 +365,28 @@ export default function CadenceEditor({
         onClose={() => setSlashOpen(false)}
       />
 
-      {/* V11.2 + V11.5 — Memory signal discret + contre-angle si saturation */}
-      {memorySignal && !aiBusy && (
+      {/* V11.2 + V11.5 + V12.6 — Memory signal + contre-angle + visualHint */}
+      {(memorySignal || visualHint) && !aiBusy && (
         <div className="mt-2 space-y-0.5" aria-live="polite">
-          <p
-            className={`text-2xs italic leading-relaxed ${
-              memorySignal.kind === 'novelty' ? 'text-emerald-700' :
-              memorySignal.kind === 'saturation' ? 'text-amber-700' :
-              'text-ink-500'
-            }`}
-          >
-            {memorySignal.message}
-          </p>
-          {memorySignal.counterAngle && (
+          {memorySignal && (
+            <p
+              className={`text-2xs italic leading-relaxed ${
+                memorySignal.kind === 'novelty' ? 'text-emerald-700' :
+                memorySignal.kind === 'saturation' ? 'text-amber-700' :
+                'text-ink-500'
+              }`}
+            >
+              {memorySignal.message}
+            </p>
+          )}
+          {memorySignal?.counterAngle && (
             <p className="text-2xs text-ink-500 leading-relaxed">
               {memorySignal.counterAngle}
+            </p>
+          )}
+          {visualHint && (
+            <p className="text-2xs text-ink-500 leading-relaxed">
+              {visualHint.message}
             </p>
           )}
         </div>
