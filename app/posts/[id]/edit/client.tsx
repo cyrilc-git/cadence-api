@@ -258,6 +258,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
           <VisualGenerator
             defaultPrompt={`Visuel d'accompagnement pour ce post LinkedIn :\n\n${text.slice(0, 300)}\n\n(Style : ${summary.pilier || 'Heelio'})`}
             notionPageId={summary.id}
+            pilier={summary.pilier}
             onPick={setImageUrl}
           />
         </div>
