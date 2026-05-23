@@ -34,7 +34,8 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'cas-client',    trigger: 'cas-client',    label: 'Convertir en cas client',   hint: 'PME anonymisée, avant/après chiffré',                  group: 'Angle',     prompt: 'Réécris ce post en cas client anonymisé : une PME (sans nom), problème de départ chiffré, action mise en place, résultat mesuré. Garde tout anonyme.' },
   { id: 'ajouter-stat',  trigger: 'ajouter-stat',  label: 'Ajouter une statistique',   hint: 'Chiffre marquant + source si dispo',                   group: 'Angle',     prompt: 'Ajoute une statistique pertinente à ce post : un chiffre marquant qui renforce le propos. Si tu ne peux pas l\'inventer, propose une stat plausible avec [SOURCE À VÉRIFIER].' },
   // === Visuel ===
-  { id: 'visuel',        trigger: 'visuel',        label: 'Brief illustration',        hint: 'Idée de visuel pour ce post',                          group: 'Visuel',    prompt: 'Propose un brief d\'illustration pour ce post : style design system Heelio (bleu #2563EB, fond #F8FAFC), format 1200×630, ce qu\'on doit voir, ce qu\'il faut éviter.' },
+  // V12.6 — brief contextuel : Cadence formule selon le post et le pilier, pas un template rigide.
+  { id: 'visuel',        trigger: 'visuel',        label: 'Direction visuelle',        hint: 'Brief inspiré du post et de votre univers',           group: 'Visuel',    prompt: 'À partir de ce post LinkedIn, écris un brief visuel court (4-6 lignes maximum). Ce que Cadence doit retenir : le sujet central, la structure du texte (étapes ? chiffre ? hook court ?), le pilier éditorial. Propose une direction graphique cohérente avec l\'univers visuel sobre et éditorial du compte. Indique : ce qu\'on doit voir au centre, ce qu\'on doit éviter, et un format approprié (schéma, capture, illustration, carrousel, data). Pas de jargon marketing, pas de mots creux.' },
 ];
 
 // V10.5 — Couleurs sobres par groupe (remplace les emojis du menu)
