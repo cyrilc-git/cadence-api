@@ -143,12 +143,16 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
 
   return (
     <div className="space-y-10">
-      {/* ── HERO STUDIO ─────────────────────────────────────── */}
+      {/* V12.4 §1 — Header sobre, vocabulaire éditorial */}
       <header>
-        <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Studio</p>
-        <h1 className="mt-1 text-3xl font-semibold text-ink-900 tracking-tight">Design visuel</h1>
-        <p className="mt-2 text-sm text-ink-500 max-w-2xl">La direction artistique de Cadence. Inspiration, références, ambiance : tout ce qui guide Claude quand il génère vos illustrations.</p>
+        <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Direction</p>
+        <h1 className="mt-1 text-3xl font-semibold text-ink-900 tracking-tight">Univers visuel</h1>
+        <p className="mt-2 text-sm text-ink-500 max-w-2xl leading-relaxed">Ambiance, rythme, références. Ce que Cadence garde en tête à chaque visuel.</p>
       </header>
+
+      {/* V12.4 §2 — Ce que Cadence a compris de votre style (lit visual-memory) */}
+      <VisualMemoryRead />
+
 
       {/* Sample previews — 3 styles côte à côte */}
       <section>
@@ -169,14 +173,14 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
         <p className="mt-3 text-2xs text-ink-400 text-center">Trois directions possibles. Choisissez celle qui vous ressemble en bas.</p>
       </section>
 
-      {/* ── DIRECTION ARTISTIQUE — tags humains ────────────── */}
+      {/* V12.4 §3 — Ambiance (ancien "Direction artistique") */}
       <section>
         <div className="flex items-baseline justify-between mb-3">
           <div>
-            <h2 className="text-sm font-semibold text-ink-900">Comment doit penser Cadence ?</h2>
-            <p className="text-xs text-ink-500 mt-0.5">Multi-sélection. Combinez-les. Ces mots guident chaque génération.</p>
+            <h2 className="text-sm font-semibold text-ink-900">Ambiance</h2>
+            <p className="text-xs text-ink-500 mt-0.5">Les mots qui guident chaque visuel. Cumulables.</p>
           </div>
-          {activeArt.length > 0 && <span className="text-2xs text-success-700 flex items-center gap-1"><span className="dot bg-success-500" /> {activeArt.length} active{activeArt.length > 1 ? 's' : ''}</span>}
+          {activeArt.length > 0 && <span className="text-2xs text-ink-500">{activeArt.length} actif{activeArt.length > 1 ? 's' : ''}</span>}
         </div>
         <div className="flex flex-wrap gap-2">
           {ART_DIRECTION.map(d => {
@@ -196,12 +200,12 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
         </div>
       </section>
 
-      {/* ── MOODBOARD — central, masonry, drag full-zone ───── */}
+      {/* V12.4 §4 — Références (ancien "Moodboard") */}
       <section>
         <div className="flex items-baseline justify-between mb-3">
           <div>
-            <h2 className="text-sm font-semibold text-ink-900">Moodboard</h2>
-            <p className="text-xs text-ink-500 mt-0.5">Glissez vos images. Cadence les analyse (style, palette, densité) pour guider chaque génération.</p>
+            <h2 className="text-sm font-semibold text-ink-900">Références</h2>
+            <p className="text-xs text-ink-500 mt-0.5">Glissez vos images d&apos;inspiration. Cadence les lit pour rester dans votre univers.</p>
           </div>
           {moodboards.length > 0 && (
             <label className="text-xs text-ink-500 hover:text-ink-900 cursor-pointer transition">
@@ -271,33 +275,30 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
         {mbError && <p className="mt-2 text-xs text-danger-700">{mbError}</p>}
       </section>
 
-      {/* ── FIGMA HONNÊTE ─────────────────────────────────── */}
+      {/* V12.4 §5 — Figma : prose, plus de nested card */}
       <section>
-        <div className="rounded-2xl border border-ink-200 bg-white p-5">
-          <h2 className="text-sm font-semibold text-ink-900">Référence Figma</h2>
-          <p className="mt-1 text-xs text-ink-500">Cadence utilise ce lien comme référence stylistique (ne fetch pas le fichier). L'extraction native des tokens viendra avec Figma API.</p>
-          <div className="mt-3 flex gap-2">
-            <input value={figmaUrl} onChange={e => setFigmaUrl(e.target.value)} placeholder="https://www.figma.com/file/…" className="input text-sm flex-1" />
-            <button onClick={saveFigma} disabled={!figmaUrl || savingFigma} className="btn-primary text-xs">{savingFigma ? '…' : 'Enregistrer'}</button>
-          </div>
-          {currentFigma && (
-            <p className="mt-2 text-2xs text-success-700 flex items-center gap-1.5">
-              <span className="dot bg-success-500" />
-              Actif : <a href={currentFigma.value} target="_blank" rel="noopener" className="underline truncate">{currentFigma.value}</a>
-            </p>
-          )}
+        <h2 className="text-sm font-semibold text-ink-900">Lien Figma</h2>
+        <p className="mt-1 text-xs text-ink-500 leading-relaxed">Référence stylistique. L&apos;extraction native des tokens viendra plus tard.</p>
+        <div className="mt-3 flex gap-2 max-w-xl">
+          <input value={figmaUrl} onChange={e => setFigmaUrl(e.target.value)} placeholder="https://www.figma.com/file/…" className="input text-sm flex-1" />
+          <button onClick={saveFigma} disabled={!figmaUrl || savingFigma} className="text-xs text-brand-700 hover:text-brand-900 transition px-3">{savingFigma ? '…' : 'Enregistrer'}</button>
         </div>
+        {currentFigma && (
+          <p className="mt-2 text-2xs text-ink-500 leading-relaxed">
+            Actif : <a href={currentFigma.value} target="_blank" rel="noopener" className="underline truncate">{currentFigma.value}</a>
+          </p>
+        )}
       </section>
 
-      {/* ── TOKENS AVANCÉS — disclosure ───────────────────── */}
+      {/* V12.4 §6 — Pour aller plus loin (ancien "Tokens avancés") */}
       <section>
         <button
           onClick={() => setShowAdvanced(o => !o)}
           className="flex items-center gap-2 text-xs text-ink-500 hover:text-ink-900 transition"
         >
           <span>{showAdvanced ? '▾' : '▸'}</span>
-          <span>Tokens avancés ({tokens.filter(t => t.category !== 'moodboard').length})</span>
-          <span className="text-ink-400">pour contrôler hex, radius, polices</span>
+          <span>Pour aller plus loin</span>
+          <span className="text-ink-400">contrôle précis des couleurs, espacements, polices</span>
         </button>
 
         {showAdvanced && (
@@ -383,5 +384,36 @@ function PreviewSample({ tag, svg }: { tag: string; svg: React.ReactNode }) {
       </div>
       <div className="mt-2 text-2xs uppercase tracking-wider font-semibold text-ink-500">{tag}</div>
     </div>
+  );
+}
+
+// V12.4 §2 — Ce que Cadence a compris de votre style (lit visual-memory)
+function VisualMemoryRead() {
+  const [patterns, setPatterns] = useState<Array<{ kind: string; message: string }> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/visual-memory?limit=1')
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setPatterns(d.patterns || []); })
+      .catch(() => { if (!cancelled) setPatterns([]); });
+    return () => { cancelled = true; };
+  }, []);
+  if (patterns === null) return null;
+  // Filtre les low_data : si Cadence n'a pas encore appris, on n'affiche rien
+  // d'embarrassant ici (la section "Ambiance" en dessous reste utile).
+  const meaningful = patterns.filter(p => p.kind !== 'low_data');
+  if (meaningful.length === 0) return null;
+  return (
+    <section>
+      <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Ce que Cadence a compris</h2>
+      <ul className="space-y-2.5">
+        {meaningful.map((p, i) => (
+          <li key={i} className="flex items-start gap-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-ink-700 mt-2 shrink-0" aria-hidden />
+            <p className="text-sm text-ink-800 leading-relaxed">{p.message}</p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
