@@ -27,10 +27,12 @@ export default function VisualGenerator({
   defaultPrompt = '',
   notionPageId,
   onPick,
+  pilier: pilierProp,
 }: {
   defaultPrompt?: string;
   notionPageId?: string;
   onPick?: (urlOrSvg: string | null) => void;
+  pilier?: string;
 }) {
   const [template, setTemplate] = useState<keyof typeof TEMPLATES>('feature');
   const [prompt, setPrompt] = useState(defaultPrompt);
@@ -40,6 +42,22 @@ export default function VisualGenerator({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [briefLoading, setBriefLoading] = useState(false);
+
+  // V12.2 — Mémoire visuelle : Cadence lit son historique au mount et affiche
+  // discrètement ce qui a marché. Aucun cliquable, juste une présence.
+  const [memorySnippet, setMemorySnippet] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/visual-memory?limit=1')
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return;
+        const meaningful = (d?.patterns || []).filter((p: any) => p.kind !== 'low_data');
+        if (meaningful.length > 0) setMemorySnippet(meaningful[0].message);
+      })
+      .catch(() => { /* silent */ });
+    return () => { cancelled = true; };
+  }, []);
 
   const mode = TEMPLATES[template].mode;
   const selected = variants.find(v => v.id === selectedId) || null;
@@ -55,10 +73,11 @@ export default function VisualGenerator({
     if (!prompt.trim()) return;
     setLoading(true); setError(null);
     try {
+      // V12.2 — Transmet template + pilier pour tracing dans visual_items
       const r = await fetch('/api/generate-visual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, mode, notion_page_id: notionPageId })
+        body: JSON.stringify({ prompt, mode, notion_page_id: notionPageId, template, pilier: pilierProp || null })
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || `Erreur ${r.status}`);
@@ -135,6 +154,13 @@ export default function VisualGenerator({
           {mode === 'claude-design' ? 'Claude SVG' : 'DALL-E 3'}
         </StatusBadge>
       </div>
+
+      {/* V12.2 — Cadence se rappelle de ce qui a marché */}
+      {memorySnippet && (
+        <p className="text-2xs text-ink-500 italic leading-relaxed mb-3" aria-live="polite">
+          {memorySnippet}
+        </p>
+      )}
 
       {/* Template chips */}
       <div className="grid grid-cols-2 gap-1.5 mb-3">
