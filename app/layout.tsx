@@ -1,6 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import LayoutShell from '@/components/LayoutShell';
+import DialogHost from '@/components/Dialog';
 
 export const metadata: Metadata = {
   title: 'Cadence · LinkedIn publishing',
@@ -23,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="font-sans min-h-screen text-ink-900">
         <LayoutShell>{children}</LayoutShell>
+        <DialogHost />
       </body>
     </html>
   );
