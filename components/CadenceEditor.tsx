@@ -326,41 +326,49 @@ export default function CadenceEditor({
       {brief && value.length < 200 && !aiBusy && (
         <button
           onClick={writeFullVersion}
-          className="absolute top-2 right-2 chip chip-brand text-2xs hover:shadow-sm transition cursor-pointer animate-fade-in z-20"
-          title="Cadence rédige une version complète du brief"
+          className="absolute top-2 right-2 text-2xs text-brand-700 hover:text-brand-900 transition animate-fade-in z-20 underline decoration-dotted underline-offset-2"
+          title="Cadence rédige une version complète à partir du brief"
         >
-          Écrire la version complète
+          rédiger à partir du brief
         </button>
       )}
 
-      {/* V9.0 §6 — chip 'Cadence rédige' avec caret ▍ blink + Esc explicite */}
+      {/* V9.0 §6 + V12.8 §3 — Indicateur "Cadence rédige" plus discret */}
       {aiBusy && showAiIndicator && (
-        <div className="absolute top-2 right-2 inline-flex items-center gap-1.5 chip chip-brand text-2xs animate-fade-in z-20 select-none">
+        <div className="absolute top-2 right-2 inline-flex items-center gap-1.5 text-2xs text-ink-500 animate-fade-in z-20 select-none">
           <span className="inline-block w-[2px] h-3 bg-brand-500 animate-caret-blink" aria-hidden />
           <span>Cadence rédige</span>
-          <button onClick={cancelStream} className="ml-1.5 px-1.5 py-0.5 rounded bg-brand-100/60 hover:bg-brand-200/80 text-brand-800 cursor-pointer transition" title="Annuler (Esc)">Esc</button>
+          <button onClick={cancelStream} className="ml-1.5 text-ink-400 hover:text-ink-900 transition" title="Annuler (Esc)">esc</button>
         </div>
       )}
 
-      {/* V8.9 — bouton Undo une étape après IA (60s) */}
+      {/* V8.9 + V12.8 §3 — Bouton Undo plus discret après IA */}
       {!aiBusy && preIaText !== null && (
         <button
           onClick={undoRewrite}
-          className="absolute top-2 right-2 chip text-2xs bg-white border border-ink-200 hover:border-ink-400 transition cursor-pointer animate-fade-in z-20"
-          title="Restaurer la version d'avant IA"
+          className="absolute top-2 right-2 text-2xs text-ink-500 hover:text-ink-900 transition animate-fade-in z-20 underline decoration-dotted underline-offset-2"
+          title="Restaurer la version d'avant l'IA"
         >
-          ↶ Annuler la dernière IA
+          annuler la dernière IA
         </button>
       )}
 
       {bubble && (
         <div
-          className="absolute z-30 card p-1 flex items-center gap-0.5 shadow-pop animate-fade-in"
+          className="absolute z-30 bg-ink-900 rounded-lg p-0.5 flex items-center gap-0.5 shadow-elev animate-fade-in"
           style={{ top: bubble.top, left: bubble.left }}
           onMouseDown={e => e.preventDefault()}
         >
-          <button onClick={() => applyTransform(toBold)} className="btn-ghost text-base font-bold w-8 h-8" title="Gras (Unicode)">𝗕</button>
-          <button onClick={() => applyTransform(toItalic)} className="btn-ghost text-base italic w-8 h-8" title="Italique (Unicode)">𝘐</button>
+          <button
+            onClick={() => applyTransform(toBold)}
+            className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition text-base font-bold flex items-center justify-center"
+            title="Gras Unicode (visible sur LinkedIn)"
+          >𝗕</button>
+          <button
+            onClick={() => applyTransform(toItalic)}
+            className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition text-base italic flex items-center justify-center"
+            title="Italique Unicode (visible sur LinkedIn)"
+          >𝘐</button>
         </div>
       )}
 
