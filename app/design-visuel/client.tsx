@@ -387,33 +387,63 @@ function PreviewSample({ tag, svg }: { tag: string; svg: React.ReactNode }) {
   );
 }
 
-// V12.4 §2 — Ce que Cadence a compris de votre style (lit visual-memory)
+// V12.4 §2 + V12.7 §4 — Patterns compris + derniers visuels générés
 function VisualMemoryRead() {
   const [patterns, setPatterns] = useState<Array<{ kind: string; message: string }> | null>(null);
+  const [items, setItems] = useState<any[] | null>(null);
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/visual-memory?limit=1')
+    fetch('/api/visual-memory?limit=8')
       .then(r => r.json())
-      .then(d => { if (!cancelled) setPatterns(d.patterns || []); })
-      .catch(() => { if (!cancelled) setPatterns([]); });
+      .then(d => {
+        if (cancelled) return;
+        setPatterns(d.patterns || []);
+        setItems(d.items || []);
+      })
+      .catch(() => { if (!cancelled) { setPatterns([]); setItems([]); } });
     return () => { cancelled = true; };
   }, []);
-  if (patterns === null) return null;
-  // Filtre les low_data : si Cadence n'a pas encore appris, on n'affiche rien
-  // d'embarrassant ici (la section "Ambiance" en dessous reste utile).
-  const meaningful = patterns.filter(p => p.kind !== 'low_data');
-  if (meaningful.length === 0) return null;
+
+  const meaningful = (patterns || []).filter(p => p.kind !== 'low_data');
+  const visibleItems = (items || []).filter(i => i.svg || i.url || i.thumbnail_url).slice(0, 6);
+
+  if (meaningful.length === 0 && visibleItems.length === 0) return null;
+
   return (
-    <section>
-      <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Ce que Cadence a compris</h2>
-      <ul className="space-y-2.5">
-        {meaningful.map((p, i) => (
-          <li key={i} className="flex items-start gap-3">
-            <span className="w-1.5 h-1.5 rounded-full bg-ink-700 mt-2 shrink-0" aria-hidden />
-            <p className="text-sm text-ink-800 leading-relaxed">{p.message}</p>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <div className="space-y-8">
+      {meaningful.length > 0 && (
+        <section>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Ce que Cadence a compris</h2>
+          <ul className="space-y-2.5">
+            {meaningful.map((p, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-ink-700 mt-2 shrink-0" aria-hidden />
+                <p className="text-sm text-ink-800 leading-relaxed">{p.message}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {visibleItems.length > 0 && (
+        <section>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Derniers visuels</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {visibleItems.map((it, i) => {
+              const src = it.url || it.thumbnail_url;
+              return (
+                <div key={i} className="aspect-[4/3] rounded-lg overflow-hidden border border-ink-100 bg-white">
+                  {it.svg ? (
+                    <div className="w-full h-full" dangerouslySetInnerHTML={{ __html: it.svg }} />
+                  ) : src ? (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+    </div>
   );
 }
