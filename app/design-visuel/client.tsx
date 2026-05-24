@@ -307,43 +307,50 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
         )}
       </section>
 
-      {/* V12.4 §6 — Pour aller plus loin (ancien "Tokens avancés") */}
+      {/* V14.3 — Réglages fins, présentés comme une vraie page design (plus
+          comme un panneau dev). Hex / clés techniques cachés derrière des
+          libellés humains et des swatches. Toujours opt-in via collapse. */}
       <section>
         <button
           onClick={() => setShowAdvanced(o => !o)}
           className="flex items-center gap-2 text-xs text-ink-500 hover:text-ink-900 transition"
         >
           <span>{showAdvanced ? '▾' : '▸'}</span>
-          <span>Pour aller plus loin</span>
-          <span className="text-ink-400">contrôle précis des couleurs, espacements, polices</span>
+          <span>Réglages fins</span>
+          <span className="text-ink-400">palette, polices, espacements</span>
         </button>
 
         {showAdvanced && (
-          <div className="mt-4 space-y-4 animate-slide-up">
-            <p className="text-2xs text-ink-500 leading-relaxed">
-              Ces réglages affinent le rendu visuel. Cadence les lit pour chaque génération. À toucher seulement si vous voulez changer la palette ou la typo globalement.
+          <div className="mt-4 space-y-6 animate-slide-up">
+            <p className="text-2xs text-ink-500 leading-relaxed max-w-2xl">
+              Cadence s&apos;appuie sur ces valeurs à chaque génération. Modifiez-les seulement si vous voulez changer le ton visuel global.
             </p>
             {Object.keys(CATEGORY_META).filter(c => byCat[c]?.length).map(cat => {
               const list = byCat[cat] || [];
               return (
-                <div key={cat} className="rounded-xl border border-ink-100 bg-white p-4">
-                  <h3 className="text-xs font-semibold text-ink-900 flex items-center gap-2">
-                    <span className="text-ink-400">{CATEGORY_META[cat]?.icon}</span>
+                <div key={cat}>
+                  <h3 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">
                     {CATEGORY_META[cat]?.label || cat}
                   </h3>
-                  <ul className="mt-3 space-y-1">
+                  <ul className="space-y-1">
                     {list.map(t => {
                       const isHex = /^#[0-9A-Fa-f]{6}$/.test(t.value);
-                      const shortKey = t.key.split('.').slice(1).join('.') || t.key;
+                      const humanLabel = humanizeTokenKey(t.key);
                       return (
-                        <li key={t.id} className="group flex items-center gap-3 py-1.5 px-2 -mx-2 rounded-md hover:bg-ink-50 transition">
-                          <div className="w-32 shrink-0 text-xs font-medium text-ink-700 truncate">{shortKey}</div>
-                          <div className="flex-1 flex items-center gap-2 min-w-0">
-                            {isHex && <span className="inline-block w-4 h-4 rounded shrink-0 ring-1 ring-ink-200" style={{ background: t.value }} />}
-                            <span className="font-mono text-2xs text-ink-600 truncate">{t.value}</span>
+                        <li key={t.id} className="group flex items-center gap-3 py-2 border-b border-ink-100 last:border-b-0">
+                          {isHex ? (
+                            <span className="inline-block w-5 h-5 rounded shrink-0 ring-1 ring-ink-200" style={{ background: t.value }} title={t.value} />
+                          ) : (
+                            <span className="inline-block w-5 h-5 rounded shrink-0 bg-ink-50 ring-1 ring-ink-100" aria-hidden />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm text-ink-800 truncate">{humanLabel}</div>
+                            {!isHex && t.value.length < 80 && (
+                              <div className="text-2xs text-ink-500 truncate">{t.value}</div>
+                            )}
                           </div>
-                          <button onClick={() => setEditing(t)} className="text-2xs text-ink-400 hover:text-ink-900 opacity-0 group-hover:opacity-100 transition">modifier</button>
-                          <button onClick={() => remove(t.id)} className="text-2xs text-ink-400 hover:text-danger-700 opacity-0 group-hover:opacity-100 transition">×</button>
+                          <button onClick={() => setEditing(t)} className="text-2xs text-ink-400 hover:text-ink-900 transition opacity-0 group-hover:opacity-100">Modifier</button>
+                          <button onClick={() => remove(t.id)} className="text-2xs text-ink-400 hover:text-danger-700 transition opacity-0 group-hover:opacity-100" aria-label="Supprimer">Retirer</button>
                         </li>
                       );
                     })}
@@ -351,7 +358,9 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
                 </div>
               );
             })}
-            <button onClick={() => setEditing({ key: '', value: '', category: 'color' })} className="text-xs text-brand-700 hover:text-brand-900 transition">+ Ajouter un réglage</button>
+            <button onClick={() => setEditing({ key: '', value: '', category: 'color' })} className="text-xs text-brand-700 hover:text-brand-900 transition underline decoration-dotted underline-offset-2">
+              Ajouter un réglage
+            </button>
           </div>
         )}
       </section>
@@ -402,6 +411,42 @@ function PreviewSample({ tag, svg }: { tag: string; svg: React.ReactNode }) {
       <div className="mt-2 text-2xs uppercase tracking-wider font-semibold text-ink-500">{tag}</div>
     </div>
   );
+}
+
+// V14.3 — Traduit les clés techniques (color.primary, font.serif.body, etc.)
+// en libellés humains lisibles dans le panneau "Réglages fins". On masque
+// la notation pointée style dev tout en gardant la clé dans le data layer
+// pour que les system prompts Claude puissent toujours la lire.
+const TOKEN_LABEL_MAP: Record<string, string> = {
+  'color.primary':        'Couleur principale',
+  'color.primary.dark':   'Couleur principale (foncée)',
+  'color.accent':         'Couleur d\'accent',
+  'color.background':     'Fond clair',
+  'color.background.alt': 'Fond alternatif',
+  'color.ink':            'Texte principal',
+  'color.muted':          'Texte secondaire',
+  'font.sans':            'Police sans-serif',
+  'font.serif':           'Police serif (titres)',
+  'font.size.h1':         'Taille titre principal',
+  'font.size.body':       'Taille texte courant',
+  'radius.sm':            'Coin arrondi petit',
+  'radius.md':            'Coin arrondi moyen',
+  'radius.lg':            'Coin arrondi large',
+  'space.tight':          'Espacement serré',
+  'space.comfortable':    'Espacement confortable',
+  'space.spacious':       'Espacement aéré',
+  'format.linkedin.post': 'Format post LinkedIn',
+  'format.linkedin.cover':'Format cover LinkedIn',
+  'style.direction':      'Direction artistique',
+  'figma.url':            'Lien Figma',
+};
+
+function humanizeTokenKey(key: string): string {
+  if (TOKEN_LABEL_MAP[key]) return TOKEN_LABEL_MAP[key];
+  // Fallback : on prend la dernière partie et on capitalise.
+  const parts = key.split('.');
+  const last = parts[parts.length - 1] || key;
+  return last.replace(/[-_]/g, ' ').replace(/^./, c => c.toUpperCase());
 }
 
 // V12.4 §2 + V12.7 §4 — Patterns compris + derniers visuels générés
