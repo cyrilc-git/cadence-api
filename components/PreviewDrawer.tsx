@@ -26,10 +26,14 @@ export default function PreviewDrawer({
       {open && (
         <div onClick={onClose} className="lg:hidden fixed inset-0 z-30 bg-ink-900/20 backdrop-blur-[2px] animate-fade-in" />
       )}
-      {/* Drawer — V8.8 : bottom sheet on mobile, side drawer on desktop */}
+      {/* Drawer — V8.8 : bottom sheet on mobile, side drawer on desktop.
+          V12.7 fix bug bloquant : pointer-events-none + invisible quand fermé,
+          pour ne PAS intercepter les clics ni occuper visuellement la page. */}
       <aside
         className={`fixed z-40 bg-white shadow-elev transform transition-transform duration-300 ease-out-expo
-          ${open ? 'translate-x-0 translate-y-0' : 'sm:translate-x-full translate-y-full sm:translate-y-0'}
+          ${open
+            ? 'translate-x-0 translate-y-0 pointer-events-auto'
+            : 'sm:translate-x-full translate-y-full sm:translate-y-0 pointer-events-none'}
           sm:top-0 sm:right-0 sm:h-screen sm:w-[560px] sm:border-l sm:border-ink-200
           bottom-0 left-0 right-0 max-h-[88vh] rounded-t-2xl sm:rounded-none
           pb-[env(safe-area-inset-bottom)]`}
