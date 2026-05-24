@@ -5,11 +5,17 @@ import StatusBadge from './StatusBadge';
 
 type Mode = 'claude-design' | 'openai';
 
+// V12.7 — Claude Design en mode principal. DALL-E reste utile pour les
+// illustrations métaphoriques mais ne doit plus être le réflexe.
+// Heelio direction artistique : fond clair, bleu Cadence, hiérarchie nette,
+// peu de texte, 1 idée centrale, grandes zones respirantes, style premium
+// SaaS/fintech, formats LinkedIn carrés ou 1200x630.
 const TEMPLATES: Record<string, { label: string; mode: Mode; example: string }> = {
-  feature:      { label: 'Nouveauté produit',           mode: 'claude-design', example: 'Mockup d\'une carte KPI "DSO" Heelio avec valeur 32 jours, barre de progression, libellé "vs objectif 30 jours", style design system Heelio.' },
-  schema:       { label: 'Schéma pédagogique',          mode: 'claude-design', example: 'Schéma : 3 étapes du closing mensuel (Réconciliation → Provisions → Reporting). Flèches entre les blocs, durées indicatives.' },
-  capture:      { label: 'Capture annotée',             mode: 'claude-design', example: 'Capture stylisée du dashboard Heelio avec 3 annotations numérotées : 1) KPI cash, 2) Prévision, 3) Alertes.' },
-  illustration: { label: 'Illustration (DALL-E)',       mode: 'openai',        example: 'Illustration plate, ton sobre, fond clair : un dirigeant de PME devant un tableau de bord financier, style éditorial corporate moderne.' }
+  feature:      { label: 'Carte KPI',                    mode: 'claude-design', example: 'Carte KPI "DSO" : valeur 32 jours en grand (typo Inter 56px, bleu #2563EB), libellé "vs objectif 30 jours" en sous-texte ink-500, fond #FAFAF9, 1200x630, beaucoup d\'air autour du chiffre, pas de gradient.' },
+  schema:       { label: 'Schéma pédagogique',           mode: 'claude-design', example: 'Schéma 3 étapes du closing mensuel (Réconciliation > Provisions > Reporting). 3 cartes alignées horizontalement, fond clair #FAFAF9, accents bleu #2563EB sur les numéros, flèches fines ink-400, espace généreux. Style éditorial premium.' },
+  capture:      { label: 'Capture annotée',              mode: 'claude-design', example: 'Capture stylisée du dashboard Heelio avec 3 annotations numérotées (1, 2, 3) en cercles bleus #2563EB. Fond #FAFAF9, ombre subtile sous la capture, libellés courts en Inter 12px ink-700.' },
+  opinion:      { label: 'Visuel opinion minimal',       mode: 'claude-design', example: 'Visuel opinion : une seule phrase forte centrée en typo serif (Georgia 36px) sur fond clair #FAFAF9. Aucun ornement. Filet bleu #2563EB de 2px sous la phrase. Format carré 1080x1080.' },
+  illustration: { label: 'Illustration métaphorique',    mode: 'openai',        example: 'Illustration plate, ton sobre, fond clair : un dirigeant de PME devant un tableau de bord financier, style éditorial corporate moderne. Réservée aux métaphores : préférez Claude Design pour les visuels produit ou pédagogiques.' }
 };
 
 type Variant = {
@@ -149,9 +155,9 @@ export default function VisualGenerator({
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-ink-900 text-sm">Illustration</h3>
+        <h3 className="font-semibold text-ink-900 text-sm">Visuel</h3>
         <StatusBadge variant={mode === 'claude-design' ? 'brand' : 'neutral'}>
-          {mode === 'claude-design' ? 'Claude SVG' : 'DALL-E 3'}
+          {mode === 'claude-design' ? 'Claude Design' : 'DALL-E (métaphore)'}
         </StatusBadge>
       </div>
 
@@ -162,17 +168,33 @@ export default function VisualGenerator({
         </p>
       )}
 
-      {/* Template chips */}
-      <div className="grid grid-cols-2 gap-1.5 mb-3">
-        {Object.entries(TEMPLATES).map(([k, v]) => (
-          <button
-            key={k}
-            onClick={() => useTemplate(k as keyof typeof TEMPLATES)}
-            className={`text-left text-xs px-3 py-2 rounded-lg border transition ${template === k ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-ink-200 hover:bg-ink-50 text-ink-700'}`}
-          >
-            {v.label}
-          </button>
-        ))}
+      {/* V12.7 — Claude Design en premier (4 templates), DALL-E métaphore séparé */}
+      <div className="grid grid-cols-2 gap-1.5 mb-2">
+        {(Object.entries(TEMPLATES) as Array<[keyof typeof TEMPLATES, typeof TEMPLATES[keyof typeof TEMPLATES]]>)
+          .filter(([, v]) => v.mode === 'claude-design')
+          .map(([k, v]) => (
+            <button
+              key={k}
+              onClick={() => useTemplate(k)}
+              className={`text-left text-xs px-3 py-2 rounded-lg border transition ${template === k ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-ink-200 hover:bg-ink-50 text-ink-700'}`}
+            >
+              {v.label}
+            </button>
+          ))}
+      </div>
+      <div className="mb-3">
+        {(Object.entries(TEMPLATES) as Array<[keyof typeof TEMPLATES, typeof TEMPLATES[keyof typeof TEMPLATES]]>)
+          .filter(([, v]) => v.mode === 'openai')
+          .map(([k, v]) => (
+            <button
+              key={k}
+              onClick={() => useTemplate(k)}
+              className={`text-left text-2xs px-3 py-1.5 rounded-md transition ${template === k ? 'bg-ink-100 text-ink-900 font-medium' : 'text-ink-500 hover:text-ink-900'}`}
+              title="Pour les métaphores narratives uniquement. Préférez Claude Design pour les visuels produit et pédagogiques."
+            >
+              {v.label}
+            </button>
+          ))}
       </div>
 
       {/* Prompt + brief assist */}
@@ -184,10 +206,14 @@ export default function VisualGenerator({
       </div>
       <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3} placeholder={TEMPLATES[template].example} className="input text-sm" />
 
-      {/* Generate + upload row */}
+      {/* V12.7 — Bouton principal selon le moteur choisi */}
       <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
         <button onClick={handleGenerate} disabled={loading || !prompt.trim()} className="btn-primary">
-          {loading ? 'Génération… (10-30 sec)' : 'Générer le visuel'}
+          {loading
+            ? 'Cadence dessine… (10-30 sec)'
+            : mode === 'claude-design'
+              ? 'Créer avec Claude Design'
+              : 'Créer (DALL-E)'}
         </button>
         <label className="btn-secondary cursor-pointer" title="Upload manuel">
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4 M17 8l-5-5-5 5 M12 3v12"/></svg>
