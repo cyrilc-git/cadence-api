@@ -109,7 +109,12 @@ lib/
 ## 6. Conventions code
 
 - **Langue** : UI 100% français, commentaires de code en français, code en anglais.
-- **Layout** : `max-w-3xl mx-auto` sur les pages contenu (dashboard, sources, analytics, design-visuel). `max-w-2xl` sur l'éditeur. Header 12px sobre, espace blanc dominant.
+- **Layout (V13.1)** : 3 colonnes canoniques. Ne jamais inventer une nouvelle largeur.
+  - **Colonne éditoriale** (`max-w-3xl mx-auto`, ~768px) — pages cockpit qui se lisent comme un texte : dashboard, analytics, cerveau, sources, sources/linkedin. Rythme vertical : `space-y-10` (ou `space-y-12` si la page agrège 8+ sections : cerveau).
+  - **Colonne admin** (`max-w-2xl mx-auto`, ~672px) — pages courtes/formulaires/erreurs : 404, error boundary, paramètres détaillés, fallback Notion KO. Rythme : `space-y-6` ou `space-y-8`.
+  - **Colonne d'écriture** (`max-w-2xl mx-auto`) — uniquement /posts/new et /posts/[id]/edit. Padding interne `px-5 lg:px-8 py-10 lg:py-16`.
+  - **Pleine largeur sans wrapper** — pages catalogue/grille (posts library, calendrier, suggestions, brand-dna, inspirations, design-visuel, settings). Le `<aside>` Sidebar pose déjà la marge horizontale. Rythme : `space-y-5` ou `space-y-6`.
+  - Header de page : `<h1 className="text-2xl font-semibold text-ink-900 tracking-tight">` partout, optionnellement précédé d'un eyebrow `<p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">`.
 - **Typography** : Inter pour chrome système, `font-editorial` (serif Charter/Iowan/Georgia) pour la zone d'écriture.
 - **Touch targets** : 40px min sur mobile (`w-10 h-10 sm:w-8 sm:h-8`), safe-area-inset top/bottom respectés.
 - **Bottom sheets sur mobile** : PreviewDrawer, SlashMenu, MentionTextarea — tous bascule en `fixed bottom-0 max-h-[X]vh animate-slide-up` sous 640px.
