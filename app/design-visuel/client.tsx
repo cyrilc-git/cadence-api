@@ -303,9 +303,9 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
 
         {showAdvanced && (
           <div className="mt-4 space-y-4 animate-slide-up">
-            <div className="rounded-xl border border-ink-100 bg-ink-50/40 p-4 text-2xs text-ink-500">
-              Ces valeurs sont injectées dans chaque prompt de génération. Modifiez-les pour changer le rendu de tous vos visuels en un instant.
-            </div>
+            <p className="text-2xs text-ink-500 leading-relaxed">
+              Ces réglages affinent le rendu visuel. Cadence les lit pour chaque génération. À toucher seulement si vous voulez changer la palette ou la typo globalement.
+            </p>
             {Object.keys(CATEGORY_META).filter(c => byCat[c]?.length).map(cat => {
               const list = byCat[cat] || [];
               return (
@@ -334,7 +334,7 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
                 </div>
               );
             })}
-            <button onClick={() => setEditing({ key: '', value: '', category: 'color' })} className="text-xs text-brand-700 hover:text-brand-900 transition">+ Ajouter un token</button>
+            <button onClick={() => setEditing({ key: '', value: '', category: 'color' })} className="text-xs text-brand-700 hover:text-brand-900 transition">+ Ajouter un réglage</button>
           </div>
         )}
       </section>
@@ -343,7 +343,7 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-ink-900/40 backdrop-blur-sm animate-fade-in" onClick={() => setEditing(null)}>
           <div className="card max-w-md w-full p-6 space-y-3 animate-slide-up" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-ink-900">{editing.id ? 'Modifier' : 'Nouveau token'}</h3>
+            <h3 className="text-lg font-semibold text-ink-900">{editing.id ? 'Modifier' : 'Nouveau réglage'}</h3>
             <div>
               <label className="block text-xs font-medium text-ink-700 mb-1">Clé (ex : color.primary)</label>
               <input value={editing.key} onChange={e => setEditing({ ...editing, key: e.target.value })} placeholder="color.primary" className="input text-sm font-mono" />
