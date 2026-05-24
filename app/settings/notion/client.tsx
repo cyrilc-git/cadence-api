@@ -193,32 +193,30 @@ function EditorialMemoryCard() {
 
   const pct = stats?.coverage_pct ?? 0;
   return (
-    <section className="card p-5 bg-gradient-to-br from-brand-50/40 to-white border-brand-100">
-      <div className="flex-1 min-w-0">
-        <h2 className="font-semibold text-ink-900">Mémoire éditoriale</h2>
-          <p className="text-xs text-ink-500 mt-0.5">Cadence indexe vos posts (titre + contenu) en vecteurs sémantiques. Ça permet : éviter les répétitions, détecter les sujets non couverts, scorer la nouveauté d'une idée, faire de la recherche sémantique.</p>
-          {loading ? (
-            <div className="mt-3 skeleton h-4 w-32" />
-          ) : stats ? (
-            <div className="mt-3 flex items-center gap-3">
-              <div className="flex-1">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-semibold text-ink-900 tabular-nums">{stats.indexed_total}</span>
-                  <span className="text-xs text-ink-500">/ {stats.notion_posts_total} posts indexés ({pct}%)</span>
-                </div>
-                <div className="mt-1 h-1.5 bg-ink-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-brand-500 to-brand-700 transition-all duration-500" style={{ width: `${pct}%` }} />
-                </div>
-              </div>
-              <button onClick={indexNow} disabled={indexing} className="btn-primary text-xs">
-                {indexing ? (<><span className="dot bg-white animate-pulse-soft" /> Indexation…</>) : 'Indexer maintenant'}
-              </button>
+    <section className="border-l-2 border-brand-300 pl-4 py-1">
+      <h2 className="text-sm font-semibold text-ink-900">Mémoire éditoriale</h2>
+      <p className="mt-1 text-xs text-ink-500 leading-relaxed">Cadence indexe vos posts en vecteurs sémantiques pour éviter les répétitions, repérer les sujets non couverts et scorer la nouveauté d&apos;une idée.</p>
+      {loading ? (
+        <div className="mt-3 skeleton h-4 w-32" />
+      ) : stats ? (
+        <div className="mt-3 flex items-center gap-3">
+          <div className="flex-1">
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl font-semibold text-ink-900 tabular-nums">{stats.indexed_total}</span>
+              <span className="text-xs text-ink-500">/ {stats.notion_posts_total} posts indexés ({pct}%)</span>
             </div>
-          ) : null}
-          {progress && <div className="mt-2 text-2xs text-ink-500">{progress}</div>}
-          {lastResult && <div className="mt-2 text-xs text-success-700">{lastResult}</div>}
-      </div>
-      <p className="mt-3 text-2xs text-ink-400">Modèle : OpenAI text-embedding-3-small (1536 dims, indexé HNSW pgvector). Coût : ~$0.02 / million de tokens, pas d'OpenAI = pas d'embedding.</p>
+            <div className="mt-1.5 h-1 bg-ink-100 rounded-full overflow-hidden">
+              <div className="h-full bg-brand-500 transition-all duration-500" style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+          <button onClick={indexNow} disabled={indexing} className="text-xs px-3 py-1.5 rounded-lg bg-brand-500 text-white font-medium hover:bg-brand-600 disabled:opacity-50 transition">
+            {indexing ? (<><span className="dot bg-white animate-pulse-soft" /> Indexation…</>) : 'Indexer'}
+          </button>
+        </div>
+      ) : null}
+      {progress && <div className="mt-2 text-2xs text-ink-500">{progress}</div>}
+      {lastResult && <div className="mt-2 text-xs text-success-700">{lastResult}</div>}
+      <p className="mt-3 text-2xs text-ink-400 italic">Embeddings OpenAI (text-embedding-3-small, 1536 dims). Sans clé OpenAI configurée, la mémoire reste vide.</p>
     </section>
   );
 }
