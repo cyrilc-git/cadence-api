@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateClaudeDesignSvg } from '@/lib/anthropic';
+import { generateClaudeDesignSvg, classifyVisualImage } from '@/lib/anthropic';
 import { getCredential } from '@/lib/credentials';
 import { supabase } from '@/lib/supabase';
 import { recordVisualItem, type VisualFormat } from '@/lib/visual-memory';
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         .upload(path, new Blob([svg], { type: 'image/svg+xml' }), { contentType: 'image/svg+xml', upsert: true });
       const publicUrl = upErr ? null : supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
       // V12.1 §3 — Trace dans la mémoire visuelle
-      recordVisualItem({
+      const traced = recordVisualItem({
         source_type: 'cadence_claude',
         format: templateToFormat(template),
         pilier: pilier || null,
@@ -54,7 +54,26 @@ export async function POST(req: NextRequest) {
         svg,
         prompt,
         meta: { model, notion_page_id: notion_page_id || null },
-      }).catch(() => { /* silent : tracing ne doit pas casser la génération */ });
+      }).catch(() => null);
+
+      // V12.8 — Vision pass automatique en background : classifie composition
+      // et format réels depuis l'image générée, met à jour la row visual_items.
+      // Fire-and-forget : aucune dépendance sur la réponse de génération.
+      if (publicUrl) {
+        traced.then(async (item) => {
+          if (!item) return;
+          try {
+            const cls = await classifyVisualImage(publicUrl);
+            await supabase.from('visual_items').update({
+              composition: cls.composition,
+              format: cls.format || templateToFormat(template),
+              vision_tags: cls.tags.length ? cls.tags : null,
+              meta: { ...(item.meta || {}), density: cls.density, vision_pass: true },
+            }).eq('id', item.id);
+          } catch { /* silent */ }
+        }).catch(() => { /* silent */ });
+      }
+
       if (upErr) return NextResponse.json({ ok: true, mode, model, svg, format: 'svg', storage_error: upErr.message });
       return NextResponse.json({ ok: true, mode, model, url: publicUrl, svg, format: 'svg', notion_page_id });
     }
@@ -94,14 +113,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'OpenAI a répondu sans image.', raw: raw.slice(0, 500) }, { status: 500 });
     }
     const dalleUrl = parsed.data[0].url;
-    // V12.1 §3 — Trace dans la mémoire visuelle (DALL-E)
-    recordVisualItem({
+    // V12.1 §3 — Trace + V12.8 Vision pass DALL-E
+    const tracedDalle = recordVisualItem({
       source_type: 'cadence_dalle',
       format: templateToFormat(template),
       pilier: pilier || null,
       url: dalleUrl,
       prompt,
       meta: { model: 'dall-e-3', size: realSize, quality, revised_prompt: parsed.data[0].revised_prompt, notion_page_id: notion_page_id || null },
+    }).catch(() => null);
+    tracedDalle.then(async (item) => {
+      if (!item) return;
+      try {
+        const cls = await classifyVisualImage(dalleUrl);
+        await supabase.from('visual_items').update({
+          composition: cls.composition,
+          format: cls.format || templateToFormat(template),
+          vision_tags: cls.tags.length ? cls.tags : null,
+          meta: { ...(item.meta || {}), density: cls.density, vision_pass: true },
+        }).eq('id', item.id);
+      } catch { /* silent */ }
     }).catch(() => { /* silent */ });
     return NextResponse.json({ ok: true, mode, model: 'dall-e-3', url: dalleUrl, revised_prompt: parsed.data[0].revised_prompt, format: 'png', size: realSize, quality, notion_page_id });
   } catch (e: any) {

@@ -183,6 +183,55 @@ export async function generateClaudeDesignSvg(prompt: string): Promise<{ svg: st
 // V9.0 §7 — Moodboard tagging via Claude Vision
 const MOODBOARD_TAGS = ['sobre', 'éditorial', 'dark', 'agressif', 'data-heavy', 'minimal', 'fintech', 'pédagogique', 'maximaliste', 'photo', 'illustration', 'typo-driven', 'palette-froide', 'palette-chaude'];
 
+// V12.8 — Classification automatique d'un visuel généré dans les types
+// lib/visual-memory (VisualFormat + VisualComposition). Réutilise Claude
+// Vision mais avec un prompt strict sur nos enums.
+export async function classifyVisualImage(imageUrl: string): Promise<{
+  composition: 'centered' | 'verticale' | 'horizontale' | 'grille' | 'asymetrique' | 'minimaliste' | 'dense' | 'editorial' | 'data_first' | 'photo_first' | 'other' | null;
+  format: 'feature' | 'schema' | 'capture' | 'illustration' | 'carousel' | 'cover' | 'quote' | 'data' | 'meme' | 'photo' | 'other' | null;
+  density: 'minimal' | 'équilibrée' | 'dense' | null;
+  tags: string[];
+}> {
+  const c = await client();
+  try {
+    const msg = await c.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 300,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'url', url: imageUrl } as any },
+          {
+            type: 'text',
+            text: `Analysez cette image (visuel LinkedIn B2B). Répondez en JSON strict sans préambule :
+{
+  "composition": "centered"|"verticale"|"horizontale"|"grille"|"asymetrique"|"minimaliste"|"dense"|"editorial"|"data_first"|"photo_first"|"other",
+  "format": "feature"|"schema"|"capture"|"illustration"|"carousel"|"cover"|"quote"|"data"|"meme"|"photo"|"other",
+  "density": "minimal"|"équilibrée"|"dense",
+  "tags": ["sobre", "éditorial", ...]
+}
+Règles :
+- composition = structure visuelle dominante (centered = élément central, data_first = chiffre principal en grand, editorial = style magazine, minimaliste = un seul élément)
+- format = type éditorial (feature = mockup produit, schema = schéma pédagogique avec étapes/flèches, data = carte KPI/sparkline, quote = phrase citée, illustration = dessin/scène)
+- 2 à 4 tags maximum.`,
+          },
+        ],
+      }],
+    });
+    const raw = msg.content.filter((x: any) => x.type === 'text').map((x: any) => x.text).join('\n').trim();
+    const cleaned = raw.replace(/^```(?:json)?\n?/i, '').replace(/```\s*$/, '').trim();
+    const parsed = JSON.parse(cleaned);
+    return {
+      composition: parsed.composition || null,
+      format: parsed.format || null,
+      density: parsed.density || null,
+      tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 6) : [],
+    };
+  } catch {
+    return { composition: null, format: null, density: null, tags: [] };
+  }
+}
+
 export async function tagMoodboardImage(imageUrl: string): Promise<{ tags: string[]; palette?: string; density?: string }> {
   const c = await client();
   const msg = await c.messages.create({
