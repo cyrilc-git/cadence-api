@@ -342,7 +342,7 @@ export default function NewPostClient({
         </footer>
       )}
 
-      <PreviewDrawer open={previewOpen} onClose={() => setPreviewOpen(false)}>
+      <PreviewDrawer open={previewOpen} onClose={() => setPreviewOpen(false)} title="Aperçu & visuel">
         <LinkedInPreview text={text} image={imageUrl || undefined} />
         <div className="mt-6">
           <VisualGenerator

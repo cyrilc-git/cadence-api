@@ -259,7 +259,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
       </footer>
 
       {/* === PREVIEW DRAWER === */}
-      <PreviewDrawer open={previewOpen} onClose={() => setPreviewOpen(false)}>
+      <PreviewDrawer open={previewOpen} onClose={() => setPreviewOpen(false)} title="Aperçu & visuel">
         <LinkedInPreview text={text} image={imageUrl || undefined} />
         <div className="mt-6">
           <VisualGenerator
