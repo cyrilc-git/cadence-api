@@ -32,16 +32,20 @@ export default function PreviewDrawer({
         <div onClick={onClose} className="fixed inset-0 z-30 bg-ink-900/10 sm:bg-ink-900/5 backdrop-blur-[2px] sm:backdrop-blur-0 animate-fade-in" aria-hidden="true" />
       )}
       {/* Drawer — V8.8 : bottom sheet on mobile, side drawer on desktop.
-          V12.7 fix bug bloquant : pointer-events-none + invisible quand fermé,
-          pour ne PAS intercepter les clics ni occuper visuellement la page. */}
+          V12.7 fix bug bloquant : pointer-events-none + invisible quand fermé.
+          V13.3 §5 fix position cassée sur desktop : les classes mobiles
+          `bottom-0 left-0 right-0` n'étaient pas annulées au breakpoint sm:,
+          donc l'aside avait left:0 ET right:0 ET width:480px (over-constrained),
+          ce qui le centrait au milieu de l'écran au lieu de le coller à droite.
+          Les classes `sm:left-auto sm:bottom-auto sm:right-0` réinitialisent
+          explicitement les ancres mobiles avant d'appliquer la position desktop. */}
       <aside
-        className={`fixed z-40 bg-white shadow-elev transform transition-transform duration-300 ease-out-expo flex flex-col
+        className={`fixed z-40 bg-white shadow-elev transform transition-transform duration-300 ease-out-expo flex flex-col pb-[env(safe-area-inset-bottom)]
+          bottom-0 left-0 right-0 max-h-[88vh] rounded-t-2xl
+          sm:bottom-auto sm:left-auto sm:top-0 sm:right-0 sm:h-screen sm:max-h-none sm:w-[480px] sm:rounded-none sm:border-l sm:border-ink-200
           ${open
             ? 'translate-x-0 translate-y-0 pointer-events-auto'
-            : 'sm:translate-x-full translate-y-full sm:translate-y-0 pointer-events-none'}
-          sm:top-0 sm:right-0 sm:h-screen sm:w-[480px] sm:border-l sm:border-ink-200
-          bottom-0 left-0 right-0 max-h-[88vh] rounded-t-2xl sm:rounded-none
-          pb-[env(safe-area-inset-bottom)]`}
+            : 'sm:translate-x-full translate-y-full sm:translate-y-0 pointer-events-none'}`}
         aria-hidden={!open}
         role="dialog"
         aria-modal="false"
