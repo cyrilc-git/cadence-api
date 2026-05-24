@@ -103,7 +103,7 @@ export default async function HomePage() {
   const today = new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' });
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto">
+    <div className="space-y-10 max-w-3xl mx-auto">
       {/* === HEADER ─────────────────────────────────────────── */}
       <header className="relative">
         <p className="text-xs font-medium text-ink-500 uppercase tracking-wider">{today}</p>

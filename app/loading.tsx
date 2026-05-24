@@ -5,7 +5,7 @@
 
 export default function DashboardLoading() {
   return (
-    <div className="space-y-6 max-w-3xl mx-auto animate-pulse">
+    <div className="space-y-10 max-w-3xl mx-auto animate-pulse">
       <header>
         <div className="h-3 w-32 bg-ink-100 rounded" />
         <div className="mt-2 h-7 w-48 bg-ink-100 rounded" />
