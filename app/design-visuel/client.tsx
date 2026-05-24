@@ -262,7 +262,7 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
                 const tags: string[] = m.meta?.tags || [];
                 return (
                 <div key={m.id} className="group relative rounded-xl overflow-hidden border border-ink-100 bg-ink-50 cursor-zoom-in transition-all duration-200 hover:shadow-elev hover:border-ink-300" onClick={() => setZoomedImg(m)}>
-                  <img src={m.value} alt="" loading="lazy" className="w-full block transition-transform duration-300 group-hover:scale-[1.02]" />
+                  <img src={m.value} alt="" loading="lazy" className="w-full block transition-opacity duration-200 group-hover:opacity-90" />
                   {tags.length > 0 && (
                     <div className="absolute bottom-0 left-0 right-0 px-2 py-1.5 bg-gradient-to-t from-black/70 to-transparent">
                       <div className="flex flex-wrap gap-1">
@@ -396,7 +396,7 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
 function PreviewSample({ tag, svg }: { tag: string; svg: React.ReactNode }) {
   return (
     <div className="group">
-      <div className="aspect-[4/3] rounded-xl overflow-hidden border border-ink-200 bg-white shadow-xs group-hover:shadow-elev transition-all duration-300 group-hover:scale-[1.01]">
+      <div className="aspect-[4/3] rounded-xl overflow-hidden border border-ink-200 bg-white shadow-xs group-hover:shadow-elev group-hover:border-ink-300 transition-all duration-200">
         {svg}
       </div>
       <div className="mt-2 text-2xs uppercase tracking-wider font-semibold text-ink-500">{tag}</div>

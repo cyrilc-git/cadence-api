@@ -375,7 +375,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
                     setDragOverKey(null);
                     setDraggingId(null);
                   }}
-                  className={`group relative rounded-xl p-2 min-h-[124px] border transition-all duration-200 ${isToday ? 'border-brand-400 bg-brand-50/30 shadow-elev' : isWeekend ? 'border-ink-100 bg-ink-50/40' : `border-ink-200 ${perfTint(d) || 'bg-white'} hover:border-ink-300 hover:shadow-xs`} ${isOtherMonth ? 'opacity-40' : ''} ${isPast && !isToday ? 'opacity-75' : ''} ${dragOverKey === k && draggingId ? 'ring-2 ring-brand-500 ring-offset-2 bg-brand-50/80 scale-[1.02]' : ''}`}
+                  className={`group relative rounded-xl p-2 min-h-[124px] border transition-all duration-200 ${isToday ? 'border-brand-400 bg-brand-50/30 shadow-elev' : isWeekend ? 'border-ink-100 bg-ink-50/40' : `border-ink-200 ${perfTint(d) || 'bg-white'} hover:border-ink-300 hover:shadow-xs`} ${isOtherMonth ? 'opacity-40' : ''} ${isPast && !isToday ? 'opacity-75' : ''} ${dragOverKey === k && draggingId ? 'ring-2 ring-brand-500 ring-offset-2 bg-brand-50/80' : ''}`}
                 >
                   <div className="flex items-center justify-between mb-1.5">
                     <span className={`text-xs font-semibold ${isToday ? 'text-brand-700' : isWeekend ? 'text-ink-400' : 'text-ink-700'}`}>{d.getDate()}</span>
@@ -398,7 +398,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
                       return (
                         <div
                           key={p.id}
-                          className={`group relative ${draggingId === p.id ? 'opacity-30 scale-95' : sourceOpacity} ${justMovedId === p.id ? 'animate-pulse-soft ring-2 ring-success-500 ring-offset-1 rounded-lg' : ''} transition-all duration-200`}
+                          className={`group relative ${draggingId === p.id ? 'opacity-40' : sourceOpacity} ${justMovedId === p.id ? 'ring-2 ring-success-500 ring-offset-1 rounded-lg' : ''} transition-all duration-200`}
                           draggable={!isPast}
                           onDragStart={(e) => { setDraggingId(p.id); try { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; } catch {} }}
                           onDragEnd={() => { setDraggingId(null); setDragOverKey(null); }}
