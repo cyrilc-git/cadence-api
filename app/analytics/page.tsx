@@ -61,12 +61,12 @@ export default async function AnalyticsPage() {
   return (
     <div className="space-y-10 max-w-3xl mx-auto">
       <header>
-        <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Analytics</p>
-        <h1 className="mt-1 text-3xl font-semibold text-ink-900 tracking-tight">Vos patterns</h1>
+        <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Performance LinkedIn</p>
+        <h1 className="mt-1 text-2xl font-semibold text-ink-900 tracking-tight">Vos patterns</h1>
         <p className="mt-2 text-sm text-ink-500 leading-relaxed">
-          Cadence lit les impressions, likes et commentaires saisis dans Notion. {confirmedPosts.length > 0
-            ? `${confirmedPosts.length} post${confirmedPosts.length > 1 ? 's' : ''} avec URL LinkedIn vérifiée, ${inferredPosts.length} archive${inferredPosts.length > 1 ? 's' : ''} Notion non certifiée${inferredPosts.length > 1 ? 's' : ''}.`
-            : 'Aucun import LinkedIn pour l\'instant : tout est déduit depuis Notion.'}
+          {confirmedPosts.length > 0
+            ? `Lecture sur ${confirmedPosts.length} publication${confirmedPosts.length > 1 ? 's' : ''} LinkedIn vérifiée${confirmedPosts.length > 1 ? 's' : ''}${inferredPosts.length > 0 ? `, plus ${inferredPosts.length} archive${inferredPosts.length > 1 ? 's' : ''} Notion non certifiée${inferredPosts.length > 1 ? 's' : ''} pour comparer` : ''}.`
+            : 'Aucune publication LinkedIn vérifiée pour l\'instant. Les patterns ci-dessous sont déduits de vos brouillons Notion et restent indicatifs.'}
         </p>
       </header>
 
@@ -162,7 +162,7 @@ export default async function AnalyticsPage() {
       )}
 
       {!status.ok && (
-        <p className="text-xs text-ink-500 italic">Notion ne répond pas, les chiffres sont vides.</p>
+        <p className="text-xs text-ink-500 italic">Notion workspace inaccessible, les chiffres déduits ne peuvent pas être calculés.</p>
       )}
     </div>
   );
