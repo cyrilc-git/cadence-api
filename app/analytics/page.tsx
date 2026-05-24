@@ -168,17 +168,8 @@ export default async function AnalyticsPage() {
   );
 }
 
-// V11.4 §3 — Stat retiré (grille KPI froide), gardé comme stub pour
-// éviter une régression import si réutilisé ailleurs. Au prochain audit
-// si toujours mort : suppression.
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div>
-      <div className="text-2xl font-semibold text-ink-900 tabular-nums">{value}</div>
-      <div className="text-2xs text-ink-500 mt-0.5">{label}</div>
-    </div>
-  );
-}
+// V12.10 §7 — Stat (stub V11.4) supprimé après audit : aucun import
+// ailleurs, code mort confirmé. ReliabilityStat reste utilisé en local.
 
 function ReliabilityStat({ label, value, hint, tone }: { label: string; value: number; hint: string; tone: 'confirmed' | 'inferred' | 'muted' }) {
   const dotColor = { confirmed: 'bg-[#0A66C2]', inferred: 'bg-amber-500', muted: 'bg-ink-300' }[tone];

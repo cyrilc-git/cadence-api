@@ -71,6 +71,17 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
         <strong className="font-semibold">Règle anti-plagiat.</strong> Les inspirations servent à comprendre rythme, densité, structure, angle. Cadence n'enverra jamais le nom ou le contenu d'une inspiration à l'IA — seulement les "notes de style". Toute génération suspecte sera bloquée.
       </div>
 
+      {items.length === 0 ? (
+        <div className="border-l-2 border-ink-200 pl-4 py-2 max-w-xl">
+          <p className="text-sm text-ink-700 leading-relaxed">
+            Aucune inspiration suivie pour le moment.{' '}
+            <button onClick={restoreDefaults} disabled={restoring} className="text-brand-700 hover:text-brand-900 transition disabled:opacity-50">
+              {restoring ? 'Restauration…' : 'Restaurer les 5 références Cadence'}
+            </button>
+            {' '}ou ajoutez un compte LinkedIn qui vous inspire pour commencer.
+          </p>
+        </div>
+      ) : (
       <div className="grid sm:grid-cols-2 gap-3">
         {items.map(i => (
           <div key={i.id} className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
@@ -93,6 +104,7 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
           </div>
         ))}
       </div>
+      )}
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-ink-900/40 backdrop-blur-sm" onClick={() => setEditing(null)}>
