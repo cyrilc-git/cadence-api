@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { confirmDialog, toast } from '@/components/Dialog';
 
 const CADENCE_REQUIRED = [
   { name: 'Name', type: 'title', purpose: 'Titre interne du post' },
@@ -171,7 +172,12 @@ function EditorialMemoryCard() {
   useEffect(() => { refresh(); }, []);
 
   async function indexNow() {
-    if (!confirm('Indexer vos posts Notion ? Cadence va lire le contenu et créer des embeddings via OpenAI (~$0.001 pour 100 posts).')) return;
+    const ok = await confirmDialog({
+      title: 'Lancer l\'indexation ?',
+      body: 'Cadence va lire vos posts Notion non encore indexés et créer des embeddings via OpenAI. Coût indicatif : ~0,001 $ pour 100 posts.',
+      confirmLabel: 'Indexer',
+    });
+    if (!ok) return;
     setIndexing(true); setLastResult(null);
     try {
       let total = 0, indexed = 0;
@@ -185,9 +191,12 @@ function EditorialMemoryCard() {
         if ((d.indexed || 0) === 0) break; // nothing more to do
       }
       setLastResult(`${indexed} nouveaux posts indexés, ${total} au total dans la mémoire.`);
+      if (indexed > 0) toast.success(`${indexed} post${indexed > 1 ? 's' : ''} ajouté${indexed > 1 ? 's' : ''} à la mémoire`);
+      else toast.info('Tous les posts étaient déjà indexés');
       await refresh();
     } catch (e: any) {
       setLastResult('Erreur : ' + e.message);
+      toast.error('Indexation interrompue : ' + e.message);
     } finally { setIndexing(false); setProgress(null); }
   }
 

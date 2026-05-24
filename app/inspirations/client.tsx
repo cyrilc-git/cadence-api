@@ -12,13 +12,19 @@ function safeExternal(url: string | undefined | null): string | null {
 
 import { useState } from 'react';
 import StatusBadge from '@/components/StatusBadge';
+import { confirmDialog, toast } from '@/components/Dialog';
 
 export default function InspirationsClient({ initial }: { initial: any[] }) {
   const [items, setItems] = useState(initial);
   const [restoring, setRestoring] = useState(false);
 
   async function restoreDefaults() {
-    if (!confirm('Restaurer les inspirations par défaut Cadence ? Cela ajoute uniquement les profils manquants.')) return;
+    const ok = await confirmDialog({
+      title: 'Restaurer les références Cadence ?',
+      body: 'Cadence ajoutera uniquement les profils manquants. Vos inspirations actuelles ne seront pas modifiées.',
+      confirmLabel: 'Restaurer',
+    });
+    if (!ok) return;
     setRestoring(true);
     try {
       const r = await fetch('/api/seed', { method: 'POST' });
@@ -26,8 +32,9 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
       if (!r.ok) throw new Error(d.error);
       const list = await fetch('/api/inspirations').then(x => x.json());
       setItems(list.items || []);
+      toast.success('Inspirations restaurées');
     } catch (e: any) {
-      alert('Erreur restauration : ' + e.message);
+      toast.error('Restauration impossible : ' + e.message);
     } finally {
       setRestoring(false);
     }
@@ -41,15 +48,28 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
     const url = isNew ? '/api/inspirations' : `/api/inspirations/${editing.id}`;
     const r = await fetch(url, { method: isNew ? 'POST' : 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editing) });
     const d = await r.json();
-    if (!r.ok) { alert(d.error); return; }
+    if (!r.ok) { toast.error(d.error || 'Enregistrement impossible'); return; }
     setItems(isNew ? [...items, d.item] : items.map(i => i.id === d.item.id ? d.item : i));
     setEditing(null);
+    toast.success(isNew ? 'Inspiration ajoutée' : 'Inspiration mise à jour');
   }
 
   async function remove(id: string) {
-    if (!confirm('Supprimer cette inspiration ?')) return;
+    const target = items.find(i => i.id === id);
+    const ok = await confirmDialog({
+      title: 'Supprimer cette inspiration ?',
+      body: target?.name ? `« ${target.name} » sera retirée de votre liste.` : undefined,
+      confirmLabel: 'Supprimer',
+      destructive: true,
+    });
+    if (!ok) return;
     const r = await fetch(`/api/inspirations/${id}`, { method: 'DELETE' });
-    if (r.ok) setItems(items.filter(i => i.id !== id));
+    if (r.ok) {
+      setItems(items.filter(i => i.id !== id));
+      toast.success('Inspiration supprimée');
+    } else {
+      toast.error('Suppression impossible');
+    }
   }
 
   return (

@@ -8,6 +8,7 @@
 // — Tokens techniques (hex, radius) cachés sous "Tokens avancés".
 
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { confirmDialog, toast } from '@/components/Dialog';
 
 const CATEGORY_META: Record<string, { label: string; description: string; icon: string }> = {
   brand:      { label: 'Logo & branding',              description: 'Identité visuelle de Cadence',     icon: '✦' },
@@ -49,17 +50,26 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
     if (!editing.key || !editing.value) return;
     const r = await fetch('/api/design-system', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(editing) });
     const d = await r.json();
-    if (!r.ok) { alert(d.error); return; }
+    if (!r.ok) { toast.error(d.error || 'Enregistrement impossible'); return; }
     const existing = tokens.find(t => t.key === editing.key);
     if (existing) setTokens(tokens.map(t => t.key === editing.key ? d.item : t));
     else setTokens([...tokens, d.item]);
     setEditing(null);
+    toast.success(existing ? 'Réglage mis à jour' : 'Réglage ajouté');
   }
 
   async function remove(id: string) {
-    if (!confirm('Supprimer ce token ?')) return;
+    const target = tokens.find(t => t.id === id);
+    const ok = await confirmDialog({
+      title: 'Supprimer ce réglage ?',
+      body: target?.key ? `« ${target.key} » sera retiré de votre univers visuel.` : undefined,
+      confirmLabel: 'Supprimer',
+      destructive: true,
+    });
+    if (!ok) return;
     const r = await fetch(`/api/design-system/${id}`, { method: 'DELETE' });
-    if (r.ok) setTokens(tokens.filter(t => t.id !== id));
+    if (r.ok) { setTokens(tokens.filter(t => t.id !== id)); toast.success('Réglage supprimé'); }
+    else toast.error('Suppression impossible');
   }
 
   async function loadMoodboards() {
@@ -85,9 +95,16 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
   }, []);
 
   async function deleteMoodboard(id: string) {
-    if (!confirm('Supprimer cette image de référence ?')) return;
+    const ok = await confirmDialog({
+      title: 'Supprimer cette image de référence ?',
+      body: 'L\'image quittera votre moodboard. Cadence ne s\'en inspirera plus pour les futurs visuels.',
+      confirmLabel: 'Supprimer',
+      destructive: true,
+    });
+    if (!ok) return;
     const r = await fetch(`/api/design-system/${id}`, { method: 'DELETE' });
-    if (r.ok) setMoodboards(prev => prev.filter(m => m.id !== id));
+    if (r.ok) { setMoodboards(prev => prev.filter(m => m.id !== id)); toast.success('Image retirée'); }
+    else toast.error('Suppression impossible');
   }
 
   async function saveFigma() {

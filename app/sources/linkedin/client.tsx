@@ -13,6 +13,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import JSZip from 'jszip';
+import { confirmDialog, toast } from '@/components/Dialog';
 
 type ParsedPost = { date: string; text: string; url?: string; sharedUrl?: string };
 
@@ -168,7 +169,13 @@ export default function LinkedInImportClient() {
 
   async function importToNotion() {
     if (!posts.length) return;
-    if (!confirm(`Importer ${Math.min(posts.length, 200)} posts dans Notion ? Cadence évite les doublons automatiquement.`)) return;
+    const count = Math.min(posts.length, 200);
+    const ok = await confirmDialog({
+      title: `Importer ${count} post${count > 1 ? 's' : ''} dans votre workspace ?`,
+      body: 'Cadence évite les doublons automatiquement. Les posts seront marqués comme imports LinkedIn vérifiés dans la bibliothèque.',
+      confirmLabel: 'Importer',
+    });
+    if (!ok) return;
     setImporting(true); setError(null); setImportResult(null);
     setProgress({ done: 0, total: Math.min(posts.length, 200) });
     try {

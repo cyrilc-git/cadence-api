@@ -13,6 +13,7 @@ import CadenceEditor, { useEditorMetrics } from '@/components/CadenceEditor';
 import CommandPalette, { Command } from '@/components/CommandPalette';
 import PreviewDrawer from '@/components/PreviewDrawer';
 import { SLASH_COMMANDS } from '@/components/SlashMenu';
+import { confirmDialog, toast } from '@/components/Dialog';
 
 type Status = 'draft' | 'needs_validation' | 'scheduled' | 'published' | 'late';
 
@@ -171,7 +172,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
         if (!r.ok) throw new Error(d.error || 'archive failed');
       }
       window.location.href = '/posts';
-    } catch (e: any) { alert('Erreur : ' + e.message); }
+    } catch (e: any) { toast.error('Suppression interrompue : ' + e.message); }
     finally { setRemoving(false); }
   }
 
@@ -330,7 +331,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
                 <div className="font-semibold text-sm text-ink-900">Retirer seulement de Cadence</div>
                 <div className="text-xs text-ink-500 mt-0.5">La page Notion existe toujours.</div>
               </button>
-              <button onClick={() => { if (!confirm('Confirmer ? La page Notion sera archivée.')) return; removeFromCadence(true); }} className="w-full text-left p-3 rounded-xl border border-danger-100 hover:border-danger-300 hover:bg-danger-50/30 transition">
+              <button onClick={async () => { const ok = await confirmDialog({ title: 'Archiver la page Notion ?', body: 'La page sera mise à la corbeille Notion (réversible côté Notion).', confirmLabel: 'Archiver', destructive: true }); if (!ok) return; removeFromCadence(true); }} className="w-full text-left p-3 rounded-xl border border-danger-100 hover:border-danger-300 hover:bg-danger-50/30 transition">
                 <div className="font-semibold text-sm text-danger-700">Archiver aussi dans Notion</div>
                 <div className="text-xs text-ink-500 mt-0.5">Page archivée (corbeille Notion, réversible).</div>
               </button>

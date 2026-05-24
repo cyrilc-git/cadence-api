@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { confirmDialog, toast } from '@/components/Dialog';
 
 const KIND_META: Record<string, { label: string; hint: string; icon: string; tone: 'brand'|'success'|'warn'|'danger'|'neutral' }> = {
   pilier:       { label: 'Piliers éditoriaux', hint: 'Un pilier par jour de la semaine, ou par thème.', icon: '◆', tone: 'brand' },
@@ -35,15 +36,29 @@ export default function BrandDnaClient({ initial, initialPlan = [] }: { initial:
     if (!newLabel.trim()) return;
     const r = await fetch('/api/brand-dna', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, label: newLabel.trim() }) });
     const d = await r.json();
-    if (r.ok) { setItems([...items, d.item]); setNewLabel(''); setAdding(null); } else alert(d.error);
+    if (r.ok) { setItems([...items, d.item]); setNewLabel(''); setAdding(null); toast.success('Élément ajouté'); }
+    else toast.error(d.error || 'Ajout impossible');
   }
   async function remove(id: string) {
-    if (!confirm('Supprimer cet élément ?')) return;
+    const target = items.find(i => i.id === id);
+    const ok = await confirmDialog({
+      title: 'Supprimer cet élément ?',
+      body: target?.label ? `« ${target.label} » sera retiré de votre ligne éditoriale.` : undefined,
+      confirmLabel: 'Supprimer',
+      destructive: true,
+    });
+    if (!ok) return;
     const r = await fetch(`/api/brand-dna/${id}`, { method: 'DELETE' });
-    if (r.ok) setItems(items.filter(i => i.id !== id));
+    if (r.ok) { setItems(items.filter(i => i.id !== id)); toast.success('Élément supprimé'); }
+    else toast.error('Suppression impossible');
   }
   async function restoreDefaults() {
-    if (!confirm('Restaurer les valeurs par défaut Cadence ? Cela ajoute uniquement les éléments manquants.')) return;
+    const ok = await confirmDialog({
+      title: 'Restaurer les défauts Cadence ?',
+      body: 'Cadence ajoutera uniquement les éléments manquants. Vos personnalisations actuelles ne seront pas touchées.',
+      confirmLabel: 'Restaurer',
+    });
+    if (!ok) return;
     setRestoring(true);
     try {
       const r = await fetch('/api/seed', { method: 'POST' });
@@ -51,19 +66,26 @@ export default function BrandDnaClient({ initial, initialPlan = [] }: { initial:
       if (!r.ok) throw new Error(d.error);
       const list = await fetch('/api/brand-dna').then(x => x.json());
       setItems(list.items || []);
-    } catch (e: any) { alert('Erreur restauration : ' + e.message); }
+      toast.success('Défauts restaurés');
+    } catch (e: any) { toast.error('Restauration impossible : ' + e.message); }
     finally { setRestoring(false); }
   }
   async function generate(period: 'day' | 'week' | 'month') {
-    const labels = { day: '1 brouillon (prochain jour de pilier)', week: '5 brouillons (lundi → vendredi)', month: 'jusqu\'à 20 brouillons (4 semaines)' };
-    if (!confirm(`Générer ${labels[period]} ? Tous en NON validé. Aucune publication.`)) return;
+    const labels = { day: '1 brouillon pour le prochain jour de pilier', week: '5 brouillons pour la semaine prochaine (lundi à vendredi)', month: 'jusqu\'à 20 brouillons pour les 4 prochaines semaines' };
+    const ok = await confirmDialog({
+      title: `Générer ${labels[period]} ?`,
+      body: 'Tous arrivent en NON validé dans la bibliothèque. Aucune publication tant que vous ne validez pas chaque post.',
+      confirmLabel: 'Générer',
+    });
+    if (!ok) return;
     setGenerating(period); setGenResult(null);
     try {
       const r = await fetch('/api/generate-week', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period }) });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);
       setGenResult(d);
-    } catch (e: any) { alert('Erreur : ' + e.message); }
+      toast.success(`${d.created || ''} brouillon${d.created > 1 ? 's' : ''} prêt${d.created > 1 ? 's' : ''} à relire`);
+    } catch (e: any) { toast.error('Génération impossible : ' + e.message); }
     finally { setGenerating(null); }
   }
 

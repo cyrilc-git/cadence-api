@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import StatusBadge from '@/components/StatusBadge';
+import { confirmDialog, toast } from '@/components/Dialog';
 
 type Connector = { kind: string; status: string; last_error?: string | null; info?: string };
 
@@ -51,13 +52,20 @@ export default function SettingsClient({ li, notionOk, notionError, connectors, 
       setCreds([d.item, ...creds.filter(c => !(c.provider === editing.field && c.status === 'active'))]);
       setEditing(null);
     } catch (e: any) {
-      alert('Erreur : ' + e.message);
+      toast.error('Enregistrement impossible : ' + e.message);
     } finally { setSaving(false); }
   }
   async function revoke(id: string) {
-    if (!confirm('Révoquer cette clé ? Cadence basculera sur la valeur env var si disponible.')) return;
+    const ok = await confirmDialog({
+      title: 'Révoquer cette clé ?',
+      body: 'Cadence basculera sur la valeur env var Vercel si elle existe. Sinon le service correspondant sera désactivé.',
+      confirmLabel: 'Révoquer',
+      destructive: true,
+    });
+    if (!ok) return;
     const r = await fetch(`/api/credentials/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'revoke' }) });
-    if (r.ok) setCreds(creds.map(c => c.id === id ? { ...c, status: 'revoked' } : c));
+    if (r.ok) { setCreds(creds.map(c => c.id === id ? { ...c, status: 'revoked' } : c)); toast.success('Clé révoquée'); }
+    else toast.error('Révocation impossible');
   }
   async function test(id: string) {
     setTesting(id);

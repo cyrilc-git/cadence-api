@@ -5,6 +5,7 @@ import Link from 'next/link';
 import MoveMenu from '@/components/MoveMenu';
 import ProvenanceBadge from '@/components/ProvenanceBadge';
 import { inferFromNotion, type Provenance } from '@/lib/provenance';
+import { confirmDialog, toast } from '@/components/Dialog';
 
 // Pilier color tokens — one base color per editorial day
 const PILIER_TONES: Record<string, { bg: string; text: string; ring: string; dot: string }> = {
@@ -158,7 +159,12 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
   }
 
   async function generateWeek() {
-    if (!confirm('Générer 5 brouillons (lundi → vendredi) pour la semaine prochaine ? Drafts NON validés.')) return;
+    const ok = await confirmDialog({
+      title: 'Préparer la semaine prochaine ?',
+      body: 'Cadence va rédiger 5 brouillons (lundi à vendredi) en s\'appuyant sur votre ligne éditoriale et le radar. Tous arrivent en NON validé — rien ne part sur LinkedIn sans votre validation.',
+      confirmLabel: 'Préparer',
+    });
+    if (!ok) return;
     setGenerating(true); setGenResult(null);
 
     // V8.8 — orchestration visible : 4 étapes que Cadence traverse
@@ -197,7 +203,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
       setGenStage(null);
       setGenResult({ created: created.length, pilierList: created.map((c: any) => c.pilier) });
       setTimeout(refresh, 800);
-    } catch (e: any) { alert('Erreur : ' + e.message); setGenStage(null); }
+    } catch (e: any) { toast.error('Génération impossible : ' + e.message); setGenStage(null); }
     finally { setGenerating(false); }
   }
 
