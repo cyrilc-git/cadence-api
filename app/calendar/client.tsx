@@ -260,8 +260,12 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
     <div className="space-y-5">
       <header className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">Calendrier</h1>
-          <p className="mt-1 text-sm text-ink-500">{view === 'month' ? `${MONTH_FR[cursor.getMonth()]} ${cursor.getFullYear()}` : `Semaine du ${grid[0]?.[0]?.toLocaleDateString('fr-FR')}`}</p>
+          <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Réalité éditoriale LinkedIn</p>
+          <h1 className="mt-1 text-2xl font-semibold text-ink-900 tracking-tight">Calendrier</h1>
+          <p className="mt-1 text-sm text-ink-500 leading-relaxed">
+            {view === 'month' ? `${MONTH_FR[cursor.getMonth()]} ${cursor.getFullYear()}` : `Semaine du ${grid[0]?.[0]?.toLocaleDateString('fr-FR')}`}
+            <span className="text-ink-400"> · Source de vérité : LinkedIn. Notion sert de workspace de brouillons.</span>
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="inline-flex bg-ink-100 rounded-lg p-0.5 gap-0.5">
@@ -310,10 +314,10 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
             return parts.join(' · ');
           })()}
         </p>
-        <div className="inline-flex bg-ink-100 rounded-lg p-0.5 gap-0.5">
-          <button onClick={() => setSourceFilter('all')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'all' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500'}`}>Tout</button>
-          <button onClick={() => setSourceFilter('linkedin')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'linkedin' ? 'bg-white text-[#0A66C2] shadow-xs' : 'text-ink-500'}`} title="Publié sur LinkedIn + Cadence">LinkedIn</button>
-          <button onClick={() => setSourceFilter('notion')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'notion' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500'}`} title="Drafts et archives Notion">Notion</button>
+        <div className="inline-flex bg-ink-100 rounded-lg p-0.5 gap-0.5" role="group" aria-label="Filtre source">
+          <button onClick={() => setSourceFilter('all')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'all' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500 hover:text-ink-700'}`}>Tout</button>
+          <button onClick={() => setSourceFilter('linkedin')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'linkedin' ? 'bg-white text-[#0A66C2] shadow-xs' : 'text-ink-500 hover:text-ink-700'}`} title="Posts publiés ou en route vers LinkedIn">Publié</button>
+          <button onClick={() => setSourceFilter('notion')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'notion' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500 hover:text-ink-700'}`} title="Brouillons et archives qui vivent uniquement dans Notion">Brouillons</button>
         </div>
       </div>
 
@@ -377,10 +381,18 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
                     {items.slice(0, 3).map((p: any) => {
                       const t = tone(p.pilier);
                       const st = statusOf(p);
+                      // V13.2 — hiérarchie visuelle source-aware. Réalité LinkedIn
+                      // (published / scheduled validé) en pleine opacité. Drafts
+                      // Notion à 80%. Archives Notion à 60% pour les visuellement
+                      // démoter sans les cacher.
+                      const sourceOpacity =
+                        st === 'archive' ? 'opacity-60' :
+                        st === 'draft' || st === 'needs_validation' ? 'opacity-80' :
+                        '';
                       return (
                         <div
                           key={p.id}
-                          className={`group relative ${draggingId === p.id ? 'opacity-30 scale-95' : ''} ${justMovedId === p.id ? 'animate-pulse-soft ring-2 ring-success-500 ring-offset-1 rounded-lg' : ''} transition-all duration-200`}
+                          className={`group relative ${draggingId === p.id ? 'opacity-30 scale-95' : sourceOpacity} ${justMovedId === p.id ? 'animate-pulse-soft ring-2 ring-success-500 ring-offset-1 rounded-lg' : ''} transition-all duration-200`}
                           draggable={!isPast}
                           onDragStart={(e) => { setDraggingId(p.id); try { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; } catch {} }}
                           onDragEnd={() => { setDraggingId(null); setDragOverKey(null); }}
@@ -452,20 +464,27 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
         </div>
       )}
 
-      {/* Legend — discrète V9.1 */}
-      <div className="text-xs text-ink-500 flex items-center gap-5 flex-wrap pt-2 border-t border-ink-100">
-        <span className="flex items-center gap-1.5"><span className="dot bg-warn-500" /> à valider</span>
-        <span className="flex items-center gap-1.5"><span className="dot bg-brand-500" /> programmé</span>
-        <span className="flex items-center gap-1.5"><span className="text-success-700">✓</span> publié LinkedIn</span>
-        <span className="flex items-center gap-1.5"><span className="dot bg-amber-500" /> archive Notion</span>
-        <span className="flex items-center gap-1.5"><span className="text-danger-500">⚠</span> en retard</span>
-        {weekdayPerf.max > 0 && (
-          <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-3 rounded bg-emerald-50/60 border border-emerald-100" />
-            jours forts en moyenne
-          </span>
-        )}
-        <span className="ml-auto text-ink-400">Aucune publication sans validation explicite.</span>
+      {/* Legend — V13.2 : séparation explicite "Réalité LinkedIn" / "Workspace Notion" */}
+      <div className="pt-3 border-t border-ink-100 space-y-2 text-xs text-ink-500">
+        <div className="flex items-center gap-5 flex-wrap">
+          <span className="text-2xs uppercase tracking-wider font-semibold text-[#0A66C2]">Réalité LinkedIn</span>
+          <span className="flex items-center gap-1.5"><span className="text-success-700">✓</span> publié</span>
+          <span className="flex items-center gap-1.5"><span className="dot bg-brand-500" /> programmé validé</span>
+          <span className="flex items-center gap-1.5"><span className="dot bg-warn-500" /> à valider</span>
+          <span className="flex items-center gap-1.5"><span className="text-danger-500">⚠</span> en retard</span>
+        </div>
+        <div className="flex items-center gap-5 flex-wrap">
+          <span className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Workspace Notion</span>
+          <span className="flex items-center gap-1.5"><span className="dot bg-amber-500" /> archive non certifiée</span>
+          <span className="flex items-center gap-1.5"><span className="dot bg-ink-300" /> brouillon</span>
+          {weekdayPerf.max > 0 && (
+            <span className="flex items-center gap-1.5 ml-auto">
+              <span className="inline-block w-3 h-3 rounded bg-emerald-50/60 border border-emerald-100" />
+              jours forts en moyenne
+            </span>
+          )}
+        </div>
+        <p className="text-2xs text-ink-400 italic">Aucune publication sans validation explicite.</p>
       </div>
     </div>
   );
