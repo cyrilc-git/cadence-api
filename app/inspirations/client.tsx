@@ -101,7 +101,7 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
             <Field label="Nom"><input value={editing.name || ''} onChange={e => setEditing({ ...editing, name: e.target.value })} className="w-full px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" autoFocus /></Field>
             <Field label="URL LinkedIn">
               <input value={editing.url || ''} onChange={e => setEditing({ ...editing, url: e.target.value })} placeholder="https://linkedin.com/in/…" className="w-full px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" />
-              {editing.url && safeExternal(editing.url) && <div className="mt-1 text-xs text-ink-500 break-all">âª {safeExternal(editing.url)}</div>}
+              {editing.url && safeExternal(editing.url) && <div className="mt-1 text-xs text-ink-500 break-all">{safeExternal(editing.url)}</div>}
               {editing.url && !safeExternal(editing.url) && <div className="mt-1 text-xs text-danger-700">URL invalide. Préfixez par https:// (ex: https://www.linkedin.com/in/votre-id/).</div>}
             </Field>
             <Field label="Catégorie"><input value={editing.category || ''} onChange={e => setEditing({ ...editing, category: e.target.value })} placeholder="Build in public, Opinion, Cas client…" className="w-full px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm" /></Field>

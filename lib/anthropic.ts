@@ -40,7 +40,7 @@ const STATIC_BANNED = [
 ];
 
 const STATIC_INSPIRATION_RULES =
-`INSPIRATION â  COPIE
+`INSPIRATION ≠ COPIE
 Les inspirations sont des notes abstraites de style. Elles servent à comprendre rythme, densité, pédagogie, structure, niveau de clarté.
 Aucun post généré ne doit permettre de deviner quel profil a servi d'inspiration.
 Jamais de reprise de formulation, gimmick personnel, structure trop reconnaissable, hook signature ou punchline identifiable.`;
