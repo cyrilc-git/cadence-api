@@ -196,10 +196,13 @@ export default function EditClient({ initial, validated: initialValidated }: { i
     { id: 'publish', label: 'Publier maintenant', hint: 'Validation requise', group: 'Avancé', perform: () => setPublishOpen(true) },
   ];
 
+  // V14.1 — Focus mode auto au-delà de 240 chars (cohérent avec /posts/new)
+  const deepWriting = text.trim().length > 240;
+
   return (
     <div className={`-mx-5 lg:-mx-10 -my-7 lg:-my-9 min-h-screen min-h-[100dvh] flex flex-col bg-white transition-[padding] duration-300 ease-out-expo ${previewOpen ? 'lg:pr-[480px]' : ''}`}>
-      {/* === HEADER MINIMAL (sticky, 56px) === */}
-      <header className="sticky top-0 z-20 flex items-center gap-3 px-5 lg:px-8 h-14 border-b border-ink-100 bg-white/95 backdrop-blur pt-[env(safe-area-inset-top)]">
+      {/* === HEADER MINIMAL (sticky, 56px) === V14.1 atténué en deep writing === */}
+      <header className={`sticky top-0 z-20 flex items-center gap-3 px-5 lg:px-8 h-14 border-b border-ink-100 bg-white/95 backdrop-blur pt-[env(safe-area-inset-top)] transition-opacity duration-300 ${deepWriting ? 'opacity-40 hover:opacity-100 focus-within:opacity-100' : 'opacity-100'}`}>
         <Link href="/posts" className="btn-ghost text-sm" aria-label="Retour">←</Link>
         <span className={`chip ${sMeta.cls} text-2xs whitespace-nowrap`}>
           <span className={`dot ${sMeta.dot}`} /> {sMeta.label}

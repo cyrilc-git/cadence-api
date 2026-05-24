@@ -173,10 +173,15 @@ export default function NewPostClient({
   const pilierShort = pilier.split('·')[1]?.trim() || pilier;
   const canPublish = text.trim() && (!pilierIsCasClient || anonOk) && !criticalLint.length;
   const hasText = text.trim().length > 0;
+  // V14.1 — Focus mode automatique : au-delà de 240 caractères, l'utilisateur
+  // est clairement dans une phase d'écriture sérieuse. On atténue le chrome
+  // (header pilier + boutons header) pour laisser le texte respirer comme
+  // sur iA Writer / Lex / Bear. Le chrome réapparaît au hover (groupe).
+  const deepWriting = hasText && text.length > 240;
 
   return (
-    <div className={`-mx-5 lg:-mx-10 -my-7 lg:-my-9 min-h-screen min-h-[100dvh] flex flex-col bg-white transition-[padding] duration-300 ease-out-expo ${previewOpen ? 'lg:pr-[480px]' : ''}`}>
-      <header className="flex items-center gap-2 px-5 lg:px-8 h-14 sm:h-12 relative pt-[env(safe-area-inset-top)]">
+    <div className={`group/page -mx-5 lg:-mx-10 -my-7 lg:-my-9 min-h-screen min-h-[100dvh] flex flex-col bg-white transition-[padding] duration-300 ease-out-expo ${previewOpen ? 'lg:pr-[480px]' : ''}`}>
+      <header className={`flex items-center gap-2 px-5 lg:px-8 h-14 sm:h-12 relative pt-[env(safe-area-inset-top)] transition-opacity duration-300 ${deepWriting ? 'opacity-30 hover:opacity-100 focus-within:opacity-100' : 'opacity-100'}`}>
         <Link href="/posts" className="text-ink-500 hover:text-ink-900 transition w-10 h-10 sm:w-8 sm:h-8 inline-flex items-center justify-center -ml-2 sm:-ml-1" aria-label="Retour à la bibliothèque" title="Retour">←</Link>
 
         <div className="relative mx-auto">
