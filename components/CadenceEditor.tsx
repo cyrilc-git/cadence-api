@@ -24,6 +24,9 @@ export type CadenceEditorProps = {
   pilier?: string;
   /** V8.9 — afficher les suggestions de mentions IA sous l'éditeur */
   showMentionSuggestions?: boolean;
+  /** V12.8 §2 — Callback quand Cadence détecte qu'un visuel serait pertinent.
+   * Le parent ouvre alors son drawer / sélectionne le template approprié. */
+  onVisualSuggested?: (format: string) => void;
 };
 
 function strippedText(text: string): string {
@@ -45,6 +48,7 @@ export default function CadenceEditor({
   textareaRef, showAiIndicator = true,
   brief, pilier,
   showMentionSuggestions = true,
+  onVisualSuggested,
 }: CadenceEditorProps) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const ref = textareaRef || localRef;
@@ -66,6 +70,9 @@ export default function CadenceEditor({
   // V12.6 — visualHint : Cadence suggère un format graphique selon le texte
   const [memorySignal, setMemorySignal] = useState<{ kind: 'saturation' | 'novelty' | 'familiar'; message: string; counterAngle?: string | null } | null>(null);
   const [visualHint, setVisualHint] = useState<{ format: string; message: string } | null>(null);
+  // V12.8 §2 — l'utilisateur peut "ignorer" une suggestion visuelle pour
+  // qu'elle ne réapparaisse pas pendant cette session de frappe.
+  const [dismissedHintFormat, setDismissedHintFormat] = useState<string | null>(null);
   const memoryAbortRef = useRef<AbortController | null>(null);
   const memoryTimerRef = useRef<any>(null);
 
@@ -384,9 +391,30 @@ export default function CadenceEditor({
               {memorySignal.counterAngle}
             </p>
           )}
-          {visualHint && (
+          {visualHint && dismissedHintFormat !== visualHint.format && (
             <p className="text-2xs text-ink-500 leading-relaxed">
               {visualHint.message}
+              {onVisualSuggested && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    onClick={() => onVisualSuggested(visualHint.format)}
+                    className="text-brand-700 hover:text-brand-900 underline decoration-dotted underline-offset-2 transition"
+                  >
+                    Créer le visuel
+                  </button>
+                  {' · '}
+                  <button
+                    type="button"
+                    onClick={() => setDismissedHintFormat(visualHint.format)}
+                    className="text-ink-400 hover:text-ink-700 transition"
+                    title="Ignorer cette suggestion pour ce post"
+                  >
+                    plus tard
+                  </button>
+                </>
+              )}
             </p>
           )}
         </div>

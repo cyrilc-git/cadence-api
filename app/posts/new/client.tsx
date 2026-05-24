@@ -67,6 +67,8 @@ export default function NewPostClient({
   const [publishOpen, setPublishOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  // V12.8 §2 — format suggéré par memory-check, pré-sélectionné dans VisualGenerator
+  const [suggestedVisualFormat, setSuggestedVisualFormat] = useState<string | null>(null);
   const [pilierOpen, setPilierOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -255,6 +257,10 @@ export default function NewPostClient({
               brief={brief || prefillBrief}
               pilier={pilier}
               onResult={r => { setProposals([r]); setProposalIdx(0); }}
+              onVisualSuggested={(format) => {
+                setSuggestedVisualFormat(format);
+                setPreviewOpen(true);
+              }}
             />
           </div>
         )}
@@ -344,6 +350,7 @@ export default function NewPostClient({
             notionPageId={initial?.id}
             pilier={pilier}
             text={text}
+            suggestedFormat={suggestedVisualFormat}
             onPick={setImageUrl}
           />
         </div>

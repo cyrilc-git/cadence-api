@@ -64,6 +64,8 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   const [compareIndex, setCompareIndex] = useState<number | null>(null);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  // V12.8 §2 — format suggéré par memory-check, pré-sélectionné dans VisualGenerator
+  const [suggestedVisualFormat, setSuggestedVisualFormat] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
@@ -231,6 +233,10 @@ export default function EditClient({ initial, validated: initialValidated }: { i
           rows={20}
           placeholder="Commencez à écrire. Tapez / pour les commandes, @ pour mentionner."
           bare
+          onVisualSuggested={(format) => {
+            setSuggestedVisualFormat(format);
+            setPreviewOpen(true);
+          }}
         />
       </div>
 
@@ -260,6 +266,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
             notionPageId={summary.id}
             pilier={summary.pilier}
             text={text}
+            suggestedFormat={suggestedVisualFormat}
             onPick={setImageUrl}
           />
         </div>

@@ -43,14 +43,25 @@ export default function VisualGenerator({
   onPick,
   pilier: pilierProp,
   text: contextText,
+  suggestedFormat,
 }: {
   defaultPrompt?: string;
   notionPageId?: string;
   onPick?: (urlOrSvg: string | null) => void;
   pilier?: string;
   text?: string;
+  /** V12.8 §2 — Format pré-sélectionné quand le drawer s'ouvre depuis l'éditeur */
+  suggestedFormat?: string | null;
 }) {
   const [template, setTemplate] = useState<keyof typeof TEMPLATES>('feature');
+
+  // V12.8 §2 — Quand l'éditeur signale un format suggéré, on bascule le template.
+  useEffect(() => {
+    if (!suggestedFormat) return;
+    const tpl = HINT_TO_TEMPLATE[suggestedFormat];
+    if (tpl && tpl !== template) useTemplate(tpl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestedFormat]);
   const [prompt, setPrompt] = useState(defaultPrompt);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
