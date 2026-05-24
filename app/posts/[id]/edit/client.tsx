@@ -197,7 +197,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   ];
 
   return (
-    <div className={`-mx-5 lg:-mx-10 -my-7 lg:-my-9 min-h-screen min-h-[100dvh] flex flex-col bg-white transition-[padding] duration-300 ease-out-expo ${previewOpen ? 'sm:pr-[480px]' : ''}`}>
+    <div className={`-mx-5 lg:-mx-10 -my-7 lg:-my-9 min-h-screen min-h-[100dvh] flex flex-col bg-white transition-[padding] duration-300 ease-out-expo ${previewOpen ? 'lg:pr-[480px]' : ''}`}>
       {/* === HEADER MINIMAL (sticky, 56px) === */}
       <header className="sticky top-0 z-20 flex items-center gap-3 px-5 lg:px-8 h-14 border-b border-ink-100 bg-white/95 backdrop-blur pt-[env(safe-area-inset-top)]">
         <Link href="/posts" className="btn-ghost text-sm" aria-label="Retour">←</Link>
