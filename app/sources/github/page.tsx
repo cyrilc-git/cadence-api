@@ -5,10 +5,11 @@ export default function GitHubSourcePage() {
   const hasEnv = !!process.env.GITHUB_TOKEN;
   const repos = process.env.GITHUB_REPOS || '';
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-2xl">
       <header>
-        <h1 className="text-3xl font-semibold text-ink-900">GitHub</h1>
-        <p className="mt-1 text-ink-500">Source de signaux produit pour le Radar : commits récents, PRs mergées, releases.</p>
+        <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Source · GitHub</p>
+        <h1 className="mt-1 text-2xl font-semibold text-ink-900 tracking-tight">GitHub</h1>
+        <p className="mt-1 text-sm text-ink-500 leading-relaxed">Signaux produit pour le Radar : commits récents, PRs mergées, releases.</p>
       </header>
       <section className="bg-white rounded-2xl p-6 shadow-card ring-1 ring-inset ring-ink-300/20">
         <div className="flex items-center justify-between flex-wrap gap-3">

@@ -56,8 +56,8 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-semibold text-ink-900">Inspirations</h1>
-          <p className="mt-1 text-ink-500">Comptes LinkedIn qui inspirent. Jamais à copier.</p>
+          <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">Inspirations</h1>
+          <p className="mt-1 text-sm text-ink-500 leading-relaxed">Comptes LinkedIn qui inspirent. Jamais à copier.</p>
         </div>
         <div className="flex gap-2">
           <button onClick={restoreDefaults} disabled={restoring} className="px-4 py-2 rounded-lg ring-1 ring-ink-300 text-sm font-medium hover:bg-ink-50 disabled:opacity-50">

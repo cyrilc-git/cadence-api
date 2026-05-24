@@ -71,8 +71,8 @@ export default function SettingsClient({ li, notionOk, notionError, connectors, 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-3xl font-semibold text-ink-900">Paramètres</h1>
-        <p className="mt-1 text-ink-500">Vos sources branchées à Cadence. Les credentials sont chiffrés côté serveur, jamais exposés au client.</p>
+        <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">Paramètres</h1>
+        <p className="mt-1 text-sm text-ink-500 leading-relaxed">Vos sources branchées à Cadence. Les clés sont chiffrées côté serveur, jamais exposées au client.</p>
       </header>
 
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
