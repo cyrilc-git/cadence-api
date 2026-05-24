@@ -70,7 +70,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .lead { font-size: 1rem; line-height: 1.55; color: #475569; }
 .dim  { color: #64748B; }
 
-/* Buttons base */
+/* Buttons base — V12.10 §6 : min-height 40px tactile sur mobile (≤768px) */
 .btn-primary {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 8px 14px; border-radius: 10px;
@@ -120,6 +120,18 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 }
 .input:focus { border-color: #93C5FD; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12); outline: none; }
 .input::placeholder { color: #94A3B8; }
+
+/* Tactile mobile : sur écrans étroits, garantir que tout élément interactif
+   atteint ≥ 40px de hauteur (recommandation Apple HIG 44pt, on assume 40px
+   suffisant en tenant compte du padding du parent). Pas appliqué desktop
+   pour garder la densité actuelle. */
+@media (max-width: 768px) {
+  .btn-primary, .btn-secondary { min-height: 44px; padding-top: 10px; padding-bottom: 10px; }
+  .btn-ghost, .btn-danger { min-height: 40px; padding-top: 9px; padding-bottom: 9px; }
+  .input { min-height: 44px; padding-top: 11px; padding-bottom: 11px; font-size: 16px; }
+  /* font-size: 16px sur les inputs évite le zoom auto iOS Safari au focus */
+  select.input, textarea.input { min-height: 44px; }
+}
 
 /* Status chips */
 .chip {
