@@ -161,7 +161,7 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
   async function generateWeek() {
     const ok = await confirmDialog({
       title: 'Préparer la semaine prochaine ?',
-      body: 'Cadence va rédiger 5 brouillons (lundi à vendredi) en s\'appuyant sur votre ligne éditoriale et le radar. Tous arrivent en NON validé — rien ne part sur LinkedIn sans votre validation.',
+      body: 'Cadence va rédiger 5 brouillons (lundi à vendredi) en s\'appuyant sur votre ligne éditoriale et le radar. Tous arrivent en NON validé. Rien ne part sur LinkedIn sans votre validation.',
       confirmLabel: 'Préparer',
     });
     if (!ok) return;

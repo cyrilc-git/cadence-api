@@ -88,7 +88,7 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
       </header>
 
       <div className="bg-warn-50 ring-1 ring-inset ring-warn-500/20 rounded-2xl p-4 text-sm text-warn-700">
-        <strong className="font-semibold">Règle anti-plagiat.</strong> Les inspirations servent à comprendre rythme, densité, structure, angle. Cadence n'enverra jamais le nom ou le contenu d'une inspiration à l'IA — seulement les "notes de style". Toute génération suspecte sera bloquée.
+        <strong className="font-semibold">Règle anti-plagiat.</strong> Les inspirations servent à comprendre rythme, densité, structure, angle. Cadence n&apos;enverra jamais le nom ou le contenu d&apos;une inspiration à l&apos;IA, seulement les «&nbsp;notes de style&nbsp;». Toute génération suspecte sera bloquée.
       </div>
 
       {items.length === 0 ? (
@@ -111,7 +111,7 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
                 {i.url && <a href={i.url} target="_blank" rel="noopener" className="text-xs text-brand-700 hover:text-brand-600">Profil LinkedIn ↗</a>}
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <StatusBadge variant="neutral">{i.category || '—'}</StatusBadge>
+                <StatusBadge variant="neutral">{i.category || 'Sans catégorie'}</StatusBadge>
                 <span className="text-xs text-ink-500">★ {i.score}/5</span>
               </div>
             </div>
