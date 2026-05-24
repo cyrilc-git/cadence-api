@@ -343,17 +343,40 @@ export default function NewPostClient({
       )}
 
       <PreviewDrawer open={previewOpen} onClose={() => setPreviewOpen(false)} title="Aperçu & visuel">
-        <LinkedInPreview text={text} image={imageUrl || undefined} />
-        <div className="mt-6">
-          <VisualGenerator
-            defaultPrompt={text ? `Visuel d'accompagnement : ${text.slice(0, 200)} (Style Heelio)` : ''}
-            notionPageId={initial?.id}
-            pilier={pilier}
-            text={text}
-            suggestedFormat={suggestedVisualFormat}
-            onPick={setImageUrl}
-          />
-        </div>
+        {/* V13.3 §3 — quand la drawer est ouverte via "Créer le visuel"
+            (suggestedVisualFormat défini), on met le VisualGenerator en
+            premier pour que l'utilisateur tombe sur ce qu'il a demandé. */}
+        {suggestedVisualFormat ? (
+          <>
+            <VisualGenerator
+              defaultPrompt={text ? `Visuel d'accompagnement : ${text.slice(0, 200)} (Style Heelio)` : ''}
+              notionPageId={initial?.id}
+              pilier={pilier}
+              text={text}
+              suggestedFormat={suggestedVisualFormat}
+              onPick={setImageUrl}
+            />
+            <div className="mt-6 pt-6 border-t border-ink-100">
+              <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400 mb-3">Aperçu post</p>
+              <LinkedInPreview text={text} image={imageUrl || undefined} />
+            </div>
+          </>
+        ) : (
+          <>
+            <LinkedInPreview text={text} image={imageUrl || undefined} />
+            <div className="mt-6 pt-6 border-t border-ink-100">
+              <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400 mb-3">Visuel d&apos;accompagnement</p>
+              <VisualGenerator
+                defaultPrompt={text ? `Visuel d'accompagnement : ${text.slice(0, 200)} (Style Heelio)` : ''}
+                notionPageId={initial?.id}
+                pilier={pilier}
+                text={text}
+                suggestedFormat={suggestedVisualFormat}
+                onPick={setImageUrl}
+              />
+            </div>
+          </>
+        )}
       </PreviewDrawer>
 
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} commands={commands} />

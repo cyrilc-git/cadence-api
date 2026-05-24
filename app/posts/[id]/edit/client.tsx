@@ -260,17 +260,37 @@ export default function EditClient({ initial, validated: initialValidated }: { i
 
       {/* === PREVIEW DRAWER === */}
       <PreviewDrawer open={previewOpen} onClose={() => setPreviewOpen(false)} title="Aperçu & visuel">
-        <LinkedInPreview text={text} image={imageUrl || undefined} />
-        <div className="mt-6">
-          <VisualGenerator
-            defaultPrompt={`Visuel d'accompagnement pour ce post LinkedIn :\n\n${text.slice(0, 300)}\n\n(Style : ${summary.pilier || 'Heelio'})`}
-            notionPageId={summary.id}
-            pilier={summary.pilier}
-            text={text}
-            suggestedFormat={suggestedVisualFormat}
-            onPick={setImageUrl}
-          />
-        </div>
+        {suggestedVisualFormat ? (
+          <>
+            <VisualGenerator
+              defaultPrompt={`Visuel d'accompagnement pour ce post LinkedIn :\n\n${text.slice(0, 300)}\n\n(Style : ${summary.pilier || 'Heelio'})`}
+              notionPageId={summary.id}
+              pilier={summary.pilier}
+              text={text}
+              suggestedFormat={suggestedVisualFormat}
+              onPick={setImageUrl}
+            />
+            <div className="mt-6 pt-6 border-t border-ink-100">
+              <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400 mb-3">Aperçu post</p>
+              <LinkedInPreview text={text} image={imageUrl || undefined} />
+            </div>
+          </>
+        ) : (
+          <>
+            <LinkedInPreview text={text} image={imageUrl || undefined} />
+            <div className="mt-6 pt-6 border-t border-ink-100">
+              <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400 mb-3">Visuel d&apos;accompagnement</p>
+              <VisualGenerator
+                defaultPrompt={`Visuel d'accompagnement pour ce post LinkedIn :\n\n${text.slice(0, 300)}\n\n(Style : ${summary.pilier || 'Heelio'})`}
+                notionPageId={summary.id}
+                pilier={summary.pilier}
+                text={text}
+                suggestedFormat={suggestedVisualFormat}
+                onPick={setImageUrl}
+              />
+            </div>
+          </>
+        )}
       </PreviewDrawer>
 
       {/* === COMMAND PALETTE === */}
