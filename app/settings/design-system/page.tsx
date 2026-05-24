@@ -1,9 +1,12 @@
-import DesignSystemClient from './client';
-import { designSystemList } from '@/lib/db';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
+// V12.10 — l'éditeur de tokens design-system a été remplacé par /design-visuel
+// (vocabulaire produit "réglages" / "ambiance" / "références" au lieu de
+// "tokens" / "categories" / "JSON keys"). On redirige toute requête vers
+// la nouvelle surface pour éviter qu'un signet ou un lien direct ramène
+// l'utilisateur sur l'ancien panneau technique.
+export const dynamic = 'force-static';
 
-export default async function DesignSystemPage() {
-  const tokens = await designSystemList().catch(() => []);
-  return <DesignSystemClient initial={tokens} />;
+export default function DesignSystemRedirect() {
+  redirect('/design-visuel');
 }
