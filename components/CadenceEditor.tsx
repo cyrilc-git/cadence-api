@@ -410,12 +410,17 @@ export default function CadenceEditor({
               {onVisualSuggested && (
                 <>
                   {' '}
+                  {/* V14.2 — wording explicite : "Ouvrir le studio" prévient
+                      l'utilisateur qu'un panneau va apparaître à droite,
+                      contrairement à "Créer le visuel" qui laissait penser
+                      à une action inline silencieuse. */}
                   <button
                     type="button"
                     onClick={() => onVisualSuggested(visualHint.format)}
                     className="text-brand-700 hover:text-brand-900 underline decoration-dotted underline-offset-2 transition"
+                    title="Ouvre le panneau de génération à droite (⌘P)"
                   >
-                    Créer le visuel
+                    Ouvrir le studio
                   </button>
                   {' · '}
                   <button
