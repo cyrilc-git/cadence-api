@@ -323,7 +323,12 @@ export default function CadenceEditor({
         }}
       />
 
-      {brief && value.length < 200 && !aiBusy && (
+      {/* V13.8 — affordance "rédiger à partir du brief" : visible UNIQUEMENT
+          si aucune génération IA n'a déjà eu lieu. preIaText !== null signifie
+          qu'une IA est passée par là, le bouton "annuler la dernière IA"
+          prend la place top-right ; afficher les deux à la même position
+          créait un chevauchement. */}
+      {brief && value.length < 200 && !aiBusy && preIaText === null && (
         <button
           onClick={writeFullVersion}
           className="absolute top-2 right-2 text-2xs text-brand-700 hover:text-brand-900 transition animate-fade-in z-20 underline decoration-dotted underline-offset-2"
