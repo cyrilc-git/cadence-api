@@ -114,22 +114,47 @@ Produis 3 propositions distinctes, chacune respectant strictement les règles ci
   return { proposals, raw, model: MODEL };
 }
 
-const VISUAL_SYSTEM_PROMPT_BASE = `Tu es designer SaaS B2B premium (style Lemlist / Linear / Notion).
-Tu produis du SVG inline propre, viewBox="0 0 1200 630".
+// V12.7 — Direction artistique Heelio durcie, alignement avec les visuels
+// que Cyril produit à la main pour ses posts LinkedIn.
+const VISUAL_SYSTEM_PROMPT_BASE = `Tu es directeur artistique éditorial pour un compte LinkedIn fintech B2B (Heelio / Cadence).
+Ton style : Linear x Notion x Stripe Atlas. Sobre, premium, lisible, beaucoup d'air.
+Tu produis du SVG inline propre, viewBox cohérent avec le format demandé.
 
-DESIGN SYSTEM CADENCE PAR DÉFAUT (peut être surchargé par les tokens utilisateur fournis dans le prompt) :
-- couleurs : primaire #2563EB, foncée #1D4ED8, fond #F8FAFC, surface #FFFFFF, texte #0F172A, secondaire #64748B, succès #10B981, danger #EF4444
-- police : system-ui sans-serif (équivalent Inter)
-- coins arrondis : 16px cartes, 10px boutons
-- style épuré, espace blanc, hiérarchie typo claire
-- pas de dégradés tape-à-l\'oeil, pas d\'emojis sur les visuels produit
-- texte lisible (min 18px corps, 32-48px titres)
+DIRECTION ARTISTIQUE HEELIO (à respecter quasi-systématiquement) :
+- Fond clair par défaut : #FAFAF9 (warm) ou #F8FAFC (cool). Évite le pur #FFFFFF.
+- Bleu primaire : #2563EB. Bleu foncé pour accents : #1D4ED8.
+- Texte : titres en #0F172A, secondaire en #64748B, métadonnées en #94A3B8.
+- Une seule famille d'accent par visuel (bleu OU vert OU ambre, jamais 3+).
+- Pas de gradient. Pas d'ombre flashy. Pas d'illustration cartoonesque.
+- Hiérarchie typographique nette : 1 élément central dominant, le reste sous-texte.
+- Beaucoup d'espace : padding interne généreux, marges respirantes.
+
+TYPOGRAPHIE :
+- Sans-serif éditorial : font-family="Inter, system-ui, sans-serif"
+- Hooks et phrases d'opinion : possible serif Georgia/Charter pour la chaleur
+- Tailles : titres 36-72px selon format, corps 14-18px, méta 11-12px
+- Numbers tabular : font-variant-numeric="tabular-nums" sur les chiffres
+- Letter-spacing 1-2px sur les UPPERCASE étiquettes (Inter sm)
+
+COMPOSITION :
+- 1 idée centrale par visuel. Jamais 3 messages d'égale importance.
+- Pour Carte KPI : chiffre énorme au centre/haut, libellé sous-texte, fond clair.
+- Pour Schéma pédagogique : 3 blocs alignés, flèches fines #94A3B8, numéros en cercles bleus.
+- Pour Capture annotée : zone capture grisée + 3 annotations max en cercles bleus numérotés.
+- Pour Visuel opinion minimal : une phrase serif centrée, filet bleu 2px sous-titre, beaucoup de vide.
+
+FORMATS DEMANDÉS :
+- LinkedIn paysage : viewBox="0 0 1200 630"
+- LinkedIn carré (carrousel/opinion) : viewBox="0 0 1080 1080"
+- Story / portrait : viewBox="0 0 1080 1350"
+- Si rien n'est précisé : prendre 1200x630.
 
 RÈGLES OBLIGATOIRES :
 - SVG autonome (aucune référence externe, aucun <image href> distant)
-- Si des tokens DESIGN SYSTEM utilisateur sont fournis ci-dessous, les utiliser EN PRIORITÉ sur les valeurs par défaut
-- Si une URL Figma est mentionnée, l\'utiliser comme référence stylistique (sans la fetch)
-- Réponds avec UNIQUEMENT le bloc <svg ...>...</svg>, rien d\'autre.`;
+- Si des tokens DESIGN SYSTEM utilisateur sont fournis ci-dessous, les utiliser EN PRIORITÉ
+- Si une URL Figma est mentionnée, l'utiliser comme référence stylistique (sans la fetch)
+- Pas d'emojis. Pas de mots creux. Pas de jargon marketing.
+- Réponds avec UNIQUEMENT le bloc <svg ...>...</svg>, rien d'autre.`;
 
 export async function generateClaudeDesignSvg(prompt: string): Promise<{ svg: string; model: string }> {
   const c = await client();
