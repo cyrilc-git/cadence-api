@@ -50,6 +50,11 @@ function enrichWithProvenance(list: any[]): any[] {
 
 export default function CalendarClient({ initialPosts }: { initialPosts: any[] }) {
   const [posts, setPosts] = useState(() => enrichWithProvenance(initialPosts));
+  // V12.9 §3 — Filtre source : 'all' / 'linkedin' / 'notion'.
+  // L'utilisateur peut isoler ce qui est réellement publié sur LinkedIn vs
+  // les drafts Notion. Cadence n'utilise plus Notion comme source de vérité
+  // de ce qui est publié.
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'linkedin' | 'notion'>('all');
   const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; });
   // V9.1 §2 — vue semaine par défaut (Notion Calendar / Linear style)
   const [view, setView] = useState<'month' | 'week'>('week');
@@ -123,9 +128,20 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
     return '';
   }
 
+  // V12.9 §3 — Filtre source : LinkedIn confirmé vs brouillons Notion.
+  const postsForView = useMemo(() => {
+    if (sourceFilter === 'all') return posts;
+    return posts.filter((p: any) => {
+      const cs = p.provenance?.canonical_source;
+      if (sourceFilter === 'linkedin') return cs === 'linkedin' || cs === 'cadence';
+      if (sourceFilter === 'notion') return cs === 'notion';
+      return true;
+    });
+  }, [posts, sourceFilter]);
+
   const byDate = useMemo(() => {
     const m = new Map<string, any[]>();
-    for (const p of posts) {
+    for (const p of postsForView) {
       if (!p.scheduled_at) continue;
       const k = p.scheduled_at.slice(0, 10);
       if (!m.has(k)) m.set(k, []);
@@ -225,6 +241,21 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
     return counts;
   }, [posts, grid]);
 
+  // Stats sur la fenêtre courante mais filtrées par sourceFilter
+  const statsFiltered = useMemo(() => {
+    const counts = { draft: 0, needs_validation: 0, scheduled: 0, published: 0, archive: 0, late: 0 };
+    const start = grid[0]?.[0]; const end = grid[grid.length-1]?.[6];
+    if (!start || !end) return counts;
+    for (const p of postsForView) {
+      if (!p.scheduled_at) continue;
+      const d = new Date(p.scheduled_at);
+      if (d < start || d > end) continue;
+      const st = statusOf(p);
+      counts[st as keyof typeof counts]++;
+    }
+    return counts;
+  }, [postsForView, grid]);
+
   return (
     <div className="space-y-5">
       <header className="flex items-start justify-between gap-3 flex-wrap">
@@ -264,20 +295,27 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
         </div>
       )}
 
-      {/* V10.4 — État éditorial en prose, plus dashboard */}
-      <p className="text-sm text-ink-600 leading-relaxed">
-        {(() => {
-          const parts: string[] = [];
-          if (stats.published > 0) parts.push(`${stats.published} publié${stats.published > 1 ? 's' : ''} sur LinkedIn`);
-          if (stats.scheduled > 0) parts.push(`${stats.scheduled} programmé${stats.scheduled > 1 ? 's' : ''}`);
-          if (stats.needs_validation > 0) parts.push(`${stats.needs_validation} à valider`);
-          if (stats.late > 0) parts.push(`${stats.late} en retard`);
-          if (stats.archive > 0) parts.push(`${stats.archive} archive${stats.archive > 1 ? 's' : ''} Notion`);
-          if (stats.draft > 0) parts.push(`${stats.draft} brouillon${stats.draft > 1 ? 's' : ''}`);
-          if (parts.length === 0) return 'Rien sur cette fenêtre.';
-          return parts.join(' · ');
-        })()}
-      </p>
+      {/* V12.9 §3 — État éditorial + filtre source */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <p className="text-sm text-ink-600 leading-relaxed flex-1 min-w-[280px]">
+          {(() => {
+            const parts: string[] = [];
+            if (statsFiltered.published > 0) parts.push(`${statsFiltered.published} publié${statsFiltered.published > 1 ? 's' : ''} sur LinkedIn`);
+            if (statsFiltered.scheduled > 0) parts.push(`${statsFiltered.scheduled} programmé${statsFiltered.scheduled > 1 ? 's' : ''}`);
+            if (statsFiltered.needs_validation > 0) parts.push(`${statsFiltered.needs_validation} à valider`);
+            if (statsFiltered.late > 0) parts.push(`${statsFiltered.late} en retard`);
+            if (statsFiltered.archive > 0) parts.push(`${statsFiltered.archive} archive${statsFiltered.archive > 1 ? 's' : ''} Notion`);
+            if (statsFiltered.draft > 0) parts.push(`${statsFiltered.draft} brouillon${statsFiltered.draft > 1 ? 's' : ''}`);
+            if (parts.length === 0) return 'Rien sur cette fenêtre.';
+            return parts.join(' · ');
+          })()}
+        </p>
+        <div className="inline-flex bg-ink-100 rounded-lg p-0.5 gap-0.5">
+          <button onClick={() => setSourceFilter('all')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'all' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500'}`}>Tout</button>
+          <button onClick={() => setSourceFilter('linkedin')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'linkedin' ? 'bg-white text-[#0A66C2] shadow-xs' : 'text-ink-500'}`} title="Publié sur LinkedIn + Cadence">LinkedIn</button>
+          <button onClick={() => setSourceFilter('notion')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'notion' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500'}`} title="Drafts et archives Notion">Notion</button>
+        </div>
+      </div>
 
       {/* Generate result toast — V8.8 with 'Voir les drafts créés' CTA */}
       {genResult && (

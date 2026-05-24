@@ -392,26 +392,70 @@ function StartHint({
   pilier: string; brief: string; onBrief: (s: string) => void;
   onGenerate: () => void; generating: boolean; error: string | null; recyclables: Recyclable[];
 }) {
+  // V12.9 §2 — Onboarding écran "vide" plus habité.
+  // Trois chemins clairs : 1) brief court → 3 propositions, 2) recycler un
+  // ancien, 3) ouvrir le radar pour partir d'une idée fraîche.
   return (
-    <section className="animate-fade-in">
-      <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Nouveau post · {pilier.split('·')[1]?.trim() || pilier}</p>
-      <h1 className="mt-2 text-2xl font-semibold text-ink-900 tracking-tight">De quoi voulez-vous parler ?</h1>
-      <p className="mt-1.5 text-sm text-ink-500">Un brief court : Cadence en fera 3 versions. Ou commencez à écrire directement plus bas.</p>
-      <textarea
-        value={brief} onChange={e => onBrief(e.target.value)}
-        rows={3}
-        placeholder={`Ex : un client a divisé par 2 son DSO en passant à Heelio. Veut raconter le déclic et le résultat sans donner le nom.`}
-        className="input text-sm mt-4 font-editorial leading-[1.55]"
-        autoFocus
-      />
-      <div className="mt-3 flex items-center gap-3 text-xs">
-        <button onClick={onGenerate} disabled={generating || !brief.trim()} className="btn-primary text-xs">
-          {generating ? 'Génération…' : 'Générer 3 propositions'}
-        </button>
-        <Link href="/suggestions" className="text-ink-500 hover:text-ink-900 transition">Voir le Radar</Link>
-        {recyclables.length > 0 && <a href={'/posts/new?from=' + recyclables[0].id + '&recycle=1'} className="text-ink-500 hover:text-ink-900 transition">Recycler un ancien</a>}
+    <section className="animate-fade-in space-y-6">
+      <div>
+        <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Nouveau post · {pilier.split('·')[1]?.trim() || pilier}</p>
+        <h1 className="mt-2 text-3xl font-semibold text-ink-900 tracking-tight">De quoi voulez-vous parler aujourd&apos;hui ?</h1>
+        <p className="mt-2 text-sm text-ink-500 leading-relaxed">
+          Écrivez un brief court, Cadence en fera trois versions. Vous pouvez aussi commencer à écrire directement dans la zone plus bas, ou reprendre un sujet du Radar.
+        </p>
       </div>
-      {error && <p className="mt-3 text-xs text-danger-700">Erreur : {error}</p>}
+
+      <div>
+        <textarea
+          value={brief} onChange={e => onBrief(e.target.value)}
+          rows={3}
+          placeholder={`Ex : un client a divisé par 2 son DSO en passant à Heelio. Veut raconter le déclic et le résultat sans donner le nom.`}
+          className="input text-sm font-editorial leading-[1.55]"
+          autoFocus
+        />
+        <div className="mt-3 flex items-center gap-3 text-xs flex-wrap">
+          <button onClick={onGenerate} disabled={generating || !brief.trim()} className="btn-primary text-xs">
+            {generating ? 'Cadence rédige…' : 'Rédiger trois versions'}
+          </button>
+          <span className="text-ink-400">·</span>
+          <Link href="/suggestions" className="text-ink-500 hover:text-ink-900 transition">Voir le Radar</Link>
+          {recyclables.length > 0 && (
+            <>
+              <span className="text-ink-400">·</span>
+              <a href={'/posts/new?from=' + recyclables[0].id + '&recycle=1'} className="text-ink-500 hover:text-ink-900 transition">Recycler un ancien</a>
+            </>
+          )}
+          <span className="text-ink-400">·</span>
+          <Link href="/cerveau" className="text-ink-500 hover:text-ink-900 transition">Ouvrir la mémoire</Link>
+        </div>
+        {error && <p className="mt-3 text-xs text-danger-700">Erreur : {error}</p>}
+      </div>
+
+      {recyclables.length > 0 && (
+        <div className="pt-4 border-t border-ink-100">
+          <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">À recycler</p>
+          <ul className="space-y-1.5">
+            {recyclables.slice(0, 3).map(r => (
+              <li key={r.id}>
+                <a href={'/posts/new?from=' + r.id + '&recycle=1'} className="group flex items-start gap-3 py-1.5 hover:text-ink-900 transition">
+                  <span className="w-1.5 h-1.5 rounded-full bg-ink-300 mt-2 shrink-0 group-hover:bg-ink-700" aria-hidden />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-ink-700 truncate group-hover:text-ink-900">{r.title}</p>
+                    {r.published_at && (() => {
+                      const days = Math.floor((Date.now() - new Date(r.published_at).getTime()) / 86_400_000);
+                      return days > 0 ? <p className="text-2xs text-ink-400">Publié il y a {days} jours</p> : null;
+                    })()}
+                  </div>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="pt-4 border-t border-ink-100 text-2xs text-ink-500 leading-relaxed">
+        Raccourcis : <kbd className="px-1 rounded bg-ink-100 font-mono">⌘K</kbd> commandes globales · <kbd className="px-1 rounded bg-ink-100 font-mono">⌘P</kbd> aperçu LinkedIn · <kbd className="px-1 rounded bg-ink-100 font-mono">/</kbd> commandes éditeur · <kbd className="px-1 rounded bg-ink-100 font-mono">@</kbd> mentions
+      </div>
     </section>
   );
 }

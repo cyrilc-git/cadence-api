@@ -55,6 +55,16 @@ export default function Sidebar({ compact = false }: { compact?: boolean } = {})
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
+  // V12.9 §1 — Fix sidebar active state : le plus spécifique gagne.
+  // Avant : pathname.startsWith('/posts') matchait à la fois /posts (Bibliothèque)
+  // et /posts/new (Nouveau post) -> deux items actifs simultanément.
+  // Maintenant : on trie les hrefs par longueur décroissante et on prend le
+  // premier qui match. Un seul item actif à la fois.
+  const sortedByDepth = [...NAV].sort((a, b) => b.href.length - a.href.length);
+  const activeHref = sortedByDepth.find(item =>
+    pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href + '/'))
+  )?.href;
+
   return (
     <>
       {/* Mobile header */}
@@ -85,7 +95,7 @@ export default function Sidebar({ compact = false }: { compact?: boolean } = {})
               <div className={`px-3 pb-1.5 text-2xs font-medium text-ink-400 ${compact ? 'lg:hidden lg:group-hover/sidebar:block' : ''}`}>{section.label}</div>
               <div className="space-y-0.5">
                 {NAV.filter(n => n.group === section.group).map(item => {
-                  const active = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+                  const active = item.href === activeHref;
                   return (
                     <Link key={item.href} href={item.href} onClick={() => setOpen(false)} title={compact ? item.label : undefined}
                       className={`flex items-center gap-3 rounded-lg text-sm font-medium transition-colors duration-150 ${active ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-ink-50 hover:text-ink-900'} ${compact ? 'lg:px-2.5 lg:py-2 lg:justify-center lg:group-hover/sidebar:justify-start lg:group-hover/sidebar:px-3 px-3 py-2' : 'px-3 py-2'}`}>
