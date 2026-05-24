@@ -343,6 +343,7 @@ export default function NewPostClient({
             defaultPrompt={text ? `Visuel d'accompagnement : ${text.slice(0, 200)} (Style Heelio)` : ''}
             notionPageId={initial?.id}
             pilier={pilier}
+            text={text}
             onPick={setImageUrl}
           />
         </div>

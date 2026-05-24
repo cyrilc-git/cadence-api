@@ -29,16 +29,26 @@ type Variant = {
   createdAt: number;
 };
 
+// V12.7 §3 — Mapping visualHint.format -> template VisualGenerator
+const HINT_TO_TEMPLATE: Record<string, keyof typeof TEMPLATES> = {
+  schema: 'schema',
+  data: 'feature',          // "data" du visualHint = carte KPI Cadence
+  carousel: 'capture',       // carousel = série de captures annotées
+  illustration: 'opinion',   // hook court = visuel opinion minimal
+};
+
 export default function VisualGenerator({
   defaultPrompt = '',
   notionPageId,
   onPick,
   pilier: pilierProp,
+  text: contextText,
 }: {
   defaultPrompt?: string;
   notionPageId?: string;
   onPick?: (urlOrSvg: string | null) => void;
   pilier?: string;
+  text?: string;
 }) {
   const [template, setTemplate] = useState<keyof typeof TEMPLATES>('feature');
   const [prompt, setPrompt] = useState(defaultPrompt);
@@ -64,6 +74,34 @@ export default function VisualGenerator({
       .catch(() => { /* silent */ });
     return () => { cancelled = true; };
   }, []);
+
+  // V12.7 §3 — Recommandation de template basée sur le texte du post.
+  // Appelle memory-check, mappe visualHint.format -> template Cadence,
+  // pré-sélectionne et affiche une microcopy "Cadence recommande X".
+  const [recommendation, setRecommendation] = useState<{ template: keyof typeof TEMPLATES; message: string } | null>(null);
+  useEffect(() => {
+    if (!contextText || contextText.trim().length < 80) { setRecommendation(null); return; }
+    const ctl = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const r = await fetch('/api/memory-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: contextText }),
+          signal: ctl.signal,
+        });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (d?.visualHint?.format && HINT_TO_TEMPLATE[d.visualHint.format]) {
+          const tpl = HINT_TO_TEMPLATE[d.visualHint.format];
+          setRecommendation({ template: tpl, message: d.visualHint.message });
+        } else {
+          setRecommendation(null);
+        }
+      } catch { /* abort or net error */ }
+    }, 1200);
+    return () => { clearTimeout(timer); ctl.abort(); };
+  }, [contextText]);
 
   const mode = TEMPLATES[template].mode;
   const selected = variants.find(v => v.id === selectedId) || null;
@@ -165,6 +203,21 @@ export default function VisualGenerator({
       {memorySnippet && (
         <p className="text-2xs text-ink-500 italic leading-relaxed mb-3" aria-live="polite">
           {memorySnippet}
+        </p>
+      )}
+
+      {/* V12.7 §3 — Recommandation de template basée sur la structure du post */}
+      {recommendation && template !== recommendation.template && (
+        <p className="text-2xs text-brand-700 leading-relaxed mb-3" aria-live="polite">
+          Cadence recommande {TEMPLATES[recommendation.template].label.toLowerCase()}.
+          {' '}
+          <button
+            type="button"
+            onClick={() => useTemplate(recommendation.template)}
+            className="underline decoration-dotted underline-offset-2 hover:text-brand-900 transition"
+          >
+            Adopter
+          </button>
         </p>
       )}
 
