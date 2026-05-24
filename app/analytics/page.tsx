@@ -7,6 +7,7 @@ import { notionStatus } from '@/lib/notion';
 import { listPostSummaries, ensureFreshContentItems } from '@/lib/content-items';
 import { computeHumanInsights } from '@/lib/analytics-insights';
 import { inferFromNotion } from '@/lib/provenance';
+import ProvenanceBadge from '@/components/ProvenanceBadge';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,7 @@ export default async function AnalyticsPage() {
   const sumComments = published.reduce((s, p) => s + (p.comments || 0), 0);
   const insights = await computeHumanInsights().catch(() => [{ kind: 'low_data' as const, message: 'Impossible de calculer les patterns (Supabase indisponible).' }]);
 
-  const top = published.filter(p => p.impressions && p.impressions > 0).sort((a, b) => (b.impressions || 0) - (a.impressions || 0)).slice(0, 5);
+  const top = enriched.filter(p => p.impressions && p.impressions > 0).sort((a, b) => (b.impressions || 0) - (a.impressions || 0)).slice(0, 5);
 
   // V10.6 — Rythme publication + évolution
   const now = Date.now();
@@ -147,13 +148,16 @@ export default async function AnalyticsPage() {
       {top.length > 0 && (
         <section>
           <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Vos 5 meilleurs posts</h2>
-          <ol className="space-y-2">
+          <ol className="space-y-2.5">
             {top.map((p, i) => (
               <li key={p.id} className="flex items-start gap-3 group">
                 <span className="text-2xs tabular-nums text-ink-400 mt-0.5 w-4 shrink-0">{i + 1}</span>
-                <a href={p.linkedin_url || p.notion_url} target="_blank" rel="noopener" className="flex-1 text-sm text-ink-800 group-hover:text-brand-700 transition truncate">
-                  {p.title}
-                </a>
+                <div className="flex-1 min-w-0">
+                  <a href={p.linkedin_url || p.notion_url} target="_blank" rel="noopener" className="block text-sm text-ink-800 group-hover:text-brand-700 transition truncate">
+                    {p.title}
+                  </a>
+                  <ProvenanceBadge provenance={p.provenance} size="xs" className="mt-1" />
+                </div>
                 <span className="text-sm font-medium text-ink-900 tabular-nums shrink-0">{p.impressions?.toLocaleString('fr-FR')}</span>
               </li>
             ))}
