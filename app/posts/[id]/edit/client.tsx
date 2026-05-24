@@ -222,8 +222,8 @@ export default function EditClient({ initial, validated: initialValidated }: { i
         </div>
       </header>
 
-      {/* === EDITOR — single column max-w-3xl centered === */}
-      <div ref={editorRef} className="flex-1 w-full max-w-3xl mx-auto px-5 lg:px-8 py-8 lg:py-12 relative">
+      {/* === EDITOR — single column max-w-2xl centered, plus aéré (V12.8 §5) === */}
+      <div ref={editorRef} className="flex-1 w-full max-w-2xl mx-auto px-5 lg:px-8 py-10 lg:py-16 relative">
         <CadenceEditor
           textareaRef={taRef}
           value={text}
