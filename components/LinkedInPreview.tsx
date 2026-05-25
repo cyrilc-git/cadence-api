@@ -21,6 +21,26 @@ const UC_ITAL: Record<string,string> = (() => {
 })();
 export function toBold(s: string): string { return s.split('').map(c => UC_BOLD[c] || c).join(''); }
 export function toItalic(s: string): string { return s.split('').map(c => UC_ITAL[c] || c).join(''); }
+// V15.3 — Formats LinkedIn natifs (texte brut + Unicode), pas de HTML.
+// LinkedIn rend les caractères Unicode et préserve les sauts de ligne.
+// On ajoute trois transforms pour la toolbar de sélection.
+export function toBulletList(s: string): string {
+  // Chaque ligne non-vide devient "• ligne". Si déjà préfixée, on ne re-préfixe pas.
+  return s.split('\n').map(line => {
+    const t = line.trimStart();
+    if (!t) return line;
+    if (/^[•·\-▸▪]\s/.test(t)) return line;
+    const indent = line.slice(0, line.length - t.length);
+    return `${indent}• ${t}`;
+  }).join('\n');
+}
+export function toQuote(s: string): string {
+  // Englobe la sélection avec guillemets français + tirets de respiration.
+  // Si déjà entouré, on enlève (toggle).
+  const trimmed = s.trim();
+  if (/^«\s.*\s»$/.test(trimmed)) return s.replace(/^(\s*)«\s/, '$1').replace(/\s»(\s*)$/, '$1');
+  return `« ${s.trim()} »`;
+}
 
 function renderText(text: string, dark: boolean): React.ReactNode {
   // V8.2 — first pass : extract mentions @[Display](urn:li:type:id) and replace by <Mention>

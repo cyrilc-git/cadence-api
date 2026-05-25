@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import MentionTextarea, { caretCoords } from './MentionTextarea';
 import SlashMenu, { SlashCommand, detectSlashQuery } from './SlashMenu';
 import MentionSuggestions from './MentionSuggestions';
-import { toBold, toItalic } from './LinkedInPreview';
+import { toBold, toItalic, toBulletList, toQuote } from './LinkedInPreview';
 
 export type CadenceEditorProps = {
   value: string;
@@ -380,6 +380,19 @@ export default function CadenceEditor({
             className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition text-base italic flex items-center justify-center"
             title="Italique Unicode (visible sur LinkedIn)"
           >𝘐</button>
+          <span className="w-px h-5 bg-white/10 mx-0.5" aria-hidden />
+          <button
+            onClick={() => applyTransform(toBulletList)}
+            className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition text-sm flex items-center justify-center"
+            title="Liste à puces (préfixe • chaque ligne)"
+            aria-label="Liste à puces"
+          >•</button>
+          <button
+            onClick={() => applyTransform(toQuote)}
+            className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition text-sm flex items-center justify-center"
+            title="Citation (entoure de « »)"
+            aria-label="Citation"
+          >«»</button>
         </div>
       )}
 
