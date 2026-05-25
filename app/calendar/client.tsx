@@ -56,7 +56,11 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
   // les drafts Notion. Cadence n'utilise plus Notion comme source de vérité
   // de ce qui est publié.
   const [sourceFilter, setSourceFilter] = useState<'all' | 'linkedin' | 'notion'>('all');
-  const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d; });
+  // V14.6 — Cursor init à aujourd'hui plutôt que le 1er du mois. En vue
+  // semaine, partir du 1er affichait la semaine contenant le 1er, jamais
+  // la semaine en cours. Maintenant on landait toujours sur la semaine de
+  // today, cohérent avec "voici ce qui se passe maintenant".
+  const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setHours(0,0,0,0); return d; });
   // V9.1 §2 — vue semaine par défaut (Notion Calendar / Linear style)
   const [view, setView] = useState<'month' | 'week'>('week');
   const [generating, setGenerating] = useState(false);
