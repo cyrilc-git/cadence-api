@@ -198,6 +198,14 @@ export default function EditClient({ initial, validated: initialValidated }: { i
 
   // V14.1 — Focus mode auto au-delà de 240 chars (cohérent avec /posts/new)
   const deepWriting = text.trim().length > 240;
+  // V15.8 — Reading mode à 600 chars (sidebar + footer s'atténuent via
+  // body.deep-writing dans globals.css).
+  useEffect(() => {
+    const reading = text.trim().length > 600;
+    if (reading) document.body.classList.add('deep-writing');
+    else document.body.classList.remove('deep-writing');
+    return () => { document.body.classList.remove('deep-writing'); };
+  }, [text]);
 
   return (
     <div className={`min-h-screen min-h-[100dvh] flex flex-col editorial-canvas transition-[padding] duration-300 ease-out-expo ${previewOpen ? 'lg:pr-[480px]' : ''}`}>

@@ -178,6 +178,15 @@ export default function NewPostClient({
   // (header pilier + boutons header) pour laisser le texte respirer comme
   // sur iA Writer / Lex / Bear. Le chrome réapparaît au hover (groupe).
   const deepWriting = hasText && text.length > 240;
+  // V15.8 — Reading mode : sidebar + footer s'atténuent à 600 chars (flow
+  // confirmé). On pose body.deep-writing pour que les sélecteurs CSS
+  // globaux (cf. globals.css) attrapent aside et footer périphériques.
+  useEffect(() => {
+    const reading = hasText && text.length > 600;
+    if (reading) document.body.classList.add('deep-writing');
+    else document.body.classList.remove('deep-writing');
+    return () => { document.body.classList.remove('deep-writing'); };
+  }, [hasText, text.length]);
 
   return (
     <div className={`group/page min-h-screen min-h-[100dvh] flex flex-col editorial-canvas transition-[padding] duration-300 ease-out-expo ${previewOpen ? 'lg:pr-[480px]' : ''}`}>

@@ -211,3 +211,27 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
     radial-gradient(ellipse at top, rgba(15, 23, 42, 0.012) 0%, transparent 60%),
     radial-gradient(ellipse at bottom, rgba(15, 23, 42, 0.008) 0%, transparent 70%);
 }
+
+/* V15.8 — Reading mode : quand l'utilisateur est en flow d'écriture
+   longue (>600 chars), CadenceEditor pose body.deep-writing. Tous les
+   éléments de chrome périphérique passent en opacity 40% avec transition
+   douce. Le retour au focus se fait au hover (aside, footer) ou à
+   l'interaction (le toucher du clavier ramène automatiquement le focus
+   sur l'éditeur, le chrome reste discret). Effet "mode lecture" sans
+   cacher complètement la navigation. */
+body.deep-writing aside {
+  opacity: 0.35;
+  transition: opacity 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+body.deep-writing aside:hover,
+body.deep-writing aside:focus-within {
+  opacity: 1;
+}
+body.deep-writing footer {
+  opacity: 0.6;
+  transition: opacity 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+body.deep-writing footer:hover,
+body.deep-writing footer:focus-within {
+  opacity: 1;
+}
