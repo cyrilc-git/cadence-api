@@ -266,7 +266,13 @@ export default function NewPostClient({
               onChange={setText}
               draftId={initial?.id || 'new-post'}
               rows={hasText ? 22 : 8}
-              placeholder={hasText ? '' : 'Ou commencez à écrire. Tapez / pour les commandes, @ pour mentionner.'}
+              // V15.18 — Placeholder différent selon contexte :
+              // - StartHint visible (pas de brief, pas de texte) : placeholder
+              //   minimaliste pour ne pas dupliquer l'info "Ou commencez à
+              //   écrire dans la zone plus bas" qui est déjà au-dessus.
+              // - Brief pré-rempli depuis URL (prefillBrief, mais pas encore
+              //   de texte) : invitation classique.
+              placeholder={hasText ? '' : (prefillBrief ? 'Commencez à écrire ici. Tapez / pour les commandes.' : '')}
               bare
               brief={brief || prefillBrief}
               pilier={pilier}
