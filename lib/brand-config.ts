@@ -44,6 +44,19 @@ export const ANTI_PATTERNS = [
 
 export type AntiPatternHit = { id: string; label: string; severity: string; matches: string[] };
 
+// V14.8 — Nettoie le texte d'un anti-pattern visible avant affichage
+// (ex: suggestions du Radar qui contiennent encore des em-dashes datant
+// d'avant le ban). Remplace — et – par " · " (mid-dot signature Cadence).
+// Doit rester idempotent : appelable plusieurs fois sans dégrader.
+export function sanitizeForBrandVoice(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/\s*[—–]\s*/g, ' · ')          // tiret long entouré d'espaces -> " · "
+    .replace(/[“”]/g, '"')        // smart double quotes -> "
+    .replace(/\s{2,}/g, ' ')                // espaces multiples
+    .trim();
+}
+
 export function checkAntiPatterns(text: string): AntiPatternHit[] {
   const hits: AntiPatternHit[] = [];
   for (const ap of ANTI_PATTERNS) {

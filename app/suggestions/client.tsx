@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { sanitizeForBrandVoice } from '@/lib/brand-config';
 
 const SOURCE_META: Record<string, { label: string; icon: string; color: string }> = {
   notion:    { label: 'Notion',     icon: 'N', color: '#000000' },
@@ -112,7 +113,15 @@ export default function SuggestionsClient() {
       ]);
       const d = await sugRes.json();
       if (!sugRes.ok) throw new Error(d.error || 'Erreur chargement');
-      setItems(d.suggestions || []);
+      // V14.8 — Sanitize les anti-patterns visibles (em-dash, etc.) qui
+      // peuvent traîner dans les suggestions générées avant le ban.
+      // Sécurité affichage uniquement, n'altère pas la DB.
+      const sanitized = (d.suggestions || []).map((s: Suggestion) => ({
+        ...s,
+        title: sanitizeForBrandVoice(s.title),
+        hook: s.hook ? sanitizeForBrandVoice(s.hook) : s.hook,
+      }));
+      setItems(sanitized);
       if (sigRes && sigRes.ok) {
         const sd = await sigRes.json();
         setSignals((sd.insights || []) as RadarSignal[]);

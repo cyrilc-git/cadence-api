@@ -1,5 +1,6 @@
 import NewPostClient from './client';
 import { getNotionPost, listNotionPosts } from '@/lib/notion';
+import { sanitizeForBrandVoice } from '@/lib/brand-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,9 +10,12 @@ export default async function NewPostPage({ searchParams }: { searchParams: Reco
     const r = await getNotionPost(searchParams.from);
     if (r) initial = { id: r.summary.id, title: r.summary.title, pilier: r.summary.pilier, content: searchParams.recycle ? '' : r.content };
   }
-  let suggestBrief = searchParams.brief;
+  // V14.8 — Tout ce qui arrive via URL passe par le sanitize anti-pattern
+  // (em-dash, smart quotes…). Empêche d'injecter une suggestion polluée
+  // dans l'éditeur même si la DB suggestions contient encore des reliquats.
+  let suggestBrief = searchParams.brief ? sanitizeForBrandVoice(searchParams.brief) : undefined;
   let suggestPilier = searchParams.pilier || undefined;
-  let suggestHook = searchParams.hook;
+  let suggestHook = searchParams.hook ? sanitizeForBrandVoice(searchParams.hook) : undefined;
   let suggestAngle: string | null = null;
   let suggestWhy: string | null = null;
   let suggestVisualIdea: string | null = null;
