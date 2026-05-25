@@ -180,6 +180,16 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   caret-color: #2563EB;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* V15.10 — Scroll fluide, sélection persistante hors focus */
+  scroll-behavior: smooth;
+  scroll-padding-block: 80px; /* offset header sticky */
+}
+/* Hors focus, la sélection reste visible (utile quand l'utilisateur
+   clique sur la bubble de formatage) — couleur dégradée */
+.cadence-editorial:not(:focus)::selection,
+.cadence-editorial:not(:focus) *::selection {
+  background: #EFF6FF;  /* brand-50 */
+  color: #1E40AF;       /* brand-700 */
 }
 .cadence-editorial::selection,
 .cadence-editorial *::selection {
