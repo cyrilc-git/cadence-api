@@ -38,7 +38,35 @@ export function useEditorMetrics(text: string) {
   const wordCount = stripped.trim() ? stripped.trim().split(/\s+/).length : 0;
   const charCount = stripped.length;
   const readingMin = Math.max(1, Math.round(wordCount / 220));
-  return { wordCount, charCount, readingMin, stripped };
+  // V15.4 — signaux éditoriaux pour le footer "compagnon d'écriture".
+  // Hook = première ligne non-vide. LinkedIn coupe à ~210 chars en mobile,
+  // les meilleurs hooks tiennent à 80-130 chars. On classe : court / cible /
+  // long / trop long pour parler comme un éditeur, pas comme une jauge.
+  const firstLine = stripped.split('\n').find(l => l.trim().length > 0) || '';
+  const hookLen = firstLine.length;
+  const hookTone: 'short' | 'sweet' | 'long' | 'too-long' =
+    hookLen === 0 ? 'short' :
+    hookLen < 60 ? 'short' :
+    hookLen <= 130 ? 'sweet' :
+    hookLen <= 210 ? 'long' :
+    'too-long';
+  // Rythme : nombre de paragraphes (groupes séparés par \n\n) et longueur moyenne
+  const paragraphs = stripped.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+  const paragraphCount = paragraphs.length;
+  const avgParaLen = paragraphs.length > 0
+    ? Math.round(paragraphs.reduce((s, p) => s + p.length, 0) / paragraphs.length)
+    : 0;
+  // Pavé compact si un paragraphe dépasse 400 chars sans saut.
+  const longestPara = paragraphs.reduce((m, p) => Math.max(m, p.length), 0);
+  const rhythmTone: 'aerated' | 'compact' | 'dense' =
+    paragraphCount === 0 ? 'aerated' :
+    longestPara > 400 ? 'dense' :
+    avgParaLen > 250 ? 'compact' :
+    'aerated';
+  return {
+    wordCount, charCount, readingMin, stripped,
+    hookLen, hookTone, paragraphCount, avgParaLen, longestPara, rhythmTone,
+  };
 }
 
 export default function CadenceEditor({

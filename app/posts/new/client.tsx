@@ -74,7 +74,7 @@ export default function NewPostClient({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
-  const { wordCount, charCount, readingMin } = useEditorMetrics(text);
+  const { wordCount, charCount, readingMin, hookLen, hookTone, rhythmTone, paragraphCount } = useEditorMetrics(text);
   const pilierIsCasClient = pilier?.includes('Cas client') || pilier?.includes('Cas dirigeant');
   const lint = useMemo(() => analyzeAntiPatterns(text), [text]);
   const criticalLint = lint.filter(h => h.severity === 'critical');
@@ -303,8 +303,35 @@ export default function NewPostClient({
       {hasText && (
         <footer className="sticky bottom-0 z-20 border-t border-ink-100 bg-white/90 backdrop-blur">
           <div className="max-w-2xl mx-auto px-5 lg:px-8 h-14 sm:h-12 flex items-center gap-3 text-xs text-ink-500 pb-[env(safe-area-inset-bottom)]">
-            <span className="tabular-nums hidden sm:inline">{wordCount} mots · {readingMin} min</span>
-            <span className={`tabular-nums ${charCount > 1300 ? 'text-danger-500 font-semibold' : ''}`}>{charCount}/1300</span>
+            {/* V15.4 — Footer compagnon d'écriture. Signaux éditoriaux
+                (hook, rythme, lecture) avant les compteurs techniques. */}
+            <span
+              className={`hidden sm:inline ${
+                hookTone === 'sweet' ? 'text-emerald-700' :
+                hookTone === 'too-long' ? 'text-amber-700' :
+                'text-ink-500'
+              }`}
+              title={hookTone === 'sweet' ? 'Cible idéale 60-130 chars' : hookTone === 'too-long' ? 'LinkedIn coupe à 210 chars en mobile' : 'Un hook plus court accroche mieux'}
+            >
+              {hookTone === 'sweet' ? 'Hook serré' :
+               hookTone === 'long' ? 'Hook long' :
+               hookTone === 'too-long' ? 'Hook trop long' :
+               'Hook court'}
+              <span className="tabular-nums text-ink-400 ml-1">{hookLen}</span>
+            </span>
+            <span className="hidden md:inline text-ink-300" aria-hidden>·</span>
+            <span
+              className={`hidden md:inline ${rhythmTone === 'dense' ? 'text-amber-700' : 'text-ink-500'}`}
+              title={rhythmTone === 'dense' ? 'Un paragraphe dépasse 400 caractères' : rhythmTone === 'compact' ? 'Paragraphes denses' : 'Texte aéré'}
+            >
+              {rhythmTone === 'dense' ? 'Pavé dense' :
+               rhythmTone === 'compact' ? 'Compact' :
+               'Aéré'}
+              {paragraphCount > 1 && <span className="tabular-nums text-ink-400 ml-1">{paragraphCount}¶</span>}
+            </span>
+            <span className="hidden lg:inline text-ink-300" aria-hidden>·</span>
+            <span className="tabular-nums hidden lg:inline text-ink-500">{wordCount} mots · {readingMin} min</span>
+            <span className={`tabular-nums ml-auto sm:ml-0 ${charCount > 1300 ? 'text-danger-500 font-semibold' : 'text-ink-400'}`}>{charCount}/1300</span>
             <div className="ml-auto flex items-center gap-1.5">
               <button onClick={() => handleSave(false)} disabled={saveLoading || !text.trim()} className="btn-primary text-xs">
                 {saveLoading ? '…' : (initial?.id ? 'Sauvegarder' : 'Enregistrer le brouillon')}

@@ -80,8 +80,8 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   const sMeta = STATUS_META[status];
   const isDirty = text !== lastSavedTextRef.current || validated !== lastSavedValidatedRef.current;
 
-  // V8.6 — metrics via CadenceEditor's useEditorMetrics
-  const { wordCount, charCount, readingMin } = useEditorMetrics(text);
+  // V8.6 + V15.4 — metrics via CadenceEditor's useEditorMetrics
+  const { wordCount, charCount, readingMin, hookLen, hookTone, rhythmTone, paragraphCount } = useEditorMetrics(text);
 
   // Ticker for live "Sauvegardé il y a X sec"
   useEffect(() => {
@@ -244,11 +244,36 @@ export default function EditClient({ initial, validated: initialValidated }: { i
         />
       </div>
 
-      {/* === FOOTER STICKY DISCRET (bottom) === */}
+      {/* === FOOTER STICKY DISCRET (bottom) + V15.4 signaux éditoriaux === */}
       <footer className="sticky bottom-0 z-20 border-t border-ink-100 bg-white/95 backdrop-blur">
         <div className="max-w-3xl mx-auto px-5 lg:px-8 h-14 sm:h-12 flex items-center gap-3 text-xs text-ink-500 pb-[env(safe-area-inset-bottom)]">
-          <span className="tabular-nums">{wordCount} mots · ~{readingMin} min</span>
-          <span className={`tabular-nums ${charCount > 1300 ? 'text-danger-500 font-semibold' : ''}`}>{charCount}/1300</span>
+          <span
+            className={`hidden sm:inline ${
+              hookTone === 'sweet' ? 'text-emerald-700' :
+              hookTone === 'too-long' ? 'text-amber-700' :
+              'text-ink-500'
+            }`}
+            title={hookTone === 'sweet' ? 'Cible idéale 60-130 chars' : hookTone === 'too-long' ? 'LinkedIn coupe à 210 chars en mobile' : 'Un hook plus court accroche mieux'}
+          >
+            {hookTone === 'sweet' ? 'Hook serré' :
+             hookTone === 'long' ? 'Hook long' :
+             hookTone === 'too-long' ? 'Hook trop long' :
+             'Hook court'}
+            <span className="tabular-nums text-ink-400 ml-1">{hookLen}</span>
+          </span>
+          <span className="hidden md:inline text-ink-300" aria-hidden>·</span>
+          <span
+            className={`hidden md:inline ${rhythmTone === 'dense' ? 'text-amber-700' : 'text-ink-500'}`}
+            title={rhythmTone === 'dense' ? 'Un paragraphe dépasse 400 caractères' : rhythmTone === 'compact' ? 'Paragraphes denses' : 'Texte aéré'}
+          >
+            {rhythmTone === 'dense' ? 'Pavé dense' :
+             rhythmTone === 'compact' ? 'Compact' :
+             'Aéré'}
+            {paragraphCount > 1 && <span className="tabular-nums text-ink-400 ml-1">{paragraphCount}¶</span>}
+          </span>
+          <span className="hidden lg:inline text-ink-300" aria-hidden>·</span>
+          <span className="tabular-nums hidden lg:inline">{wordCount} mots · ~{readingMin} min</span>
+          <span className={`tabular-nums ${charCount > 1300 ? 'text-danger-500 font-semibold' : 'text-ink-400'}`}>{charCount}/1300</span>
           <span className="ml-auto flex items-center gap-2">
             <label className="flex items-center gap-1.5 cursor-pointer">
               <input type="checkbox" checked={validated} onChange={e => setValidated(e.target.checked)} className="w-3.5 h-3.5 rounded border-ink-300 text-brand-500" />
