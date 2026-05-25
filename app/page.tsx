@@ -6,6 +6,7 @@ import { validateToken } from '@/lib/linkedin';
 import { suggestionsList } from '@/lib/db';
 import CadenceObserved from '@/components/CadenceObserved';
 import OnboardingHint from '@/components/OnboardingHint';
+import { sanitizeForBrandVoice } from '@/lib/brand-config';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -135,20 +136,27 @@ export default async function HomePage() {
       {/* === CADENCE A REMARQUÉ — insight prioritaire ────── V9.0 §2 */}
       <CadenceObserved />
 
-      {/* === V11.6 §2 — Idée du moment (label éditorial calme, pas injonctif) === */}
-      {topSuggestion ? (
+      {/* === V11.6 §2 + V14.8 — Idée du moment, hook/title sanitizés contre
+          em-dash résiduels de la DB suggestions === */}
+      {topSuggestion ? (() => {
+        const clean = {
+          ...topSuggestion,
+          title: sanitizeForBrandVoice(topSuggestion.title || ''),
+          hook: topSuggestion.hook ? sanitizeForBrandVoice(topSuggestion.hook) : null,
+        };
+        return (
         <section className="animate-fade-in">
           <div className="text-2xs font-medium text-ink-500 mb-2">Cadence pense à</div>
           <div className="border-l-2 border-ink-300 pl-4">
-            <h2 className="text-lg font-semibold text-ink-900 leading-snug">{topSuggestion.title}</h2>
-            {topSuggestion.hook && topSuggestion.hook !== topSuggestion.title && (
-              <p className="mt-1.5 text-sm text-ink-600 italic">« {topSuggestion.hook} »</p>
+            <h2 className="text-lg font-semibold text-ink-900 leading-snug">{clean.title}</h2>
+            {clean.hook && clean.hook !== clean.title && (
+              <p className="mt-1.5 text-sm text-ink-600 italic">« {clean.hook} »</p>
             )}
             {topSuggestion.why && (
               <p className="mt-2 text-2xs text-ink-500">{topSuggestion.why}</p>
             )}
             <div className="mt-3 flex items-center gap-3 text-xs">
-              <Link href={`/posts/new?suggest=${topSuggestion.id}&pilier=${encodeURIComponent(topSuggestion.pilier || '')}&hook=${encodeURIComponent(topSuggestion.hook || '')}&brief=${encodeURIComponent(topSuggestion.title)}`} className="text-brand-700 hover:text-brand-900 font-medium transition">
+              <Link href={`/posts/new?suggest=${topSuggestion.id}&pilier=${encodeURIComponent(topSuggestion.pilier || '')}&hook=${encodeURIComponent(clean.hook || '')}&brief=${encodeURIComponent(clean.title)}`} className="text-brand-700 hover:text-brand-900 font-medium transition">
                 Écrire →
               </Link>
               {otherSuggestions.length > 0 && (
@@ -159,7 +167,8 @@ export default async function HomePage() {
             </div>
           </div>
         </section>
-      ) : (
+        );
+      })() : (
         <section className="text-sm text-ink-500 animate-fade-in">
           Cadence cherche encore. <Link href="/suggestions" className="text-brand-700 hover:text-brand-900 font-medium transition">Ouvrir le radar →</Link>
         </section>
