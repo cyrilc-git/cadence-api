@@ -16,8 +16,8 @@ const STATUS_LABEL: Record<DerivedStatus, string> = {
   needs_validation: 'À valider',
   scheduled: 'Programmés',
   late: 'En retard',
-  published: 'Publiés LinkedIn',
-  archive: 'Archives Notion',
+  published: 'Publiés',
+  archive: 'Archives',
   recyclable: 'À recycler',
 };
 const STATUS_CHIP: Record<DerivedStatus, string> = {
