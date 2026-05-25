@@ -1,6 +1,5 @@
 import NewPostClient from './client';
 import { getNotionPost, listNotionPosts } from '@/lib/notion';
-import { suggestionsList } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,27 +21,14 @@ export default async function NewPostPage({ searchParams }: { searchParams: Reco
 
   // Source filter (V8): user can pick a specific source for auto-suggestion
   const filterSource = searchParams.source || null;
-  // If no suggest in URL AND no 'from', auto-pick the top pending suggestion (excluding skipIds)
-  const skipIdsRaw = searchParams.skip || '';
-  const skipIds = skipIdsRaw.split(',').filter(Boolean);
-  if (!suggestBrief && !initial) {
-    try {
-      const top = await suggestionsList('pending', 30);
-      const filtered = filterSource ? top.filter(s => s.source === filterSource) : top;
-      const picked = filtered.find(s => !skipIds.includes(s.id));
-      if (picked) {
-        suggestBrief = picked.title;
-        suggestPilier = picked.pilier || undefined;
-        suggestHook = picked.hook || undefined;
-        suggestAngle = picked.angle || null;
-        suggestWhy = picked.why || null;
-        suggestVisualIdea = picked.payload?.visual_idea || null;
-        suggestSource = picked.source;
-        suggestId = picked.id;
-        suggestScore = picked.score;
-      }
-    } catch {}
-  }
+  // V14.5 — Plus d'auto-pick d'une suggestion quand l'utilisateur clique
+  // "Nouveau post" sans paramètre. Avant : on injectait silencieusement le
+  // hook de la suggestion #1 dans l'éditeur, donnant l'impression d'une
+  // page cassée avec du texte aléatoire pré-rempli. Maintenant :
+  // - /posts/new sans params -> page totalement vierge, StartHint visible
+  // - /posts/new?suggest=X -> pré-rempli avec la suggestion choisie
+  // - /posts/new?from=Y -> pré-rempli avec le post Y (recyclage)
+  // L'utilisateur garde le contrôle sur ce qu'il voit en arrivant.
   if (!initial && suggestBrief) {
     initial = { title: suggestBrief.slice(0, 80), pilier: suggestPilier, content: suggestHook || '' };
   }
