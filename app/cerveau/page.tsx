@@ -131,8 +131,15 @@ export default async function BrainPage() {
   const unknownSources = await detectUnknownSources();
   const brain = await computeBrainState(unknownSources);
 
+  // V14.8 — Distinction LinkedIn-confirmé vs Notion-known.
+  // confirmedCount = publications LinkedIn vérifiées (URL ou import ZIP)
+  // publishedKnown = posts marqués "published" dans Notion (peut inclure
+  // archives sans URL LinkedIn). On reformule pour ne pas faire passer
+  // un statut Notion pour une publication LinkedIn réelle.
   const couvertureSummary = brain.totalIndexed > 0
-    ? `${brain.totalIndexed} post${brain.totalIndexed > 1 ? 's' : ''} en mémoire. ${brain.publishedKnown} publié${brain.publishedKnown > 1 ? 's' : ''}, ${brain.draftKnown} brouillon${brain.draftKnown > 1 ? 's' : ''} connu${brain.draftKnown > 1 ? 's' : ''}.`
+    ? brain.confirmedCount > 0
+      ? `${brain.totalIndexed} post${brain.totalIndexed > 1 ? 's' : ''} en mémoire. ${brain.confirmedCount} publication${brain.confirmedCount > 1 ? 's' : ''} LinkedIn vérifiée${brain.confirmedCount > 1 ? 's' : ''}, ${brain.draftKnown} brouillon${brain.draftKnown > 1 ? 's' : ''} connu${brain.draftKnown > 1 ? 's' : ''}.`
+      : `${brain.totalIndexed} post${brain.totalIndexed > 1 ? 's' : ''} en mémoire, mais aucune publication LinkedIn certifiée. ${brain.publishedKnown > 0 ? `${brain.publishedKnown} marqué${brain.publishedKnown > 1 ? 's' : ''} publié${brain.publishedKnown > 1 ? 's' : ''} dans Notion sans URL LinkedIn rattachée.` : ''}`
     : 'Aucun post indexé pour l\'instant. Lancez l\'indexation pour activer la mémoire.';
 
   const dateRange = brain.oldestPostAt && brain.newestPostAt
