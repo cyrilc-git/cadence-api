@@ -183,6 +183,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   /* V15.10 — Scroll fluide, sélection persistante hors focus */
   scroll-behavior: smooth;
   scroll-padding-block: 80px; /* offset header sticky */
+  /* V15.11 — Auto-grow : la textarea suit la hauteur du contenu, plus de
+     vide blanc froid en bas. Chrome 123+, Safari 16.4+, Edge 123+.
+     Fallback gracieux : si le navigateur ne supporte pas field-sizing,
+     l'attribut rows= du textarea s'applique normalement (min-height
+     géré par min-h-[12rem] inline). */
+  field-sizing: content;
+  min-height: 14rem; /* ~ 8 lignes Charter 17/1.72 = environ 14rem */
 }
 /* Hors focus, la sélection reste visible (utile quand l'utilisateur
    clique sur la bubble de formatage) — couleur dégradée */
