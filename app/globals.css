@@ -158,3 +158,56 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 /* V9.0 §6 — caret blink for streaming indicator (Perplexity/Cursor style) */
 .animate-caret-blink { animation: caretBlink 1s steps(2, jump-none) infinite; }
 @keyframes caretBlink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0.15; } }
+
+/* ─────────────────────────────────────────────────────────────
+   V15.2 — Environnement éditorial premium
+   ─────────────────────────────────────────────────────────────
+   Quand l'utilisateur écrit dans CadenceEditor en mode `bare`,
+   on lui donne la sensation Lex / Substack / Granola :
+   - Typo Charter / Iowan / Georgia généreuse (17px)
+   - Leading 1.72 — respiration FR sans étirer
+   - Letter-spacing -0.006em (corrige Charter trop large)
+   - Caret bleu brand-500 (signature accent)
+   - Sélection bleu-50 (chaleureuse, pas le bleu OS sombre)
+   - Espacement de paragraphes natif via white-space: pre-wrap
+*/
+.cadence-editorial {
+  font-family: 'Charter', 'Iowan Old Style', Georgia, Cambria, serif;
+  font-size: 17px;
+  line-height: 1.72;
+  letter-spacing: -0.006em;
+  color: #0F172A;
+  caret-color: #2563EB;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.cadence-editorial::selection,
+.cadence-editorial *::selection {
+  background: #DBEAFE; /* brand-100 */
+  color: #1E3A8A;       /* brand-800 — lisibilité dans la sélection */
+}
+.cadence-editorial::placeholder {
+  color: #94A3B8;       /* ink-400, calme */
+  font-style: italic;
+  letter-spacing: 0;
+}
+
+/* V15.2 — La première phrase d'un post LinkedIn est le "hook".
+   Avant le premier saut de ligne, on l'imagine plus dense visuellement
+   sans le grossir (sinon ça casse le rythme du texte qui suit).
+   On garde 17px mais on ajoute font-weight 500 pour l'oeil. Effet :
+   le hook ressort visuellement même sur texte serif. */
+.cadence-editorial::first-line {
+  font-weight: 500;
+  letter-spacing: -0.012em;
+}
+
+/* V15.5 — Paper grain ultra-subtil pour /posts/new vide.
+   Donne de la profondeur sans aucun gradient flashy. Bruit gris à 1.5% d'opacité,
+   inspiré du papier journal premium. Imperceptible sur mobile (data url léger). */
+.editorial-canvas {
+  background-color: #FFFFFF;
+  background-image:
+    radial-gradient(ellipse at top, rgba(15, 23, 42, 0.012) 0%, transparent 60%),
+    radial-gradient(ellipse at bottom, rgba(15, 23, 42, 0.008) 0%, transparent 70%);
+}

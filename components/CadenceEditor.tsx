@@ -295,8 +295,14 @@ export default function CadenceEditor({
     onChange(value.slice(0, start) + transform(value.slice(start, end)) + value.slice(end));
   }
 
+  // V15.2 — environnement éditorial premium en mode bare (utilisé dans
+  // /posts/new et /posts/[id]/edit). On bascule sur la classe globale
+  // `.cadence-editorial` qui pose le Charter 17px, leading 1.72,
+  // letter-spacing -0.006em, caret brand-500, sélection brand-100. Ces
+  // ajustements ne s'appliquent PAS aux usages hors-bare (mémoire,
+  // brand-dna, etc.) qui restent en input compact.
   const bareClass = bare
-    ? '!border-0 !p-0 !bg-transparent !shadow-none text-[16px] leading-[1.65] focus:!ring-0 focus:!shadow-none font-editorial'
+    ? '!border-0 !p-0 !bg-transparent !shadow-none focus:!ring-0 focus:!shadow-none cadence-editorial w-full'
     : 'text-[15px] leading-[1.55] resize-none font-editorial';
 
   return (
