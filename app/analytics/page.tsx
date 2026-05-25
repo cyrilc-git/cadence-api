@@ -127,18 +127,34 @@ export default async function AnalyticsPage() {
         )}
       </section>
 
-      {/* === V11.4 §3 — Vue d'ensemble en prose, plus en grille KPI === */}
-      {published.length > 0 && (
+      {/* === V14.8 — Vue d'ensemble LinkedIn-first.
+          confirmedPosts = vraies publications LinkedIn (URL ou import).
+          inferredPosts = archives Notion sans URL LinkedIn (déduit).
+          On distingue pour ne plus dire "70 publiés" alors que 0 sont
+          sur LinkedIn. === */}
+      {(confirmedPosts.length > 0 || inferredPosts.length > 0) && (
         <section className="pt-6 border-t border-ink-100">
           <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Vue d&apos;ensemble</h2>
           <p className="text-sm text-ink-800 leading-relaxed">
-            {published.length} post{published.length > 1 ? 's' : ''} publié{published.length > 1 ? 's' : ''} à ce jour.
-            {sumImpr > 0 && ` Cumul de ${sumImpr.toLocaleString('fr-FR')} impressions`}
-            {sumLikes > 0 && `, ${sumLikes.toLocaleString('fr-FR')} réactions`}
-            {sumComments > 0 && ` et ${sumComments.toLocaleString('fr-FR')} commentaires`}
-            {(sumImpr > 0 || sumLikes > 0) && '.'}
-            {published.length > 0 && sumImpr > 0 && (
-              <span className="text-ink-500">{' '}Moyenne d&apos;environ {Math.round(sumImpr / published.length).toLocaleString('fr-FR')} impressions par post.</span>
+            {confirmedPosts.length > 0 ? (
+              <>
+                {confirmedPosts.length} publication{confirmedPosts.length > 1 ? 's' : ''} LinkedIn vérifiée{confirmedPosts.length > 1 ? 's' : ''} à ce jour
+                {inferredPosts.length > 0 && (
+                  <span className="text-ink-500">, plus {inferredPosts.length} archive{inferredPosts.length > 1 ? 's' : ''} Notion non certifiée{inferredPosts.length > 1 ? 's' : ''}</span>
+                )}
+                {'.'}
+                {sumImpr > 0 && ` Cumul de ${sumImpr.toLocaleString('fr-FR')} impressions`}
+                {sumLikes > 0 && `, ${sumLikes.toLocaleString('fr-FR')} réactions`}
+                {sumComments > 0 && ` et ${sumComments.toLocaleString('fr-FR')} commentaires`}
+                {(sumImpr > 0 || sumLikes > 0) && '.'}
+                {confirmedPosts.length > 0 && sumImpr > 0 && (
+                  <span className="text-ink-500">{' '}Moyenne d&apos;environ {Math.round(sumImpr / confirmedPosts.length).toLocaleString('fr-FR')} impressions par publication confirmée.</span>
+                )}
+              </>
+            ) : (
+              <>
+                Aucune publication LinkedIn vérifiée pour l&apos;instant. {inferredPosts.length} archive{inferredPosts.length > 1 ? 's' : ''} Notion en attente d&apos;être rattachée{inferredPosts.length > 1 ? 's' : ''} à une URL LinkedIn ou importée{inferredPosts.length > 1 ? 's' : ''} via le ZIP officiel.
+              </>
             )}
           </p>
         </section>
