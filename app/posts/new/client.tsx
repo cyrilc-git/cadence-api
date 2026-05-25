@@ -299,10 +299,7 @@ export default function NewPostClient({
         )}
 
         {genLoading && !hasText && (
-          <div className="mt-6 text-xs text-ink-500 flex items-center gap-2 animate-fade-in">
-            <span className="dot bg-brand-500 animate-pulse-soft" />
-            <span>Cadence rédige 3 propositions (15-30s)…</span>
-          </div>
+          <GenerationStatus />
         )}
         {genError && (
           <div className="mt-4 text-xs text-danger-700">Erreur : {genError}</div>
@@ -521,6 +518,32 @@ function StartHint({
         Raccourcis : <kbd className="px-1 rounded bg-ink-100 font-mono">⌘K</kbd> commandes globales · <kbd className="px-1 rounded bg-ink-100 font-mono">⌘P</kbd> aperçu LinkedIn · <kbd className="px-1 rounded bg-ink-100 font-mono">/</kbd> commandes éditeur · <kbd className="px-1 rounded bg-ink-100 font-mono">@</kbd> mentions
       </div>
     </section>
+  );
+}
+
+// V15.17 — État de génération vivant : Cadence raconte ce qu'elle fait
+// pendant les 15-30 secondes d'attente. Mieux que "Cadence rédige..." figé.
+// Cycle de phrases qui change toutes les ~4 secondes.
+function GenerationStatus() {
+  const [step, setStep] = useState(0);
+  const phases = [
+    'Cadence lit votre brief…',
+    'Cadence cherche dans votre voix…',
+    'Cadence pose la première phrase…',
+    'Cadence affine les variantes…',
+    'Cadence relit avant de vous montrer…',
+  ];
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStep(s => Math.min(s + 1, phases.length - 1));
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [phases.length]);
+  return (
+    <div className="mt-6 flex items-center gap-2.5 animate-fade-in" aria-live="polite">
+      <span className="inline-block w-[2px] h-3.5 bg-brand-500 animate-caret-blink" aria-hidden />
+      <span className="text-xs text-ink-500 italic font-editorial">{phases[step]}</span>
+    </div>
   );
 }
 
