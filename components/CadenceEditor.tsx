@@ -284,13 +284,33 @@ export default function CadenceEditor({
   useEffect(() => {
     const ta = ref.current;
     if (!ta) return;
+    // V15.9 — Positionnement bubble plus robuste :
+    // - prend le milieu de la sélection (pas le start), donc reste à la même
+    //   place que la sélection vienne de gauche-à-droite ou inverse
+    // - clamp dans les bornes du textarea pour ne pas déborder à droite
+    //   (la bubble fait ~180px de large maintenant qu'elle a 4 boutons)
+    // - si le caret est dans les 40 premiers px verticaux, on bascule la
+    //   bubble SOUS la sélection au lieu d'au-dessus (sinon hors viewport)
     function update() {
       if (!ta) return;
       const start = ta.selectionStart, end = ta.selectionEnd;
       if (start === end) { setBubble(null); return; }
       try {
-        const pos = caretCoords(ta, start);
-        setBubble({ top: pos.top - 38, left: Math.max(8, pos.left - 60) });
+        const a = Math.min(start, end), b = Math.max(start, end);
+        const posStart = caretCoords(ta, a);
+        const posEnd = caretCoords(ta, b);
+        const centerLeft = (posStart.left + posEnd.left) / 2;
+        const BUBBLE_W = 184; // 4 boutons w-8 (32) + gap-0.5 (2) + padding 0.5 (4) + séparateur (1)
+        const BUBBLE_H = 36;
+        const taWidth = ta.clientWidth;
+        // Position horizontale : centre la bubble sur la sélection puis clamp.
+        let left = centerLeft - BUBBLE_W / 2;
+        left = Math.max(8, Math.min(left, taWidth - BUBBLE_W - 8));
+        // Position verticale : au-dessus par défaut, sous si trop haut.
+        const lineTop = Math.min(posStart.top, posEnd.top);
+        const lineBottom = Math.max(posStart.top, posEnd.top);
+        const top = lineTop < BUBBLE_H + 8 ? lineBottom + 24 : lineTop - BUBBLE_H - 4;
+        setBubble({ top, left });
       } catch { setBubble(null); }
     }
     ta.addEventListener('mouseup', update);
