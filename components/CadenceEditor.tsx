@@ -420,27 +420,42 @@ export default function CadenceEditor({
         >
           <button
             onClick={() => applyTransform(toBold)}
-            className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition text-base font-bold flex items-center justify-center"
+            className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition text-[15px] font-bold flex items-center justify-center"
             title="Gras Unicode (visible sur LinkedIn)"
-          >𝗕</button>
+            aria-label="Gras"
+          >B</button>
           <button
             onClick={() => applyTransform(toItalic)}
-            className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition text-base italic flex items-center justify-center"
+            className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition text-[15px] italic font-serif flex items-center justify-center"
             title="Italique Unicode (visible sur LinkedIn)"
-          >𝘐</button>
+            aria-label="Italique"
+          >I</button>
           <span className="w-px h-5 bg-white/10 mx-0.5" aria-hidden />
           <button
             onClick={() => applyTransform(toBulletList)}
-            className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition text-sm flex items-center justify-center"
+            className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition flex items-center justify-center"
             title="Liste à puces (préfixe • chaque ligne)"
             aria-label="Liste à puces"
-          >•</button>
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <circle cx="3" cy="4" r="1" fill="currentColor" />
+              <line x1="6.5" y1="4" x2="14" y2="4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              <circle cx="3" cy="8" r="1" fill="currentColor" />
+              <line x1="6.5" y1="8" x2="14" y2="8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              <circle cx="3" cy="12" r="1" fill="currentColor" />
+              <line x1="6.5" y1="12" x2="11" y2="12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+          </button>
           <button
             onClick={() => applyTransform(toQuote)}
-            className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition text-sm flex items-center justify-center"
+            className="text-white/85 hover:text-white hover:bg-white/10 w-8 h-8 rounded-md transition flex items-center justify-center"
             title="Citation (entoure de « »)"
             aria-label="Citation"
-          >«»</button>
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden>
+              <path d="M4 5c0-1 0.5-2 2-2 M4 5v4h3V5H4 M9 5c0-1 0.5-2 2-2 M9 5v4h3V5H9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         </div>
       )}
 
