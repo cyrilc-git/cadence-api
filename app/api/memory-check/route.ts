@@ -32,30 +32,38 @@ export async function POST(req: Request) {
       };
     }
 
-    // V11.5 — contre-angle proposé si saturation détectée
+    // V11.5 + V15.7 — contre-angle proposé si saturation détectée.
+    // Messages reformulés pour parler comme un éditeur, pas comme un système.
     let counterAngle: string | null = null;
     if (saturation >= 2) {
       kind = 'saturation';
-      message = nearestInfo
-        ? `Cadence se souvient de ${saturation} posts proches, dont « ${nearestInfo.title.slice(0, 60)} »${nearestInfo.daysAgo !== null ? ` il y a ${nearestInfo.daysAgo} jours` : ''}.`
-        : `Cadence se souvient de ${saturation} posts proches dans votre archive.`;
-      // Heuristique : choisir un angle opposé au texte
+      if (nearestInfo) {
+        const recent = nearestInfo.daysAgo !== null && nearestInfo.daysAgo < 30;
+        message = recent
+          ? `Vous revenez sur un sujet déjà traité il y a ${nearestInfo.daysAgo} jours : « ${nearestInfo.title.slice(0, 60)} ».`
+          : `Sujet déjà traité ${saturation} fois dans vos archives, dont « ${nearestInfo.title.slice(0, 60)} »${nearestInfo.daysAgo !== null ? ` il y a ${nearestInfo.daysAgo} jours` : ''}.`;
+      } else {
+        message = `Sujet déjà traité ${saturation} fois dans vos archives.`;
+      }
       const lower = text.toLowerCase();
       if (/\bcas\b|client|histoire|témoignage|vécu/.test(lower)) {
-        counterAngle = 'Préférez un angle opinion ou contre-exemple pour éviter la répétition.';
+        counterAngle = 'Pour éviter la répétition, prenez l\'angle opinion ou contre-exemple.';
       } else if (/\bopinion\b|à mon avis|je pense|hot take/.test(lower)) {
-        counterAngle = 'Préférez un cas anonymisé chiffré pour démontrer plutôt que défendre.';
+        counterAngle = 'Pour varier, racontez un cas anonymisé chiffré plutôt que de défendre.';
       } else if (/comment|pourquoi|étape|leçon|conseil/.test(lower)) {
-        counterAngle = 'Préférez un build in public ou un retour d\'expérience pour varier.';
+        counterAngle = 'Pour varier, partez d\'un build in public ou d\'un retour d\'expérience.';
       } else {
         counterAngle = 'Décalez l\'angle : opinion tranchée, contre-exemple ou retour chiffré.';
       }
     } else if (novelty >= 0.7) {
       kind = 'novelty';
-      message = 'Angle inédit dans vos archives.';
+      message = 'Premier post sur ce sujet — angle inédit pour vos lecteurs.';
     } else if (nearestInfo && nearestInfo.daysAgo !== null && nearestInfo.daysAgo < 90) {
       kind = 'familiar';
-      message = `Sujet proche d'un post du ${new Date(nearestInfo.scheduled_at!).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}.`;
+      const dateStr = new Date(nearestInfo.scheduled_at!).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' });
+      message = nearestInfo.daysAgo < 14
+        ? `Vous avez touché ce sujet le ${dateStr} (il y a ${nearestInfo.daysAgo} jours).`
+        : `Sujet déjà abordé le ${dateStr}, mais l'angle peut être renouvelé.`;
     }
 
     // V12.6 — Visual hint : Cadence suggère un format graphique selon le texte.
@@ -84,28 +92,28 @@ function inferVisualHint(text: string): { format: string; message: string } | nu
   const lines = text.split('\n').filter(l => l.trim()).length;
   const chars = text.length;
 
+  // V15.7 — messages plus directs (ton éditorial, pas descriptif).
   // 1. Beaucoup de structure (numérotation, étapes, listes) -> schéma
   const stepMarkers = (text.match(/\b(étape|step|leçon|raison|astuce)\s*\d*/gi) || []).length;
   const numberedLines = (text.match(/^\s*(\d+\.|\d+\)|[-•])\s+/gm) || []).length;
   if (stepMarkers >= 2 || numberedLines >= 3) {
-    return { format: 'schema', message: 'Ce post a une structure en étapes : un schéma fonctionnerait mieux qu\'une illustration.' };
+    return { format: 'schema', message: 'Cette structure en étapes appelle un schéma plutôt qu\'une illustration.' };
   }
 
   // 2. Chiffre central marquant -> data visualisation
-  // Détecte au moins 2 chiffres significatifs (≥ 2 caractères) avec % ou unité.
   const numericHits = (text.match(/\b\d{2,}(\s*[%€$kKMm])?\b/g) || []).length;
   if (numericHits >= 2 && chars < 1500) {
-    return { format: 'data', message: 'Un chiffre principal en gros, sur fond clair, accroche souvent mieux qu\'une illustration sur ce type de post.' };
+    return { format: 'data', message: 'Un chiffre central en gros, fond clair : ça accroche mieux qu\'une illustration.' };
   }
 
   // 3. Texte long et structuré -> carrousel
   if (chars > 1500 && lines > 8) {
-    return { format: 'carousel', message: 'Ce volume de texte se prête bien à un carrousel : une idée par slide.' };
+    return { format: 'carousel', message: 'Ce volume se prête à un carrousel : une idée par slide.' };
   }
 
   // 4. Hook très court, peu de texte -> visuel minimaliste
   if (chars < 400 && lines < 4) {
-    return { format: 'illustration', message: 'Ce hook mérite un visuel minimaliste : un seul élément graphique fort.' };
+    return { format: 'illustration', message: 'Hook court : un visuel minimaliste, un seul élément graphique fort.' };
   }
 
   return null;
