@@ -460,12 +460,12 @@ function StartHint({
   // Trois chemins clairs : 1) brief court → 3 propositions, 2) recycler un
   // ancien, 3) ouvrir le radar pour partir d'une idée fraîche.
   return (
-    <section className="animate-fade-in space-y-6">
+    <section className="animate-fade-in space-y-8">
       <div>
         <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Nouveau post · {pilier.split('·')[1]?.trim() || pilier}</p>
-        <h1 className="mt-2 text-3xl font-semibold text-ink-900 tracking-tight">De quoi voulez-vous parler aujourd&apos;hui ?</h1>
-        <p className="mt-2 text-sm text-ink-500 leading-relaxed">
-          Écrivez un brief court, Cadence en fera trois versions. Vous pouvez aussi commencer à écrire directement dans la zone plus bas, ou reprendre un sujet du Radar.
+        <h1 className="mt-3 text-2xl font-semibold text-ink-900 tracking-tight font-editorial">De quoi voulez-vous parler aujourd&apos;hui ?</h1>
+        <p className="mt-3 text-sm text-ink-500 leading-relaxed max-w-xl">
+          Posez un brief court, Cadence en fera trois versions. Ou commencez à écrire directement dans la zone plus bas, ou reprenez un sujet du Radar.
         </p>
       </div>
 
