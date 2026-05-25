@@ -209,6 +209,36 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   letter-spacing: 0;
 }
 
+/* V15.13 — Brief textarea : version réduite de .cadence-editorial pour
+   le champ "Ex : un client a divisé par 2 son DSO..." en haut de
+   /posts/new. Charter 16px, leading 1.55, border subtile pour la
+   distinguer comme input mais sans casser la cohérence éditoriale. */
+.cadence-brief {
+  font-family: 'Charter', 'Iowan Old Style', Georgia, Cambria, serif;
+  font-size: 16px;
+  line-height: 1.55;
+  letter-spacing: -0.003em;
+  color: #0F172A;
+  caret-color: #2563EB;
+  background: #FAFAFA;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  width: 100%;
+  resize: none;
+  transition: border-color 200ms, background 200ms;
+}
+.cadence-brief:focus {
+  outline: none;
+  border-color: #93C5FD;
+  background: #FFFFFF;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.08);
+}
+.cadence-brief::placeholder {
+  color: #94A3B8;
+  font-style: italic;
+}
+
 /* V15.2 — La première phrase d'un post LinkedIn est le "hook".
    Avant le premier saut de ligne, on l'imagine plus dense visuellement
    sans le grossir (sinon ça casse le rythme du texte qui suit).

@@ -474,7 +474,7 @@ function StartHint({
           value={brief} onChange={e => onBrief(e.target.value)}
           rows={3}
           placeholder={`Ex : un client a divisé par 2 son DSO en passant à Heelio. Veut raconter le déclic et le résultat sans donner le nom.`}
-          className="input text-sm font-editorial leading-[1.55]"
+          className="cadence-brief"
           autoFocus
         />
         <div className="mt-3 flex items-center gap-3 text-xs flex-wrap">
