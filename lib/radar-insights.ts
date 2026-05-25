@@ -132,23 +132,26 @@ export async function computeRadarInsights(): Promise<RadarInsight[]> {
     return insights;
   }
 
-  // 3a. Piliers silencieux (> 14j sans post)
+  // 3a. Piliers silencieux (> 14j sans post) — V15.7 ton éditorial
   try {
     const stats = await pilierStats();
     for (const s of stats) {
       if (s.daysSinceLast !== null && s.daysSinceLast > 14) {
+        const weeks = Math.round(s.daysSinceLast / 7);
         insights.push({
           kind: 'pilier_silence',
-          message: `Vous n'avez pas publié sur "${s.pilier}" depuis ${s.daysSinceLast} jours.`,
-          cta_label: 'Voir suggestions sur ce pilier',
+          message: weeks <= 1
+            ? `Pas de post sur « ${s.pilier} » depuis ${s.daysSinceLast} jours.`
+            : `Pas de post sur « ${s.pilier} » depuis ${weeks} semaines.`,
+          cta_label: 'Voir les idées',
           cta_href: `/suggestions?pilier=${encodeURIComponent(s.pilier)}`,
           data: { pilier: s.pilier, daysSinceLast: s.daysSinceLast, lastTitle: s.lastTitle }
         });
       } else if (s.count === 0) {
         insights.push({
           kind: 'pilier_silence',
-          message: `Aucun post indexé pour "${s.pilier}". Pilier sous-utilisé.`,
-          cta_label: 'Créer un post',
+          message: `Vous n'avez encore rien publié sur « ${s.pilier} ».`,
+          cta_label: 'Ouvrir un brouillon',
           cta_href: `/posts/new?pilier=${encodeURIComponent(s.pilier)}`,
           data: { pilier: s.pilier, count: 0 }
         });
@@ -156,30 +159,33 @@ export async function computeRadarInsights(): Promise<RadarInsight[]> {
     }
   } catch { /* silent */ }
 
-  // 3b. Topics silencieux (Decode/Heelio/etc.)
+  // 3b. Topics silencieux (Decode/Heelio/etc.) — V15.7 ton éditorial
   try {
     const topics = await trackedTopicStatus();
     for (const t of topics) {
       if (t.lastDays === null) {
         insights.push({
           kind: 'topic_never',
-          message: `Vous n'avez jamais publié sur "${t.topic}".`,
-          cta_label: 'Créer un post',
+          message: `« ${t.topic} » n'a jamais été un sujet de post chez vous. Premier angle à poser.`,
+          cta_label: 'Écrire le premier',
           cta_href: `/posts/new?brief=${encodeURIComponent(`Premier post sur ${t.topic}`)}`,
           data: { topic: t.topic }
         });
       } else if (t.lastDays > 21) {
+        const weeks = Math.round(t.lastDays / 7);
         insights.push({
           kind: 'topic_recyclable',
-          message: `Vous n'avez pas parlé de ${t.topic} depuis ${t.lastDays} jours.`,
-          cta_label: 'Voir mes posts sur ce sujet',
+          message: weeks <= 4
+            ? `${weeks} semaines sans parler de ${t.topic}. Vos lecteurs ont peut-être oublié.`
+            : `Plus de ${weeks} semaines sans parler de ${t.topic}. Un retour sur ce sujet réveillerait l'audience.`,
+          cta_label: 'Reprendre le sujet',
           cta_href: `/posts?q=${encodeURIComponent(t.topic)}`,
           data: { topic: t.topic, lastDays: t.lastDays }
         });
       } else if (t.count60d > 4) {
         insights.push({
           kind: 'topic_saturated',
-          message: `${t.topic} : ${t.count60d} posts sur 60 jours. Sujet saturé, changez d'angle.`,
+          message: `${t.count60d} posts sur ${t.topic} en 60 jours : le sujet sature, mieux vaut changer d'angle.`,
           data: { topic: t.topic, count60d: t.count60d }
         });
       }
