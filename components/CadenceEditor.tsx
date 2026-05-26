@@ -104,6 +104,10 @@ export default function CadenceEditor({
   // V18.5 — Signal de répétition stylistique (opening / closing répété)
   const [styleRepetition, setStyleRepetition] = useState<{ kind: 'opening' | 'hook' | 'closing'; message: string } | null>(null);
   const [dismissedStyleKind, setDismissedStyleKind] = useState<string | null>(null);
+  // V18.9 — Carousel hint : "ce sujet fonctionnerait en carrousel"
+  const [carouselHint, setCarouselHint] = useState<{ format: string; message: string; slides: number } | null>(null);
+  const [dismissedCarousel, setDismissedCarousel] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   // V12.8 §2 — l'utilisateur peut "ignorer" une suggestion visuelle pour
   // qu'elle ne réapparaisse pas pendant cette session de frappe.
   const [dismissedHintFormat, setDismissedHintFormat] = useState<string | null>(null);
@@ -136,6 +140,8 @@ export default function CadenceEditor({
         setNarrativeSignal(d?.narrative || null);
         // V18.5 — Style repetition signal (opening / closing)
         setStyleRepetition(d?.styleRepetition || null);
+        // V18.9 — Carousel hint
+        setCarouselHint(d?.carouselHint || null);
       } catch { /* abort or network: silent */ }
     }, 1500);
     return () => { if (memoryTimerRef.current) clearTimeout(memoryTimerRef.current); };
@@ -528,6 +534,49 @@ export default function CadenceEditor({
                 onClick={() => setDismissedStyleKind(styleRepetition.kind)}
                 className="text-ink-400 hover:text-ink-700 transition not-italic"
                 title="Ignorer ce signal pour ce post"
+              >
+                plus tard
+              </button>
+            </p>
+          )}
+          {/* V18.9 — Carousel hint : si le texte structure un carrousel
+              naturellement, on propose l'export PDF inline. */}
+          {carouselHint && !dismissedCarousel && (
+            <p className="text-2xs italic leading-relaxed text-ink-500">
+              {carouselHint.message}
+              {' '}
+              <button
+                type="button"
+                onClick={async () => {
+                  setGeneratingPdf(true);
+                  try {
+                    const r = await fetch('/api/carousel/export', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ text: value }),
+                    });
+                    if (!r.ok) throw new Error('Export PDF impossible');
+                    const blob = await r.blob();
+                    const url = URL.createObjectURL(blob);
+                    window.open(url, '_blank');
+                  } catch (e: any) {
+                    // silent : la suggestion reste affichée si erreur
+                  } finally {
+                    setGeneratingPdf(false);
+                  }
+                }}
+                disabled={generatingPdf}
+                className="text-brand-700 hover:text-brand-900 transition not-italic underline decoration-dotted underline-offset-2 disabled:opacity-50"
+                title="Générer le carrousel en PDF (s'ouvre dans un nouvel onglet)"
+              >
+                {generatingPdf ? 'Génération…' : 'Exporter en PDF'}
+              </button>
+              {' · '}
+              <button
+                type="button"
+                onClick={() => setDismissedCarousel(true)}
+                className="text-ink-400 hover:text-ink-700 transition not-italic"
+                title="Ignorer cette suggestion pour ce post"
               >
                 plus tard
               </button>

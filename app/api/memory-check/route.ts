@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { noveltyScore } from '@/lib/embeddings';
 import { analyzeNarrative } from '@/lib/narrative-check';
 import { readStyleMemory } from '@/lib/style-memory';
+import { planSlides } from '@/lib/carousel';
 
 export const runtime = 'nodejs';
 export const maxDuration = 15;
@@ -123,6 +124,33 @@ export async function POST(req: Request) {
       }
     } catch { /* silent : table peut ne pas exister */ }
 
+    // V18.9 — Carousel hint : si le texte structure naturellement un
+    // carrousel (liste / framework / étapes / comparaison / timeline /
+    // case-study), on signale doucement la possibilité d'export PDF.
+    // Seuil : texte > 600 chars et format détecté autre que 'breakdown'
+    // (le défaut). En dessous, pas de pertinence à proposer.
+    let carouselHint: { format: string; message: string; slides: number } | null = null;
+    if (text.length > 600) {
+      try {
+        const plan = planSlides(text);
+        if (plan.format !== 'breakdown' && plan.totalSlides >= 3 && plan.totalSlides <= 12) {
+          const formatLabel = {
+            pedagogical: 'pédagogique',
+            framework: 'framework',
+            breakdown: 'décortiquage',
+            'case-study': 'cas client',
+            timeline: 'timeline',
+            comparison: 'comparaison',
+          }[plan.format];
+          carouselHint = {
+            format: plan.format,
+            slides: plan.totalSlides,
+            message: `Ce sujet fonctionnerait bien en carrousel ${formatLabel} (${plan.totalSlides} slides).`,
+          };
+        }
+      } catch { /* silent */ }
+    }
+
     return NextResponse.json({
       kind,
       message,
@@ -130,6 +158,7 @@ export async function POST(req: Request) {
       visualHint,
       narrative,
       styleRepetition,
+      carouselHint,
       novelty: Math.round(novelty * 100),
       saturation,
       nearest: nearestInfo,
