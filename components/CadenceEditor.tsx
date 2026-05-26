@@ -101,6 +101,9 @@ export default function CadenceEditor({
   // V16.5 — Narrative signal (tension absente, hook qui promet trop, etc.)
   const [narrativeSignal, setNarrativeSignal] = useState<{ kind: string; message: string; severity: 'note' | 'soft' | 'firm' } | null>(null);
   const [dismissedNarrativeKind, setDismissedNarrativeKind] = useState<string | null>(null);
+  // V18.5 — Signal de répétition stylistique (opening / closing répété)
+  const [styleRepetition, setStyleRepetition] = useState<{ kind: 'opening' | 'hook' | 'closing'; message: string } | null>(null);
+  const [dismissedStyleKind, setDismissedStyleKind] = useState<string | null>(null);
   // V12.8 §2 — l'utilisateur peut "ignorer" une suggestion visuelle pour
   // qu'elle ne réapparaisse pas pendant cette session de frappe.
   const [dismissedHintFormat, setDismissedHintFormat] = useState<string | null>(null);
@@ -131,6 +134,8 @@ export default function CadenceEditor({
         setVisualHint(d?.visualHint || null);
         // V16.5 — Narrative signal (1 max)
         setNarrativeSignal(d?.narrative || null);
+        // V18.5 — Style repetition signal (opening / closing)
+        setStyleRepetition(d?.styleRepetition || null);
       } catch { /* abort or network: silent */ }
     }, 1500);
     return () => { if (memoryTimerRef.current) clearTimeout(memoryTimerRef.current); };
@@ -505,6 +510,22 @@ export default function CadenceEditor({
               <button
                 type="button"
                 onClick={() => setDismissedNarrativeKind(narrativeSignal.kind)}
+                className="text-ink-400 hover:text-ink-700 transition not-italic"
+                title="Ignorer ce signal pour ce post"
+              >
+                plus tard
+              </button>
+            </p>
+          )}
+          {/* V18.5 — Signal de répétition stylistique : "vous commencez
+              souvent par X". Ton ink-500 italic, dismissable. */}
+          {styleRepetition && dismissedStyleKind !== styleRepetition.kind && (
+            <p className="text-2xs italic leading-relaxed text-ink-500">
+              {styleRepetition.message}
+              {' '}
+              <button
+                type="button"
+                onClick={() => setDismissedStyleKind(styleRepetition.kind)}
                 className="text-ink-400 hover:text-ink-700 transition not-italic"
                 title="Ignorer ce signal pour ce post"
               >

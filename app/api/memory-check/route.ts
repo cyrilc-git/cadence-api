@@ -5,6 +5,7 @@
 import { NextResponse } from 'next/server';
 import { noveltyScore } from '@/lib/embeddings';
 import { analyzeNarrative } from '@/lib/narrative-check';
+import { readStyleMemory } from '@/lib/style-memory';
 
 export const runtime = 'nodejs';
 export const maxDuration = 15;
@@ -81,12 +82,54 @@ export async function POST(req: Request) {
       severity: narrativeSignal.severity,
     } : null;
 
+    // V18.5 — Détection de répétition stylistique : si la 1ère ligne
+    // commence par les MÊMES mots que des hooks ou des openings récurrents
+    // de la signature personnelle, on signale doucement. Cadence pousse
+    // la variété sans bloquer (toujours dismissable côté éditeur).
+    let styleRepetition: { kind: 'opening' | 'hook' | 'closing'; message: string } | null = null;
+    try {
+      const mem = await readStyleMemory();
+      if (mem && mem.confidence_score >= 0.3) {
+        const firstLine = text.split('\n').find((l: string) => l.trim().length > 0) || '';
+        const firstWords4 = firstLine.toLowerCase().split(/\s+/).slice(0, 4).join(' ');
+        const firstWords5 = firstLine.toLowerCase().split(/\s+/).slice(0, 5).join(' ');
+        // Match contre les openings récurrents (déjà en lowercase normalisé)
+        const matchOpening = mem.top_openings.find(o => {
+          const oNorm = o.toLowerCase();
+          return oNorm === firstWords4 || oNorm === firstWords5 ||
+                 (firstWords4.length > 8 && oNorm.startsWith(firstWords4));
+        });
+        if (matchOpening) {
+          styleRepetition = {
+            kind: 'opening',
+            message: `Vous commencez souvent par « ${matchOpening}… ». Tentez un opening différent pour varier le rythme.`,
+          };
+        } else {
+          // Phrases répétées (top_closings ou repeated_phrases) — match
+          // approximatif sur les 5 derniers mots non-vides.
+          const lastLine = text.split('\n').reverse().find((l: string) => l.trim().length > 0) || '';
+          const lastWords5 = lastLine.toLowerCase().split(/\s+/).slice(-5).join(' ');
+          const matchClosing = mem.top_closings.find(c => {
+            const cNorm = c.toLowerCase();
+            return lastWords5.endsWith(cNorm) || cNorm.endsWith(lastWords5.slice(-12));
+          });
+          if (matchClosing && text.length > 300) {
+            styleRepetition = {
+              kind: 'closing',
+              message: `Vous fermez souvent par « ${matchClosing}… ». Une chute différente surprendrait votre audience.`,
+            };
+          }
+        }
+      }
+    } catch { /* silent : table peut ne pas exister */ }
+
     return NextResponse.json({
       kind,
       message,
       counterAngle,
       visualHint,
       narrative,
+      styleRepetition,
       novelty: Math.round(novelty * 100),
       saturation,
       nearest: nearestInfo,
