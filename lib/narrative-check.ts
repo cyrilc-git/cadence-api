@@ -100,9 +100,12 @@ function explainStarters(text: string): number {
  *  Le dernier paragraphe contient : impératif présent ("retenez", "souvenez-vous",
  *  "n'oubliez pas") OU un "donc", "alors", "voilà pourquoi" final. */
 function hasExplicitMoral(text: string): boolean {
-  const last = lastLines(text, 2).join(' ');
+  // On regarde les 3 dernières lignes pour ne pas rater une morale qui
+  // précède une question rhétorique finale ("Et vous ?").
+  const last = lastLines(text, 3).join(' ');
   if (!last) return false;
-  return /\b(retenez|souvenez-vous|n['e]?oubliez pas|voilà pourquoi|c['e]?est pour cette raison|en r[ée]sum[ée]|moralit[ée]|le[çc]on\s*[:.])\b/i.test(last);
+  return /\b(retenez|souvenez-vous|n['e]?oubliez pas|voilà pourquoi|c['e]?est pour cette raison|en r[ée]sum[ée]|moralit[ée]|le[çc]on\s*[:.])\b/i.test(last)
+    || /\b(j['e]ai compris que|j['e]ai r[ée]alis[ée] que|ma plus grande le[çc]on|ce que j['e]ai retenu|en conclusion\s*[:,]|pour conclure\s*[:,])\b/i.test(last);
 }
 
 /** Détecte si le hook (1ère phrase) promet plus que le texte ne donne.
