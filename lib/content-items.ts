@@ -357,10 +357,33 @@ export function contentItemToPostSummary(item: ContentItem): NotionPostSummary {
   };
 }
 
-// V11.1 — Fire-and-forget : déclenche un syncContentItems en background si la
-// dernière sync est trop ancienne. Garantit une fraîcheur sans bloquer le TTFB.
+// V17.6 — Lit le toggle "notion.read_enabled" depuis design_system (table KV
+// déjà en place). Par défaut FALSE : Cadence ne lit plus les brouillons
+// Notion, elle ne fait qu'écrire vers Notion. L'utilisateur garde le contrôle
+// via /sources/notion (toggle pour réactiver).
+async function isNotionReadEnabled(): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from('design_system')
+      .select('value')
+      .eq('key', 'notion.read_enabled')
+      .maybeSingle();
+    if (!data) return false; // défaut V17.6 : lecture désactivée
+    const v = String(data.value || '').toLowerCase().trim();
+    return v === 'true' || v === '1' || v === 'on' || v === 'yes';
+  } catch {
+    return false;
+  }
+}
+
+// V11.1 + V17.6 — Fire-and-forget : déclenche un syncContentItems en background
+// si la dernière sync est trop ancienne ET si l'utilisateur a explicitement
+// activé la lecture Notion. Par défaut Cadence n'aspire plus les brouillons
+// Notion, elle ne fait qu'écrire vers Notion à la sauvegarde / publication.
 export async function ensureFreshContentItems(maxAgeMinutes = 120): Promise<void> {
   try {
+    const enabled = await isNotionReadEnabled();
+    if (!enabled) return; // Notion → Cadence désactivé par défaut V17.6
     const { data } = await supabase
       .from('content_items')
       .select('last_synced_at')
@@ -368,7 +391,6 @@ export async function ensureFreshContentItems(maxAgeMinutes = 120): Promise<void
       .limit(1);
     const lastSync = data?.[0]?.last_synced_at;
     if (!lastSync) {
-      // Aucune sync encore : on lance en background.
       syncContentItems({ limit: 200 }).catch(() => {});
       return;
     }

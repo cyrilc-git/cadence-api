@@ -61,6 +61,12 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
         )}
       </section>
 
+      {/* V17.6 — Toggle sens de sync : Cadence -> Notion par défaut.
+          Réactiver Notion -> Cadence si l'utilisateur veut que les
+          brouillons saisis directement dans Notion remontent dans
+          la Bibliothèque Cadence. */}
+      <NotionReadToggle />
+
       {/* Editorial memory — V8.1 */}
       <EditorialMemoryCard />
 
@@ -153,6 +159,76 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
   );
 }
 
+
+// V17.6 — Toggle pour réactiver la lecture Notion -> Cadence. Par défaut
+// désactivé : Cadence ne lit plus les brouillons Notion automatiquement.
+// L'utilisateur peut réactiver s'il veut que les posts écrits directement
+// dans Notion remontent dans la Bibliothèque Cadence.
+function NotionReadToggle() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/design-system?key=notion.read_enabled', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => {
+        const val = String(d?.value || '').toLowerCase().trim();
+        setEnabled(val === 'true' || val === '1' || val === 'on');
+      })
+      .catch(() => setEnabled(false));
+  }, []);
+
+  async function toggle() {
+    if (enabled === null) return;
+    const next = !enabled;
+    setSaving(true);
+    try {
+      const r = await fetch('/api/design-system', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'notion.read_enabled', value: next ? 'true' : 'false', category: 'sync' }),
+      });
+      if (r.ok) {
+        setEnabled(next);
+        toast.success(next ? 'Lecture Notion activée' : 'Lecture Notion désactivée');
+      } else {
+        toast.error('Échec de la mise à jour');
+      }
+    } catch (e: any) {
+      toast.error('Erreur : ' + e.message);
+    } finally { setSaving(false); }
+  }
+
+  if (enabled === null) return null;
+
+  return (
+    <section className="border-l-2 border-ink-200 pl-4 py-1">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex-1 min-w-0 max-w-2xl">
+          <h2 className="text-sm font-semibold text-ink-900">Sens de la synchronisation</h2>
+          <p className="mt-1 text-xs text-ink-500 leading-relaxed">
+            Cadence écrit toujours vers Notion à chaque sauvegarde et chaque publication.
+            La lecture inverse (importer les brouillons que vous écrivez directement dans
+            Notion) est <strong>{enabled ? 'activée' : 'désactivée'}</strong> par défaut.
+          </p>
+          <p className="mt-2 text-2xs text-ink-400 leading-relaxed">
+            {enabled
+              ? 'Vos brouillons Notion remontent dans la Bibliothèque Cadence toutes les 2h.'
+              : 'Seuls les posts créés ou édités dans Cadence apparaissent dans la Bibliothèque. Notion reste la copie de travail, pas la source.'}
+          </p>
+        </div>
+        <button
+          onClick={toggle}
+          disabled={saving}
+          className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition disabled:opacity-50 ${enabled ? 'bg-brand-500 text-white hover:bg-brand-700' : 'border border-ink-200 text-ink-700 hover:bg-ink-50'}`}
+        >
+          <span className={`inline-block w-2 h-2 rounded-full ${enabled ? 'bg-white' : 'bg-ink-300'}`} aria-hidden />
+          {enabled ? 'Lecture activée' : 'Lecture désactivée'}
+        </button>
+      </div>
+    </section>
+  );
+}
 
 function EditorialMemoryCard() {
   const [stats, setStats] = useState<{ indexed_total: number; notion_posts_total: number; coverage_pct: number } | null>(null);
