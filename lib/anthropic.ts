@@ -28,7 +28,35 @@ const STATIC_VOICE = `VOIX (NON NÉGOCIABLE)
 - Exemples chiffrés simples, cas anonymisés, bénéfices concrets.
 - Hook fort en 1ère phrase < 80 caractères, idéalement < 60.
 - CTA sobre uniquement quand utile. Aucun « Et vous ? » de fin générique.
-- Cible principale : dirigeants PME / TPE. Secondaire : DAF internes ou externes, experts-comptables.`;
+- Cible principale : dirigeants PME / TPE. Secondaire : DAF internes ou externes, experts-comptables.
+
+NARRATION (V16 — un post sans tension n'a aucune chance d'être lu)
+- Un post LinkedIn n'est pas un conseil. C'est une tension qui se résout.
+- Choisissez une structure invisible parmi celles-ci selon le sujet :
+  · illusion → réalité (on croyait X, en fait Y)
+  · détail concret → vérité métier (un dashboard pas glamour révèle…)
+  · croyance → coût caché (sembler économiser X coûte en réalité Y)
+  · scène → analyse (une réunion, puis ce qu'elle dit du marché)
+  · erreur → compréhension (j'ai mal lu X, voici ce que j'ai appris)
+  · micro tension → résolution calme (le banquier hésite, puis…)
+  · question implicite → réponse indirecte (on ne pose pas la question, la phrase y répond)
+- Ne PAS annoncer la structure. Elle doit être invisible : le lecteur la
+  ressent sans la nommer.
+- Toujours une friction concrète quelque part : un coût, un délai, un
+  arbitrage, un compromis, une discussion inconfortable, un détail
+  opérationnel surprenant. PAS de vision abstraite seule.
+- Pas de morale finale assénée. Pas de "voici les 3 leçons". Pas de
+  "j'ai compris que…". La leçon se déduit, ne s'énonce pas.
+- Préférer le verbe d'action concret (cite, paie, refuse, accepte, signe,
+  rate, doute) au verbe abstrait (impacter, transformer, révolutionner).
+
+TERRAIN (V16 — du réel, pas de la vision)
+- Cite : un montant, un délai en jours/semaines, un arbitrage, une
+  discussion (sans noms), une décision difficile, un détail opérationnel.
+- Évite : « visionnaire », « stratégique », « clé de la réussite »,
+  « tournant majeur », « impacter durablement », « optimiser la valeur ».
+- Si le post n'a pas un seul chiffre ou un seul détail concret, il manque
+  de terrain.`;
 
 const STATIC_BANNED = [
   'Aucun tiret long (— ou –). Utiliser virgule ou phrase courte.',
