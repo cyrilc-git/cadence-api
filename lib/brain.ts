@@ -102,6 +102,9 @@ export type BrainState = {
 
   // V11.3 — Drift éditorial : hooks plus génériques, ton plus corporate, etc.
   editorialDrifts: EditorialDrift[];
+
+  // V16.10 — Mémoire narrative : structures détectées sur les 60 derniers jours
+  narrativeStructures: { kind: string; label: string; count: number }[];
 };
 
 export type EditorialDrift = {
@@ -359,6 +362,40 @@ export async function computeBrainState(unknownSourcesInput?: { kind: string; la
     }
   } catch { /* silent */ }
 
+  // V16.10 — Mémoire narrative : agrège meta.narrative_kind sur les
+  // posts indexés des 60 derniers jours pour proposer un mini-tableau
+  // "vos structures narratives ce mois". Best-effort : si meta vide,
+  // on filtre les 'none' et on ne montre que les structures pertinentes.
+  let narrativeStructures: { kind: string; label: string; count: number }[] = [];
+  try {
+    const sixtyDaysAgo = new Date(Date.now() - 60 * 86_400_000).toISOString();
+    const { data: narrRows } = await supabase
+      .from('post_embeddings')
+      .select('meta, scheduled_at')
+      .gte('scheduled_at', sixtyDaysAgo)
+      .limit(500);
+    const counts: Record<string, number> = {};
+    for (const r of narrRows || []) {
+      const kind = (r.meta as any)?.narrative_kind;
+      if (!kind || kind === 'none') continue;
+      counts[kind] = (counts[kind] || 0) + 1;
+    }
+    const NARRATIVE_LABELS: Record<string, string> = {
+      hook_promet_trop:         'hook qui promet trop',
+      morale_finale_assenee:    'morale assénée',
+      sans_friction_concrete:   'sans friction concrète',
+      manque_bascule:           'sans bascule',
+      scene_absente:            'sans scène',
+      tout_demonstratif:        'trop démonstratif',
+      lineaire_explicatif:      'linéaire explicatif',
+      ralentit_trop:            'pavé qui ralentit',
+    };
+    narrativeStructures = Object.entries(counts)
+      .map(([kind, count]) => ({ kind, label: NARRATIVE_LABELS[kind] || kind, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  } catch { /* silent */ }
+
   return {
     totalIndexed: total,
     sources,
@@ -399,6 +436,7 @@ export async function computeBrainState(unknownSourcesInput?: { kind: string; la
     timeline: buildTimeline(bySource),
     formatTrends: await buildFormatTrends().catch(() => []),
     editorialDrifts: await buildEditorialDrifts().catch(() => []),
+    narrativeStructures,
   };
 }
 

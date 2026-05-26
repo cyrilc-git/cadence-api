@@ -503,6 +503,35 @@ export default async function BrainPage() {
         </section>
       )}
 
+      {/* === V16.10 — Mémoire narrative : structures détectées sur les 60j ===
+          Cadence partage ce qu'elle voit dans VOS structures narratives :
+          quelle structure revient, où ça pèche (sans friction, morale assénée,
+          etc.). Ton constat éditorial, jamais reproche. */}
+      {brain.narrativeStructures && brain.narrativeStructures.length > 0 && (
+        <section>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Mémoire narrative</h2>
+          <p className="text-xs text-ink-500 leading-relaxed mb-3">
+            Structures détectées dans vos posts des 60 derniers jours. Cadence regarde l&apos;ossature avant le lexique.
+          </p>
+          <ul className="space-y-2.5">
+            {brain.narrativeStructures.map((n, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-2 shrink-0" aria-hidden />
+                <div className="flex-1 min-w-0 flex items-baseline gap-2 flex-wrap">
+                  <span className="text-sm text-ink-800">{n.label.charAt(0).toUpperCase() + n.label.slice(1)}</span>
+                  <span className="text-2xs text-ink-400 tabular-nums">
+                    {n.count} post{n.count > 1 ? 's' : ''}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-2xs text-ink-400 italic leading-relaxed">
+            Une structure qui revient n&apos;est pas un défaut. La répétition d&apos;une structure faible (morale assénée, sans friction) signale un terrain de progression.
+          </p>
+        </section>
+      )}
+
       {/* === SECTION 6bis : Zones d'incertitude V9.5 === */}
       {brain.uncertainties.length > 0 && (
         <section>
