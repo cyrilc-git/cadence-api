@@ -48,7 +48,16 @@ export const ANTI_PATTERNS = [
       return maxStreak >= 3;
     }, severity: 'medium' },
   { id: 'all_caps',     label: 'Mot en MAJUSCULES (>1 mot consécutif)', pattern: /\b[A-Z]{4,}\s+[A-Z]{4,}/g, severity: 'medium' },
-  { id: 'tutoiement',   label: 'Tutoiement détecté', pattern: /\b(tu|toi|ton|ta|tes)\b/gi, severity: 'high' }
+  { id: 'tutoiement',   label: 'Tutoiement détecté', pattern: /\b(tu|toi|ton|ta|tes)\b/gi, severity: 'high' },
+  // V16.2 — Détection "trop LinkedIn" : morales évidentes, "voici les N
+  // leçons", punchlines fabriquées, conclusion forcée. La voix Cadence
+  // pose la leçon implicite, jamais assénée.
+  { id: 'voici_n_lecons', label: '"Voici les N leçons / N raisons / N choses" (cliché LinkedIn)', pattern: /(?:^|\n|\.\s+)\s*Voici\s+(?:les|mes|\d+|trois|cinq|sept)\s+(?:le[çc]ons?|raisons?|choses?|cl[ée]s?|conseils?|astuces?|erreurs?|principes?)/gi, severity: 'high' },
+  { id: 'morale_assenee', label: 'Morale assénée ("J\'ai compris que…", "Ma plus grande leçon…")', pattern: /(?:^|\n|\.\s+)\s*(?:J['e]ai compris que|Ma plus grande le[çc]on|Le[çc]on apprise\s*:|Ce que j['e]ai retenu\s*:|En conclusion\s*:|Pour conclure\s*:)/gi, severity: 'high' },
+  { id: 'cta_generique', label: 'CTA générique fin de post ("Et vous ?", "Qu\'en pensez-vous ?")', pattern: /(?:^|\n|\.\s+)\s*(?:Et\s+vous\s*\?|Qu['e]en pensez-vous\s*\?|Vos\s+retours\s*\?|Partagez\s+en\s+commentaires|Dites-moi\s+(?:en\s+)?(?:commentaires?|ce\s+que))/gi, severity: 'high' },
+  { id: 'changement_dramatique', label: 'Bascule dramatique surjouée ("Et c\'est là que tout a changé")', pattern: /(?:^|\n|\.\s+)\s*(?:Et\s+c['e]?st\s+l[àa]\s+que\s+(?:tout\s+)?a\s+chang[ée]|Tout\s+a\s+chang[ée]\s+(?:le\s+jour\s+où|quand|en\s+un\s+instant)|Et\s+puis\s+un\s+jour)/gi, severity: 'high' },
+  { id: 'vision_abstraite', label: 'Vocabulaire vision abstraite (visionnaire, stratégique, tournant majeur, optimiser…)', pattern: /\b(visionnaire|tournant\s+majeur|optimiser\s+la\s+valeur|impacter\s+durablement|cl[ée]\s+de\s+la\s+r[ée]ussite|cr[ée]er\s+de\s+la\s+valeur|aligner\s+les\s+[ée]quipes|excellence\s+op[ée]rationnelle)\b/gi, severity: 'medium' },
+  { id: 'motivation_creuse', label: 'Phrase motivationnelle (la peur, le doute, les rêves, l\'audace…)', pattern: /\b(?:n['e]?ayez plus peur|osez (?:vraiment|enfin)|croyez en (?:vous|vos r[êe]ves)|sortez de (?:votre )?zone de confort|libérez votre potentiel|d[ée]passez vos limites)\b/gi, severity: 'high' }
 ];
 
 export type AntiPatternHit = { id: string; label: string; severity: string; matches: string[] };

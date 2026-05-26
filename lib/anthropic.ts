@@ -72,7 +72,15 @@ const STATIC_BANNED = [
   'Pas de mots en MAJUSCULES (sauf acronymes ≤ 4 lettres : DAF, SaaS, PME, FEC, FAE, FNP).',
   'Pas de phrases ultra courtes en rafale (staccato IA) : éviter 3+ phrases consécutives de ≤ 5 mots.',
   'Pas de confidentialité client risquée : pas de nom, pas de chiffres internes identifiables, secteur générique.',
-  'Pas de tutoiement. Pas de claims exagérés. Pas de conclusion générique.'
+  'Pas de tutoiement. Pas de claims exagérés. Pas de conclusion générique.',
+  // V16.2 — "Trop LinkedIn" : morales évidentes, punchlines fabriquées
+  'Aucune formule « Voici les N leçons / raisons / choses » et toutes ses variantes.',
+  'Aucune morale assénée : « J\'ai compris que… », « Ma plus grande leçon… », « Ce que j\'ai retenu : », « En conclusion : », « Pour conclure : ». La leçon doit être implicite, le lecteur la déduit.',
+  'Aucun CTA générique fin de post : « Et vous ? », « Qu\'en pensez-vous ? », « Vos retours ? », « Dites-moi en commentaires ».',
+  'Aucune bascule dramatique surjouée : « Et c\'est là que tout a changé », « Tout a changé le jour où », « Et puis un jour ».',
+  'Aucun vocabulaire vision abstraite : « visionnaire », « tournant majeur », « optimiser la valeur », « impacter durablement », « clé de la réussite », « créer de la valeur », « excellence opérationnelle ».',
+  'Aucune phrase motivationnelle : « n\'ayez plus peur », « osez enfin », « croyez en vos rêves », « sortez de votre zone de confort », « libérez votre potentiel », « dépassez vos limites ».',
+  'Aucune fausse vulnérabilité performative (« j\'ai failli tout perdre », « j\'ai pleuré ce jour-là », « j\'ai dû me regarder en face ») sauf si elle est vraie, factuelle et utile au propos.'
 ];
 
 const STATIC_INSPIRATION_RULES =
