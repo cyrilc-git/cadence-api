@@ -4,6 +4,7 @@
 
 import { NextResponse } from 'next/server';
 import { noveltyScore } from '@/lib/embeddings';
+import { analyzeNarrative } from '@/lib/narrative-check';
 
 export const runtime = 'nodejs';
 export const maxDuration = 15;
@@ -70,11 +71,22 @@ export async function POST(req: Request) {
     // Heuristique simple, jamais bavarde (un seul message court si pertinent).
     const visualHint = inferVisualHint(text);
 
+    // V16.5 — Narrative signal : 0 ou 1 signal narratif (tension, friction,
+    // bascule, hook qui promet trop, morale assénée…). Renvoyé en plus du
+    // memory signal. CadenceEditor décide de l'affichage en priorité.
+    const narrativeSignal = analyzeNarrative(text);
+    const narrative = narrativeSignal.kind !== 'none' ? {
+      kind: narrativeSignal.kind,
+      message: narrativeSignal.message,
+      severity: narrativeSignal.severity,
+    } : null;
+
     return NextResponse.json({
       kind,
       message,
       counterAngle,
       visualHint,
+      narrative,
       novelty: Math.round(novelty * 100),
       saturation,
       nearest: nearestInfo,

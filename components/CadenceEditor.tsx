@@ -98,6 +98,9 @@ export default function CadenceEditor({
   // V12.6 — visualHint : Cadence suggère un format graphique selon le texte
   const [memorySignal, setMemorySignal] = useState<{ kind: 'saturation' | 'novelty' | 'familiar'; message: string; counterAngle?: string | null } | null>(null);
   const [visualHint, setVisualHint] = useState<{ format: string; message: string } | null>(null);
+  // V16.5 — Narrative signal (tension absente, hook qui promet trop, etc.)
+  const [narrativeSignal, setNarrativeSignal] = useState<{ kind: string; message: string; severity: 'note' | 'soft' | 'firm' } | null>(null);
+  const [dismissedNarrativeKind, setDismissedNarrativeKind] = useState<string | null>(null);
   // V12.8 §2 — l'utilisateur peut "ignorer" une suggestion visuelle pour
   // qu'elle ne réapparaisse pas pendant cette session de frappe.
   const [dismissedHintFormat, setDismissedHintFormat] = useState<string | null>(null);
@@ -126,6 +129,8 @@ export default function CadenceEditor({
           setMemorySignal(null);
         }
         setVisualHint(d?.visualHint || null);
+        // V16.5 — Narrative signal (1 max)
+        setNarrativeSignal(d?.narrative || null);
       } catch { /* abort or network: silent */ }
     }, 1500);
     return () => { if (memoryTimerRef.current) clearTimeout(memoryTimerRef.current); };
@@ -467,8 +472,11 @@ export default function CadenceEditor({
         onClose={() => setSlashOpen(false)}
       />
 
-      {/* V11.2 + V11.5 + V12.6 — Memory signal + contre-angle + visualHint */}
-      {(memorySignal || visualHint) && !aiBusy && (
+      {/* V11.2 + V11.5 + V12.6 + V16.5 — Signaux éditoriaux discrets :
+          mémoire, contre-angle, visuel, narration. Tous en italic 2xs,
+          calmes, jamais bloquants. Le narrative signal vient AVANT le
+          visualHint quand il existe (priorité éditoriale > forme). */}
+      {(memorySignal || visualHint || (narrativeSignal && dismissedNarrativeKind !== narrativeSignal.kind)) && !aiBusy && (
         <div className="mt-2 space-y-0.5" aria-live="polite">
           {memorySignal && (
             <p
@@ -486,16 +494,30 @@ export default function CadenceEditor({
               {memorySignal.counterAngle}
             </p>
           )}
+          {/* V16.5 — Signal narratif : "il manque une friction", "le hook
+              promet trop", "la leçon est assénée". Ton calme italic, color
+              selon severity (firm = amber, soft = ink-500). Avec un
+              "plus tard" pour dismiss. */}
+          {narrativeSignal && dismissedNarrativeKind !== narrativeSignal.kind && (
+            <p className={`text-2xs italic leading-relaxed ${narrativeSignal.severity === 'firm' ? 'text-amber-700' : 'text-ink-500'}`}>
+              {narrativeSignal.message}
+              {' '}
+              <button
+                type="button"
+                onClick={() => setDismissedNarrativeKind(narrativeSignal.kind)}
+                className="text-ink-400 hover:text-ink-700 transition not-italic"
+                title="Ignorer ce signal pour ce post"
+              >
+                plus tard
+              </button>
+            </p>
+          )}
           {visualHint && dismissedHintFormat !== visualHint.format && (
             <p className="text-2xs text-ink-500 leading-relaxed">
               {visualHint.message}
               {onVisualSuggested && (
                 <>
                   {' '}
-                  {/* V14.2 — wording explicite : "Ouvrir le studio" prévient
-                      l'utilisateur qu'un panneau va apparaître à droite,
-                      contrairement à "Créer le visuel" qui laissait penser
-                      à une action inline silencieuse. */}
                   <button
                     type="button"
                     onClick={() => onVisualSuggested(visualHint.format)}
