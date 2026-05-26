@@ -64,6 +64,19 @@ export async function indexPost(input: IndexPostInput): Promise<{ indexed: boole
   if (existing?.hash === hash) return { indexed: false, reason: 'unchanged' };
 
   const embedding = await embedText(text);
+  // V16.9 — enrichit meta avec narrative_kind détecté au moment de
+  // l'indexation. Permet plus tard à Cadence de signaler "vous avez utilisé
+  // la structure X plusieurs fois ce mois". Best-effort : si l'analyzer
+  // échoue ou ne trouve rien, on stocke 'none'.
+  let narrativeKind: string = 'none';
+  try {
+    // Import dynamique pour ne pas créer de cycle entre lib/embeddings et
+    // lib/narrative-check (les deux pures fonctions).
+    const { analyzeNarrative } = await import('@/lib/narrative-check');
+    const sig = analyzeNarrative(input.content);
+    narrativeKind = sig.kind;
+  } catch { /* silent */ }
+  const meta = { ...(input.meta || {}), narrative_kind: narrativeKind };
   const row = {
     source: input.source,
     source_ref: input.source_ref,
@@ -75,7 +88,7 @@ export async function indexPost(input: IndexPostInput): Promise<{ indexed: boole
     embedding,
     embedding_model: MODEL,
     hash,
-    meta: input.meta || {},
+    meta,
     indexed_at: new Date().toISOString()
   };
   const { error } = await supabase.from('post_embeddings').upsert(row, { onConflict: 'source,source_ref' });
