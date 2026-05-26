@@ -3,6 +3,7 @@
 
 import Link from 'next/link';
 import { computeBrainState, formatDateFr } from '@/lib/brain';
+import StyleMemoryView from '@/components/StyleMemoryView';
 import { notionStatus } from '@/lib/notion';
 import { connectorsStatus } from '@/lib/db';
 import { getActiveToken } from '@/lib/supabase';
@@ -502,6 +503,11 @@ export default async function BrainPage() {
           </ul>
         </section>
       )}
+
+      {/* === V18.3 — Mémoire stylistique personnelle ("Votre voix") ===
+          Affiché AVANT la mémoire narrative car c'est la signature globale,
+          alors que la narrative est une vue plus fine sur les patterns. */}
+      <StyleMemoryView />
 
       {/* === V16.10 — Mémoire narrative : structures détectées sur les 60j ===
           Cadence partage ce qu'elle voit dans VOS structures narratives :
