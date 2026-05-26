@@ -299,6 +299,16 @@ export async function syncContentItems(opts?: { limit?: number }): Promise<SyncR
 
   const { count } = await supabase.from('content_items').select('id', { count: 'exact', head: true });
   res.totalAfter = count || 0;
+
+  // V18.2 — Si la sync a fait remonter des LinkedIn confirmés, on lance
+  // une recompute de la mémoire stylistique en fire-and-forget. Évite de
+  // bloquer le retour API. Catch silencieux si la table n'existe pas.
+  if (res.fromEmbeddings > 0 || res.fromNotion > 0) {
+    import('./style-memory')
+      .then(m => m.recomputeStyleMemory())
+      .catch(() => { /* silent */ });
+  }
+
   return res;
 }
 

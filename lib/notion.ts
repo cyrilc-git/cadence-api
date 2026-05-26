@@ -339,4 +339,12 @@ export async function markNotionPublished(pageId: string, postUrn: string): Prom
   });
   if (!r.ok) throw new Error(`Notion update failed: ${r.status} ${await r.text()}`);
   await logNotionAction('marked_published', pageId, postUrn, linkedinUrl);
+
+  // V18.2 — Une publication confirmée = enrichissement de la mémoire
+  // stylistique. Fire-and-forget : on ne bloque pas le retour API,
+  // et on catch silent si la table n'existe pas encore (migration pas
+  // appliquée). Le pipeline lit content_items confirmés LinkedIn.
+  import('@/lib/style-memory')
+    .then(m => m.recomputeStyleMemory())
+    .catch(() => { /* silent : table peut ne pas exister */ });
 }
