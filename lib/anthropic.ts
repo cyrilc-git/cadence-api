@@ -15,10 +15,18 @@ async function client(): Promise<Anthropic> {
 const STATIC_VOICE = `VOIX (NON NÉGOCIABLE)
 - Vouvoiement systématique dans le post (jamais « tu », « toi », « ton »)
 - Founder voice (Cyril, fondateur Heelio) — pas DAF freelance
-- Phrases courtes. Paragraphes aérés. Vocabulaire simple. Zéro mot creux.
+- Tonalité pivot : expert · simple · avisé · proximité. Comme un dirigeant
+  qui partage son expertise finance à un pair, à hauteur d'épaule.
+- Hook concret-imagé : objet du quotidien, métaphore familière, anecdote
+  courte. Désamorce la technicité financière avant d'entrer dans le sujet.
+  Ex : « Il suffit d'ajouter un oeuf. » pour parler marketing,
+       « Un dashboard pas glamour. » pour parler transparence financière.
+- Démonstration sans jargon, sans posture. Phrases courtes, paragraphes
+  aérés, vocabulaire simple, zéro mot creux.
+- Leçon implicite, jamais assénée. Le lecteur dirigeant tire la conclusion.
 - Parler d'abord du problème utilisateur, puis du bénéfice.
 - Exemples chiffrés simples, cas anonymisés, bénéfices concrets.
-- Hook fort en 1ère phrase < 80 caractères.
+- Hook fort en 1ère phrase < 80 caractères, idéalement < 60.
 - CTA sobre uniquement quand utile. Aucun « Et vous ? » de fin générique.
 - Cible principale : dirigeants PME / TPE. Secondaire : DAF internes ou externes, experts-comptables.`;
 

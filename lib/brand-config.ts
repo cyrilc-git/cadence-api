@@ -9,10 +9,19 @@ export const PILIERS = [
   { key: 'Vendredi · Build in public', day: 'Vendredi', color: 'pink',   anonymisation: false }
 ] as const;
 
+// V15.19 — Voix Cadence enrichie après référence Yann Leonardi.
+// "Expert simple avisé proximité" devient le pivot : on partage de
+// l'expertise finance à des CEO/dirigeants sans poser ni jargonner.
+// Le hook est concret et imagé (idéalement un objet du quotidien ou
+// une métaphore familière) pour désamorcer la barrière technique.
+// La leçon est implicite, jamais assénée.
 export const VOIX = {
   vouvoiement: true,
   founder_voice: true, // Pas DAF, Cyril fondateur Heelio
-  tonalité: ['pragmatique', 'expert sans jargon', 'énergique', 'fiable', 'concret'],
+  tonalité: ['pragmatique', 'expert sans jargon', 'avisé', 'proximité', 'concret', 'fiable'],
+  hook_style: 'concret-imagé : objet du quotidien, métaphore familière, anecdote courte. Désamorce la technicité avant d\'entrer dans le sujet.',
+  démonstration: 'Sans jargon. Sans posture. Toujours à hauteur d\'épaule du lecteur dirigeant.',
+  leçon: 'Implicite, jamais assénée. Le lecteur tire la conclusion lui-même.',
   longueur_cible: { min: 200, max: 1300 } // caractères
 };
 
