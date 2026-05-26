@@ -145,7 +145,27 @@ const PILIER_HINTS: Record<string, string> = {
   'Vendredi · Build in public':        'Partage le réel : ce qui marche, ce qui rate, les chiffres bruts. Authentique, sans posture.'
 };
 
-export async function generateThreeProposals(input: { pilier?: string; brief: string; inspirations?: string[] }): Promise<{ proposals: string[]; raw: string; model: string }> {
+// V18.4 — Modes de voix pour la génération
+// 'ma_voix'    : respecte la mémoire stylistique actuelle (par défaut)
+// 'pedagogue'  : tonalité plus enseignante, structure plus explicite
+// 'direct'     : phrases plus courtes, hooks plus secs, zéro fioriture
+// 'narratif'   : scène ouverte, dialogue rapporté, tension douce
+// 'terrain'    : montants/délais/arbitrages plus concrets, vocabulaire opérationnel
+// 'opinion'    : hot take mesuré, position claire en 1ère phrase
+// 'hors_style' : exploration volontaire HORS de la signature actuelle
+export type VoiceMode = 'ma_voix' | 'pedagogue' | 'direct' | 'narratif' | 'terrain' | 'opinion' | 'hors_style';
+
+const VOICE_MODE_HINTS: Record<VoiceMode, string> = {
+  ma_voix: 'MODULATION VOIX : respectez fidèlement la signature stylistique de l\'utilisateur (mémoire de voix V18). Longueur, densité, openings, vocabulaire métier dans la moyenne habituelle.',
+  pedagogue: 'MODULATION VOIX : tonalité plus enseignante. Structure plus explicite (1. 2. 3. ou « D\'abord… Ensuite… Enfin… »). Un exemple concret par idée. Évitez les implicites.',
+  direct: 'MODULATION VOIX : phrases plus courtes, hooks plus secs (≤ 50 chars idéal). Aucune fioriture. Verbes d\'action, suppression des intros.',
+  narratif: 'MODULATION VOIX : ouvrir sur une scène. Personnage qui parle, lieu, instant. Tension douce qui se résout. Verbes d\'action concrets. Dialogue rapporté possible.',
+  terrain: 'MODULATION VOIX : poussez le concret opérationnel. Au moins 2 chiffres précis (montant en €/k€, délai en jours/semaines, ratio en %). Une discussion ou un arbitrage chiffré.',
+  opinion: 'MODULATION VOIX : hot take mesuré. Position claire en 1ère phrase, défendue par 1-2 exemples, sans gratuité. Pas de provocation creuse.',
+  hors_style: 'MODULATION VOIX : SORTEZ volontairement de la signature stylistique habituelle de l\'utilisateur. Si ses posts sont d\'habitude pédagogiques courts, ici écrivez long et opinion. Si d\'habitude narratifs, ici écrivez démonstratif. Explorez une voix qu\'il n\'utilise pas, en restant cohérent avec les règles voix (vouvoiement, terrain concret, leçon implicite).',
+};
+
+export async function generateThreeProposals(input: { pilier?: string; brief: string; inspirations?: string[]; voiceMode?: VoiceMode; styleSummary?: string | null }): Promise<{ proposals: string[]; raw: string; model: string }> {
   const c = await client();
   const pilierHint = input.pilier && PILIER_HINTS[input.pilier]
     ? `\n\n${PILIER_HINTS[input.pilier]}`
@@ -153,8 +173,15 @@ export async function generateThreeProposals(input: { pilier?: string; brief: st
   const inspoBlock = (input.inspirations && input.inspirations.length)
     ? `\n\nNOTES D'INSPIRATION (style abstrait uniquement, jamais à recopier) :\n${input.inspirations.slice(0,5).map(i => `- ${i}`).join('\n')}`
     : '';
+  // V18.4 — Modulation de voix : injection de la consigne + style_summary
+  // pour donner à Claude une référence concrète de "ma voix" si dispo.
+  const mode = input.voiceMode || 'ma_voix';
+  const voiceBlock = `\n\n${VOICE_MODE_HINTS[mode]}`;
+  const styleBlock = input.styleSummary
+    ? `\n\nSIGNATURE STYLISTIQUE OBSERVÉE (mémoire de voix V18) :\n${input.styleSummary}`
+    : '';
 
-  const userPrompt = `BRIEF : ${input.brief}${pilierHint}${inspoBlock}
+  const userPrompt = `BRIEF : ${input.brief}${pilierHint}${voiceBlock}${styleBlock}${inspoBlock}
 
 Produis 3 propositions distinctes, chacune respectant strictement les règles ci-dessus. Sépare-les par "===PROP===" sur sa propre ligne.`;
 

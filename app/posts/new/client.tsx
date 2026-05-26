@@ -62,6 +62,8 @@ export default function NewPostClient({
   const [proposalIdx, setProposalIdx] = useState(0);
   const [genLoading, setGenLoading] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  // V18.4 — Modulation de voix pour la génération.
+  const [voiceMode, setVoiceMode] = useState<'ma_voix' | 'pedagogue' | 'direct' | 'narratif' | 'terrain' | 'opinion' | 'hors_style'>('ma_voix');
   const [saveLoading, setSaveLoading] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -100,7 +102,7 @@ export default function NewPostClient({
     try {
       const r = await fetch('/api/generate-post', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pilier, brief: b })
+        body: JSON.stringify({ pilier, brief: b, voiceMode })
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
@@ -109,7 +111,7 @@ export default function NewPostClient({
       if (list.length) { setText(list[0]); setProposalIdx(0); }
     } catch (e: any) { setGenError(e.message); }
     finally { setGenLoading(false); }
-  }, [brief, pilier]);
+  }, [brief, pilier, voiceMode]);
 
   const handleSave = useCallback(async (programmer: boolean) => {
     if (!text.trim()) return;
@@ -255,6 +257,8 @@ export default function NewPostClient({
             generating={genLoading}
             error={genError}
             recyclables={recyclables}
+            voiceMode={voiceMode}
+            onVoiceMode={setVoiceMode}
           />
         )}
 
@@ -453,11 +457,24 @@ function SuggestionBand({
   );
 }
 
+type VoiceMode = 'ma_voix' | 'pedagogue' | 'direct' | 'narratif' | 'terrain' | 'opinion' | 'hors_style';
+const VOICE_MODE_LABELS: { key: VoiceMode; label: string; hint: string }[] = [
+  { key: 'ma_voix',    label: 'Ma voix',       hint: 'respecte votre signature' },
+  { key: 'pedagogue',  label: 'Pédagogue',     hint: 'plus enseignant, plus structuré' },
+  { key: 'direct',     label: 'Direct',        hint: 'phrases courtes, hooks secs' },
+  { key: 'narratif',   label: 'Narratif',      hint: 'scène, dialogue, tension douce' },
+  { key: 'terrain',    label: 'Terrain',       hint: 'montants, délais, arbitrages' },
+  { key: 'opinion',    label: 'Opinion',       hint: 'hot take mesuré, position claire' },
+  { key: 'hors_style', label: 'Sortir du style', hint: 'explorer une voix inhabituelle' },
+];
+
 function StartHint({
-  pilier, brief, onBrief, onGenerate, generating, error, recyclables
+  pilier, brief, onBrief, onGenerate, generating, error, recyclables,
+  voiceMode, onVoiceMode,
 }: {
   pilier: string; brief: string; onBrief: (s: string) => void;
   onGenerate: () => void; generating: boolean; error: string | null; recyclables: Recyclable[];
+  voiceMode: VoiceMode; onVoiceMode: (m: VoiceMode) => void;
 }) {
   // V12.9 §2 — Onboarding écran "vide" plus habité.
   // Trois chemins clairs : 1) brief court → 3 propositions, 2) recycler un
@@ -495,6 +512,33 @@ function StartHint({
           <span className="text-ink-400">·</span>
           <Link href="/cerveau" className="text-ink-500 hover:text-ink-900 transition">Ouvrir la mémoire</Link>
         </div>
+        {/* V18.4 — Selector de voix : discret, dépliable au hover/focus.
+            Par défaut "Ma voix". Si l'utilisateur veut explorer ailleurs,
+            il clique. Ne s'affiche que quand l'utilisateur s'est posé sur
+            le brief (focus-within sur le bloc parent). */}
+        <details className="mt-3 group/voice text-2xs">
+          <summary className="select-none cursor-pointer inline-flex items-center gap-1.5 text-ink-500 hover:text-ink-900 transition">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-500" aria-hidden />
+            <span>Voix : <span className="text-ink-900 font-medium">{VOICE_MODE_LABELS.find(m => m.key === voiceMode)?.label || 'Ma voix'}</span></span>
+            <span className="text-ink-300 group-open/voice:hidden">change</span>
+            <span className="text-ink-300 hidden group-open/voice:inline">replier</span>
+          </summary>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {VOICE_MODE_LABELS.map(m => (
+              <button
+                key={m.key}
+                onClick={() => onVoiceMode(m.key)}
+                title={m.hint}
+                className={`text-2xs px-2.5 py-1 rounded-full border transition ${voiceMode === m.key ? 'bg-brand-50 text-brand-700 border-brand-300 font-medium' : 'bg-white text-ink-600 border-ink-200 hover:bg-ink-50 hover:text-ink-900'}`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-2xs text-ink-400 italic">
+            {VOICE_MODE_LABELS.find(m => m.key === voiceMode)?.hint}
+          </p>
+        </details>
         {error && <p className="mt-3 text-xs text-danger-700">Erreur : {error}</p>}
       </div>
 
