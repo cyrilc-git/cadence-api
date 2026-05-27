@@ -8,7 +8,12 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 type Insight = {
-  kind: 'pilier_silence' | 'topic_recyclable' | 'topic_saturated' | 'topic_never' | 'angle_winning' | 'weekday_opportunity' | 'low_data';
+  kind:
+    | 'pilier_silence' | 'topic_recyclable' | 'topic_saturated' | 'topic_never'
+    | 'angle_winning' | 'weekday_opportunity' | 'low_data'
+    // V34.1 — Rhythm engine kinds (merged dans CadenceObserved)
+    | 'pilier_gap' | 'narrative_gap' | 'fatigue' | 'overconcentration'
+    | 'rotation_healthy' | 'no_concrete_scene' | 'no_proof';
   message: string;
   cta_label?: string;
   cta_href?: string;
@@ -22,19 +27,35 @@ const KIND_TONE: Record<Insight['kind'], { dot: string; icon: string }> = {
   topic_saturated:     { dot: 'bg-pink-500',    icon: '⌃' },
   topic_never:         { dot: 'bg-emerald-500', icon: '✦' },
   angle_winning:       { dot: 'bg-brand-500',   icon: '▲' },
+  // V34.1 — Rhythm signals : ambre pour les manques, emerald pour positif
+  pilier_gap:          { dot: 'bg-amber-500',   icon: '◷' },
+  narrative_gap:       { dot: 'bg-ink-400',     icon: '~' },
+  fatigue:             { dot: 'bg-amber-500',   icon: '⌃' },
+  overconcentration:   { dot: 'bg-amber-500',   icon: '⌃' },
+  rotation_healthy:    { dot: 'bg-emerald-500', icon: '✓' },
+  no_concrete_scene:   { dot: 'bg-amber-500',   icon: '◷' },
+  no_proof:            { dot: 'bg-amber-500',   icon: '◷' },
   low_data:            { dot: 'bg-ink-400',     icon: '◌' }
 };
 
-// V11.4 §7 — weekday_opportunity (anticipation calendaire) prioritaire :
-// c'est de l'action concrète à venir, pas une observation.
+// V11.4 §7 — weekday_opportunity (anticipation calendaire) prioritaire.
+// V34.1 — Insertion des kinds rhythm dans la file de priorité. fatigue
+// (3 derniers posts identiques) passe avant pilier_silence (manque générique).
 const PRIORITY: Record<Insight['kind'], number> = {
   weekday_opportunity: 0,
-  topic_never: 1,
-  pilier_silence: 2,
-  topic_saturated: 3,
-  topic_recyclable: 4,
-  angle_winning: 5,
-  low_data: 9
+  fatigue: 1,
+  topic_never: 2,
+  pilier_gap: 3,
+  pilier_silence: 4,
+  no_concrete_scene: 5,
+  no_proof: 6,
+  overconcentration: 7,
+  topic_saturated: 8,
+  topic_recyclable: 9,
+  narrative_gap: 10,
+  angle_winning: 11,
+  rotation_healthy: 12,
+  low_data: 99,
 };
 
 export default function CadenceObserved() {
@@ -43,9 +64,23 @@ export default function CadenceObserved() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/insights')
-      .then(r => r.json())
-      .then(d => { if (!cancelled) setInsights(d.insights || []); })
+    // V34.1 — On fusionne insights radar + rhythm pour donner UNE vue
+    // unique. Le tri PRIORITY décide laquelle est mise en avant.
+    Promise.all([
+      fetch('/api/insights').then(r => r.json()).catch(() => ({ insights: [] })),
+      fetch('/api/editorial-rhythm').then(r => r.json()).catch(() => ({ insights: [] })),
+    ])
+      .then(([r1, r2]) => {
+        if (cancelled) return;
+        const merged: Insight[] = [
+          ...(r1.insights || []),
+          // Les rhythm insights ne portent pas de cta_label/cta_href, on les
+          // laisse vides pour qu'aucun CTA n'apparaisse — c'est une observation,
+          // pas un appel à action.
+          ...(r2.insights || []).filter((i: any) => i.kind !== 'low_data'),
+        ];
+        setInsights(merged);
+      })
       .catch(e => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
   }, []);
