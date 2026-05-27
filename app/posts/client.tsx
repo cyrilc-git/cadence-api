@@ -213,6 +213,39 @@ export default function PostsLibraryClient({ initial }: { initial: any[] }) {
         <span className="text-xs text-ink-500 ml-auto whitespace-nowrap">{filtered.length} / {enriched.length}</span>
       </div>
 
+      {/* V37.5 — Banner contextuel quand le filtre "Imports LinkedIn" est
+          actif et qu'il y a des résultats : raccourci vers la vue calendrier. */}
+      {provFilter === 'linkedin_import_zip' && filtered.length > 0 && (() => {
+        const dates = filtered
+          .map(p => p.scheduled_at)
+          .filter(Boolean)
+          .map(s => new Date(s).getTime())
+          .filter(t => Number.isFinite(t))
+          .sort((a, b) => b - a);
+        const mostRecent = dates[0] ? new Date(dates[0]) : null;
+        const oldest = dates.length > 0 ? new Date(dates[dates.length - 1]) : null;
+        const rangeText = (mostRecent && oldest)
+          ? `${oldest.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })} → ${mostRecent.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}`
+          : 'période inconnue';
+        return (
+          <div className="border-l-2 border-[#0A66C2] pl-4 py-2 animate-fade-in">
+            <p className="text-sm text-ink-800 leading-relaxed">
+              {filtered.length} import{filtered.length > 1 ? 's' : ''} LinkedIn en mémoire · {rangeText}.
+            </p>
+            {mostRecent && (
+              <div className="mt-1.5">
+                <Link
+                  href={`/calendar?d=${mostRecent.toISOString().slice(0, 10)}&source=linkedin`}
+                  className="text-xs text-brand-700 hover:text-brand-900 transition underline decoration-dotted underline-offset-2"
+                >
+                  Voir tous dans le calendrier →
+                </Link>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Results */}
       {filtered.length === 0 ? (
         <div className="py-12 max-w-md">
@@ -254,12 +287,24 @@ function PostRow({ p }: { p: any }) {
         <div className="font-medium text-ink-900 truncate group-hover:text-brand-700 transition">{p.title}</div>
         <div className="text-xs text-ink-500 flex items-center gap-2 mt-0.5 flex-wrap">
           {p.pilier && <span>{p.pilier.split('·')[1]?.trim() || p.pilier}</span>}
-          {p.scheduled_at && <span>· {new Date(p.scheduled_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} {p.scheduled_time?.slice(0, 5) || ''}</span>}
+          {p.scheduled_at && <span>· {new Date(p.scheduled_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })} {p.scheduled_time?.slice(0, 5) || ''}</span>}
           {p.impressions ? <span className="text-success-700">· {p.impressions.toLocaleString('fr-FR')} impressions</span> : null}
         </div>
       </div>
       {p.derivedStatuses.includes('recyclable') && (
         <span onClick={e => { e.stopPropagation(); e.preventDefault(); window.location.href = `/posts/new?from=${p.id}&recycle=1`; }} className="btn-secondary text-xs cursor-pointer">Recycler</span>
+      )}
+      {/* V37.5 — "Voir dans calendrier" : jump direct au mois du post.
+          Discret, apparaît au hover sur desktop, toujours visible mobile. */}
+      {p.scheduled_at && (
+        <a
+          href={`/calendar?d=${p.scheduled_at.slice(0, 10)}&source=linkedin`}
+          onClick={e => e.stopPropagation()}
+          className="btn-ghost text-2xs whitespace-nowrap sm:opacity-0 sm:group-hover:opacity-100 transition"
+          title="Ouvrir le calendrier sur ce mois"
+        >
+          Calendrier →
+        </a>
       )}
       {p.linkedin_url && <a href={p.linkedin_url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 btn-ghost text-2xs transition">↗</a>}
     </Link>
