@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { computeBrainState, formatDateFr } from '@/lib/brain';
 import StyleMemoryView from '@/components/StyleMemoryView';
+import { fetchEditorialRhythm, type RhythmInsight } from '@/lib/editorial-rhythm';
 import { notionStatus } from '@/lib/notion';
 import { connectorsStatus } from '@/lib/db';
 import { getActiveToken } from '@/lib/supabase';
@@ -130,7 +131,11 @@ function pilierTone(p: { count: number; daysSinceLast: number | null }) {
 
 export default async function BrainPage() {
   const unknownSources = await detectUnknownSources();
-  const brain = await computeBrainState(unknownSources);
+  const [brain, rhythmInsights] = await Promise.all([
+    computeBrainState(unknownSources),
+    fetchEditorialRhythm().catch(() => [] as RhythmInsight[]),
+  ]);
+  const rhythm = rhythmInsights.filter(r => r.kind !== 'low_data');
 
   // V14.8 — Distinction LinkedIn-confirmé vs Notion-known.
   // confirmedCount = publications LinkedIn vérifiées (URL ou import ZIP)
@@ -497,6 +502,31 @@ export default async function BrainPage() {
                     </div>
                     <p className="text-xs text-ink-600 leading-relaxed mt-0.5">{t.message}</p>
                   </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+
+      {/* === V34.1 — Rythme éditorial : gaps, fatigue, rotation, scènes absentes.
+          Cadence parle comme un directeur éditorial qui regarde le flux. */}
+      {rhythm.length > 0 && (
+        <section>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Rythme éditorial</h2>
+          <p className="text-xs text-ink-500 leading-relaxed mb-3">
+            Ce que Cadence remarque sur la cadence et l&apos;équilibre de vos 60 derniers jours.
+          </p>
+          <ul className="space-y-2.5">
+            {rhythm.map((r, i) => {
+              const dotClass =
+                r.severity === 'firm' ? 'bg-amber-500' :
+                r.kind === 'rotation_healthy' ? 'bg-emerald-500' :
+                'bg-ink-400';
+              return (
+                <li key={i} className="flex items-start gap-3">
+                  <span className={`w-1.5 h-1.5 rounded-full mt-2 shrink-0 ${dotClass}`} aria-hidden />
+                  <p className="text-sm text-ink-800 leading-relaxed">{r.message}</p>
                 </li>
               );
             })}
