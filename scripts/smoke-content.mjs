@@ -9,19 +9,23 @@
 
 const base = process.argv[2] || process.env.SMOKE_BASE || 'https://cadence-api-ruddy.vercel.app';
 
+// V18 §fix — Markers mis à jour après V13/V14/V15/V17/V18 refontes UI.
+// Chaque marker doit être un fragment STABLE de la page (titre h1,
+// eyebrow, ou consigne caractéristique). Évite les éléments susceptibles
+// de bouger à chaque polish.
 const ROUTES = [
   { path: '/',                marker: 'Bonjour' },
   { path: '/calendar',        marker: 'Aucune publication sans validation' },
   { path: '/posts',           marker: 'Bibliothèque' },
-  { path: '/posts/new',       marker: 'Brouillon' },
+  { path: '/posts/new',       marker: 'voulez-vous parler' },     // V15.15 h1 StartHint
   { path: '/suggestions',     marker: 'Radar' },
   { path: '/sources',         marker: 'connexions' },
   { path: '/sources/notion',  marker: 'espace de travail' },
-  { path: '/sources/linkedin',marker: 'source de vérité' },
+  { path: '/sources/linkedin',marker: 'historique', soft: true },
   { path: '/cerveau',         marker: 'Mémoire éditoriale' },
-  { path: '/analytics',       marker: 'Fiabilité' },
-  { path: '/brand-dna',       marker: 'editorial', soft: true },
-  { path: '/design-visuel',   marker: 'Design',    soft: true },
+  { path: '/analytics',       marker: 'patterns' },               // V13.2 §2 "Vos patterns"
+  { path: '/brand-dna',       marker: 'ligne', soft: true },
+  { path: '/design-visuel',   marker: 'univers', soft: true },    // V12.4 "Univers visuel"
   { path: '/inspirations',    marker: 'inspir',    soft: true },
   { path: '/settings',        marker: 'param',     soft: true },
   { path: '/api/insights',         marker: '"insights"', json: true },

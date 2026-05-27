@@ -22,10 +22,21 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  // Auth simple : si on a un COCKPIT_SECRET en env, on l'exige pour les
-  // appels externes. Sinon ouvert (single-user app).
+  // V18.1 §fix — Auth en deux temps :
+  // - Same-origin (UI Cadence depuis le navigateur authentifié) : allowed
+  //   sans secret. On vérifie via le header `referer` ou `origin` qui
+  //   matche le host de la requête.
+  // - Cross-origin / cron externe : exige x-cockpit-secret si COCKPIT_SECRET
+  //   est défini.
+  // Single-user app, pas de session formelle — l'origine du browser suffit.
   const secret = process.env.COCKPIT_SECRET;
-  if (secret) {
+  const host = req.headers.get('host') || '';
+  const origin = req.headers.get('origin') || '';
+  const referer = req.headers.get('referer') || '';
+  const isSameOrigin =
+    (origin && host && origin.includes(host)) ||
+    (referer && host && referer.includes(host));
+  if (secret && !isSameOrigin) {
     const provided = req.headers.get('x-cockpit-secret') || req.headers.get('authorization')?.replace(/^Bearer\s+/i, '');
     if (provided !== secret) {
       return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
