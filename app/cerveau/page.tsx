@@ -156,8 +156,52 @@ export default async function BrainPage() {
     ? `Dernière analyse il y a ${Math.max(0, Math.floor((Date.now() - new Date(brain.lastIndexedAt).getTime()) / 86_400_000))} j.`
     : 'Aucune analyse encore enregistrée.';
 
+  // V37.6 — Trois blocs courts au-dessus de la ligne de pliage :
+  //   1. Ce que Cadence sait     → counts + période + confiance, 2-3 lignes
+  //   2. Ce que Cadence comprend → 2-3 observations max sur le style
+  //   3. Ce que Cadence recommande → 1 action principale
+  // Le reste est dans <details> "Voir l'analyse complète".
+
+  // Bloc 1 — résumé factuel
+  const knowsLine = (() => {
+    if (brain.totalIndexed === 0) {
+      return 'Aucun post indexé. Importez votre archive LinkedIn pour activer la mémoire.';
+    }
+    const parts: string[] = [];
+    parts.push(`${brain.totalIndexed} post${brain.totalIndexed > 1 ? 's' : ''} en mémoire`);
+    if (brain.confirmedCount > 0) {
+      parts.push(`${brain.confirmedCount} confirmé${brain.confirmedCount > 1 ? 's' : ''} sur LinkedIn`);
+    }
+    return parts.join(' · ') + '.';
+  })();
+  const knowsPeriod = (brain.oldestPostAt && brain.newestPostAt)
+    ? `Couverture ${formatDateFr(brain.oldestPostAt)} → ${formatDateFr(brain.newestPostAt)}.`
+    : null;
+
+  // Bloc 2 — 2-3 observations style
+  // Priorité : 1) voice_summary issu de StyleMemory (côté client via StyleMemoryView)
+  //           Pour le SSR, on prend les editorial drifts les plus saillants
+  //           OU 1-2 formatTrends.
+  const styleObservations: string[] = [];
+  if (brain.editorialDrifts && brain.editorialDrifts.length > 0) {
+    for (const d of brain.editorialDrifts.slice(0, 2)) styleObservations.push(d.message);
+  }
+  if (styleObservations.length < 2 && brain.formatTrends && brain.formatTrends.length > 0) {
+    for (const t of brain.formatTrends.slice(0, 2 - styleObservations.length)) {
+      styleObservations.push(t.message);
+    }
+  }
+
+  // Bloc 3 — 1 action recommandée (priorité Opportunité du moment, puis rhythm gap)
+  const rhythmActionable = rhythm.find(r => r.severity === 'firm') || rhythm.find(r => r.kind === 'pilier_gap' || r.kind === 'no_concrete_scene' || r.kind === 'no_proof');
+  const recommendation = brain.topInsight && brain.topInsight.kind !== 'low_data'
+    ? { message: brain.topInsight.message, cta_label: brain.topInsight.cta_label, cta_href: brain.topInsight.cta_href }
+    : rhythmActionable
+      ? { message: rhythmActionable.message, cta_label: 'Écrire maintenant', cta_href: '/posts/new' }
+      : null;
+
   return (
-    <div className="space-y-12 max-w-3xl mx-auto">
+    <div className="space-y-10 max-w-3xl mx-auto">
       {/* === HEADER === */}
       <header>
         <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Mémoire</p>
@@ -166,6 +210,59 @@ export default async function BrainPage() {
           Ce que Cadence a digéré, ce qu&apos;il observe, ce qui lui manque encore.
         </p>
       </header>
+
+      {/* === V37.6 — TROIS BLOCS COURTS AU PREMIER ÉCRAN === */}
+
+      {/* Bloc 1 — Ce que Cadence sait */}
+      <section>
+        <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Ce que Cadence sait</p>
+        <p className="text-base text-ink-900 leading-relaxed">{knowsLine}</p>
+        {knowsPeriod && <p className="mt-1 text-sm text-ink-500 leading-relaxed">{knowsPeriod}</p>}
+        {brain.totalIndexed > 0 && (
+          <p className="mt-2 text-xs text-ink-400 leading-relaxed">
+            Confiance {brain.confidenceScore.overall} %{brain.confidenceScore.overall < 50 ? ' — s\'enrichit avec plus de posts importés.' : '.'}
+          </p>
+        )}
+      </section>
+
+      {/* Bloc 2 — Ce que Cadence comprend de votre style */}
+      {styleObservations.length > 0 && (
+        <section>
+          <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Ce que Cadence comprend de votre style</p>
+          <ul className="space-y-2">
+            {styleObservations.slice(0, 3).map((m, i) => (
+              <li key={i} className="text-base text-ink-800 leading-relaxed flex items-start gap-3">
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-2.5 shrink-0" aria-hidden />
+                <span>{m}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Bloc 3 — Ce que Cadence recommande maintenant */}
+      {recommendation && (
+        <section>
+          <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Ce que Cadence recommande maintenant</p>
+          <p className="text-base text-ink-900 leading-relaxed">{recommendation.message}</p>
+          {recommendation.cta_label && recommendation.cta_href && (
+            <div className="mt-3">
+              <Link href={recommendation.cta_href} className="btn-primary text-sm">
+                {recommendation.cta_label} →
+              </Link>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* === V37.6 — ANALYSE COMPLÈTE, masquée derrière un toggle === */}
+      <details className="group/full">
+        <summary className="select-none cursor-pointer inline-flex items-center gap-2 text-sm text-ink-500 hover:text-ink-900 transition">
+          <span className="w-1.5 h-1.5 rounded-full bg-ink-300 group-open/full:bg-brand-500" aria-hidden />
+          <span className="group-open/full:hidden">Voir l&apos;analyse complète</span>
+          <span className="hidden group-open/full:inline">Replier l&apos;analyse complète</span>
+        </summary>
+        <div className="mt-8 space-y-12 pt-6 border-t border-ink-100">
 
       {/* === V10.2 — Score de confiance global + apprentissages === */}
       {brain.totalIndexed > 0 && (
@@ -598,6 +695,8 @@ export default async function BrainPage() {
           </p>
         </section>
       )}
+        </div>
+      </details>
     </div>
   );
 }
