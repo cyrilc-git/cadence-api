@@ -49,19 +49,46 @@ function enrichWithProvenance(list: any[]): any[] {
   }));
 }
 
-export default function CalendarClient({ initialPosts, showNotion = false }: { initialPosts: any[]; showNotion?: boolean }) {
+export default function CalendarClient({
+  initialPosts,
+  showNotion = false,
+  initialDate = null,
+  initialSource = null,
+}: {
+  initialPosts: any[];
+  showNotion?: boolean;
+  // V37.1 — Position de départ optionnelle (depuis ?d=YYYY-MM-DD)
+  initialDate?: string | null;
+  // V37.1 — Filtre source de départ optionnel (depuis ?source=linkedin)
+  initialSource?: 'linkedin' | 'notion' | 'all' | null;
+}) {
   const [posts, setPosts] = useState(() => enrichWithProvenance(initialPosts));
   // V12.9 §3 + V18 §calendar-clean — Filtre source :
   // 'all' / 'linkedin' / 'notion'. Par défaut 'linkedin' (= LinkedIn +
   // Cadence) pour masquer les brouillons Notion bruts. L'utilisateur peut
   // réactiver l'affichage Notion via le toggle dans /settings/notion qui
   // remonte ici en prop showNotion.
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'linkedin' | 'notion'>(showNotion ? 'all' : 'linkedin');
+  // V37.1 — initialSource du query param ?source=… écrase la valeur par défaut.
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'linkedin' | 'notion'>(
+    initialSource || (showNotion ? 'all' : 'linkedin')
+  );
   // V14.6 — Cursor init à aujourd'hui plutôt que le 1er du mois. En vue
   // semaine, partir du 1er affichait la semaine contenant le 1er, jamais
   // la semaine en cours. Maintenant on landait toujours sur la semaine de
   // today, cohérent avec "voici ce qui se passe maintenant".
-  const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setHours(0,0,0,0); return d; });
+  // V37.1 — Si l'URL fournit ?d=YYYY-MM-DD, on positionne le calendrier dessus.
+  // Sinon : date du jour. V37.2 (plus bas, useEffect) repositionne automatiquement
+  // si la fenêtre est vide alors qu'il y a des posts LinkedIn ailleurs.
+  const [cursor, setCursor] = useState<Date>(() => {
+    if (initialDate) {
+      const d = new Date(initialDate + 'T00:00:00');
+      if (Number.isFinite(d.getTime())) return d;
+    }
+    const d = new Date(); d.setHours(0,0,0,0); return d;
+  });
+  // V37.2 — Flag pour ne pas re-jump automatiquement à chaque render :
+  // l'auto-position ne se déclenche qu'UNE SEULE FOIS au mount.
+  const [autoPositioned, setAutoPositioned] = useState<boolean>(!!initialDate);
   // V9.1 §2 — vue semaine par défaut (Notion Calendar / Linear style)
   // V36.2 — Vue mois par défaut. La vue semaine était trop étroite pour
   // visualiser le rythme éditorial réel, et restait sur la semaine courante
@@ -296,6 +323,41 @@ export default function CalendarClient({ initialPosts, showNotion = false }: { i
     statsFiltered.archive + statsFiltered.draft;
   const isWindowEmpty = totalInWindow === 0 && fullRange.total > 0;
 
+  // V37.2 — Auto-position au mount : si la fenêtre courante est vide pour
+  // le filtre sélectionné MAIS qu'il y a des posts ailleurs, on saute
+  // directement sur le mois du post le plus récent. Évite à l'utilisateur
+  // d'avoir à naviguer manuellement pour retrouver ses imports.
+  useEffect(() => {
+    if (autoPositioned) return;
+    if (!isWindowEmpty) { setAutoPositioned(true); return; }
+    if (!fullRange.max) return;
+    const target = new Date(fullRange.max);
+    target.setHours(0, 0, 0, 0);
+    setCursor(target);
+    setAutoPositioned(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // V37.3 — Décompte par SOURCE sur la fenêtre courante (LinkedIn confirmé
+  // vs brouillon Notion vs archive Notion). Affiché sous le H1 pour donner
+  // la photo claire de ce que la période contient.
+  const sourceBreakdown = useMemo(() => {
+    const counts = { linkedin: 0, notion_draft: 0, notion_archive: 0 };
+    const start = grid[0]?.[0]; const end = grid[grid.length - 1]?.[6];
+    if (!start || !end) return counts;
+    for (const p of posts) {
+      if (!p.scheduled_at) continue;
+      const d = new Date(p.scheduled_at);
+      if (d < start || d > end) continue;
+      const cs = (p as any).provenance?.canonical_source;
+      const st = (p as any).provenance?.source_type;
+      if (cs === 'linkedin' || cs === 'cadence') counts.linkedin++;
+      else if (st === 'notion_archive') counts.notion_archive++;
+      else if (cs === 'notion') counts.notion_draft++;
+    }
+    return counts;
+  }, [posts, grid]);
+
   return (
     <div className="space-y-5">
       <header className="flex items-start justify-between gap-3 flex-wrap">
@@ -324,8 +386,19 @@ export default function CalendarClient({ initialPosts, showNotion = false }: { i
               {MONTH_FR[cursor.getMonth()]} {cursor.getFullYear()}
             </p>
           )}
-          <p className="mt-1 text-xs text-ink-400 leading-relaxed">
-            Source de vérité : LinkedIn. Notion sert de workspace de brouillons.
+          {/* V37.3 — Décompte par source sur la fenêtre courante :
+              "0 publication LinkedIn · 4 brouillons Notion". Si la fenêtre
+              est totalement vide ET qu'on ne montre pas le hint plus bas,
+              on dit explicitement "Aucun post sur cette période". */}
+          <p className="mt-1 text-sm text-ink-600 leading-relaxed">
+            {(() => {
+              const parts: string[] = [];
+              if (sourceBreakdown.linkedin > 0) parts.push(`${sourceBreakdown.linkedin} publication${sourceBreakdown.linkedin > 1 ? 's' : ''} LinkedIn`);
+              if (sourceBreakdown.notion_draft > 0) parts.push(`${sourceBreakdown.notion_draft} brouillon${sourceBreakdown.notion_draft > 1 ? 's' : ''} Notion`);
+              if (sourceBreakdown.notion_archive > 0) parts.push(`${sourceBreakdown.notion_archive} archive${sourceBreakdown.notion_archive > 1 ? 's' : ''} Notion`);
+              if (parts.length === 0) return 'Aucun post sur cette période.';
+              return parts.join(' · ');
+            })()}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

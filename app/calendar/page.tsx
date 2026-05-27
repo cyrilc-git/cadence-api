@@ -24,7 +24,10 @@ async function calendarShowNotion(): Promise<boolean> {
 }
 
 // V11.1 — Calendrier lit la couche canonique content_items.
-export default async function CalendarPage() {
+// V37.1 — searchParams ?d=YYYY-MM-DD ouvre le calendrier directement
+// sur cette date (utilisé par le CTA post-import "Voir dans calendrier").
+//        ?source=linkedin sélectionne le filtre source de départ.
+export default async function CalendarPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const status = await notionStatus();
   if (!status.ok) {
     return (
@@ -40,7 +43,14 @@ export default async function CalendarPage() {
     );
   }
   ensureFreshContentItems(120);
-  const posts = await listPostSummaries({ limit: 300 });
+  const posts = await listPostSummaries({ limit: 500 });  // V37.1 — 500 pour absorber les imports historiques de plusieurs années
   const showNotion = await calendarShowNotion();
-  return <CalendarClient initialPosts={posts} showNotion={showNotion} />;
+
+  // V37.1 — Parse query params pour navigation directe
+  const rawD = typeof searchParams?.d === 'string' ? searchParams.d : null;
+  const initialDate = rawD && /^\d{4}-\d{2}-\d{2}$/.test(rawD) ? rawD : null;
+  const rawSource = typeof searchParams?.source === 'string' ? searchParams.source : null;
+  const initialSource = (rawSource === 'linkedin' || rawSource === 'notion' || rawSource === 'all') ? rawSource : null;
+
+  return <CalendarClient initialPosts={posts} showNotion={showNotion} initialDate={initialDate} initialSource={initialSource} />;
 }

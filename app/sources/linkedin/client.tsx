@@ -409,6 +409,54 @@ export default function LinkedInImportClient() {
             </div>
           )}
 
+          {/* V37.1 — Écran de succès après import : CTA principal qui
+              ouvre /calendar sur le mois du post le plus récent importé.
+              Sans ce CTA, l'utilisateur ne savait pas où aller. */}
+          {importResult && importResult.created > 0 && (() => {
+            // Récupère la date du post importé le plus récent en croisant
+            // results[].index avec posts[].date.
+            let mostRecent: Date | null = null;
+            for (const r of importResult.results) {
+              if (r.status !== 'created') continue;
+              const p = posts[r.index];
+              if (!p?.date) continue;
+              const d = new Date(p.date);
+              if (!Number.isFinite(d.getTime())) continue;
+              if (!mostRecent || d > mostRecent) mostRecent = d;
+            }
+            const targetDate = mostRecent ? mostRecent.toISOString().slice(0, 10) : null;
+            const monthLabel = mostRecent
+              ? mostRecent.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+              : null;
+            return (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 space-y-3 animate-fade-in">
+                <div className="flex items-center gap-3">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" aria-hidden />
+                  <p className="text-sm text-emerald-900 font-medium">
+                    {importResult.created} post{importResult.created > 1 ? 's' : ''} importé{importResult.created > 1 ? 's' : ''} dans Cadence.
+                    {importResult.duplicates > 0 && <span className="text-emerald-700"> {importResult.duplicates} doublon{importResult.duplicates > 1 ? 's' : ''} ignoré{importResult.duplicates > 1 ? 's' : ''}.</span>}
+                  </p>
+                </div>
+                {targetDate && monthLabel && (
+                  <div className="flex items-center gap-3 flex-wrap pt-1">
+                    <Link
+                      href={`/calendar?d=${targetDate}&source=linkedin`}
+                      className="btn-primary text-sm"
+                    >
+                      Voir les posts dans le calendrier →
+                    </Link>
+                    <span className="text-xs text-ink-500">
+                      Ouvre {monthLabel}, le mois du post le plus récent.
+                    </span>
+                  </div>
+                )}
+                <p className="text-2xs text-ink-500 leading-relaxed">
+                  Cadence a marqué chaque post comme import LinkedIn vérifié. Ils alimentent la mémoire stylistique.
+                </p>
+              </div>
+            );
+          })()}
+
           {/* Résultat enrichi V9.4 */}
           {importResult && (
             <div className="pt-2 border-t border-ink-100 space-y-4 animate-fade-in">
