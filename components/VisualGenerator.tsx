@@ -18,6 +18,7 @@ const TEMPLATES: Record<string, { label: string; mode: Mode; example: string }> 
   illustration: { label: 'Illustration métaphorique',    mode: 'openai',        example: 'Illustration plate, ton sobre, fond clair : un dirigeant de PME devant un tableau de bord financier, style éditorial corporate moderne. Réservée aux métaphores : préférez Claude Design pour les visuels produit ou pédagogiques.' }
 };
 
+type VisualSignal = { kind: string; message: string; severity?: 'note' | 'soft' | 'firm' };
 type Variant = {
   id: string;
   format: 'svg' | 'png';
@@ -27,6 +28,8 @@ type Variant = {
   template: keyof typeof TEMPLATES;
   prompt: string;
   createdAt: number;
+  // V23.1 — Score premium calculé côté serveur sur le SVG
+  visualScore?: { score: number; signals: VisualSignal[] };
 };
 
 // V12.7 §3 — Mapping visualHint.format -> template VisualGenerator
@@ -144,7 +147,8 @@ export default function VisualGenerator({
         model: data.model,
         template,
         prompt,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        visualScore: data.visualScore || undefined,
       };
       setVariants(list => [v, ...list].slice(0, 8)); // keep last 8
       setSelectedId(v.id);
@@ -342,6 +346,18 @@ export default function VisualGenerator({
               <button onClick={() => { setSelectedId(null); }} className="btn-ghost text-2xs text-danger-700">Retirer</button>
             </span>
           </div>
+          {/* V23.1 — Signaux visuels : "trop Canva", "trop chargé", "trop coloré".
+              Italic 2xs, ton calme. Affiché uniquement quand score < 0.85 et
+              signal non purement positif. */}
+          {selected.visualScore && selected.visualScore.score < 0.85 && (
+            <div className="mt-2 space-y-0.5">
+              {selected.visualScore.signals.filter(s => s.kind !== 'good').slice(0, 2).map((s, i) => (
+                <p key={i} className={`text-2xs italic leading-relaxed ${s.severity === 'firm' ? 'text-amber-700' : 'text-ink-500'}`}>
+                  {s.message}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

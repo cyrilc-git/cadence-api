@@ -192,6 +192,180 @@ export async function analyzeVisualMemory(): Promise<VisualPattern[]> {
   return patterns;
 }
 
+// === V23.1 — Visual scoring premium (SVG analysis) ===
+//
+// Analyse un SVG généré pour détecter les signaux "non premium" qu'un
+// directeur artistique éditorial éviterait :
+// - "trop Canva" : emojis dans le texte, gradients agressifs
+// - "trop chargé" : > 60 éléments graphiques, > 80 nœuds path/rect
+// - "trop coloré" : 4+ familles de couleurs distinctes
+// - "trop IA" : SVG corrompu (oaicite, turn0…), placeholders Lorem
+// - "trop pâle" : aucune accent color
+//
+// Renvoie un score 0-1 + raisons éditoriales lisibles. Pure function,
+// pas d'IA, pas d'appel réseau.
+
+export type VisualSignal = {
+  kind:
+    | 'too_canva'        // emojis, gradients agressifs
+    | 'too_busy'         // trop d'éléments
+    | 'too_colorful'     // trop de familles couleurs
+    | 'too_ai'           // hallucinations / placeholders
+    | 'too_pale'         // aucune couleur d'accent
+    | 'lacks_hierarchy'  // pas d'élément central dominant
+    | 'good';
+  message: string;
+  severity?: 'note' | 'soft' | 'firm';
+};
+
+export type VisualScore = {
+  score: number;          // 0..1 (1 = premium)
+  signals: VisualSignal[];
+  meta: {
+    elementCount: number;
+    pathCount: number;
+    rectCount: number;
+    distinctColors: number;
+    hasGradient: boolean;
+    emojiInText: number;
+    textBlocks: number;
+  };
+};
+
+const BRIGHT_HEX_RE = /#(?:ff[0-9a-f]{4}|[0-9a-f]{2}ff[0-9a-f]{2}|[0-9a-f]{4}ff)/gi;
+const GRADIENT_RE = /<(?:linearGradient|radialGradient)\b/gi;
+const HEX_COLOR_RE = /#[0-9a-fA-F]{3,8}\b/g;
+const PATH_RE = /<path\b/gi;
+const RECT_RE = /<rect\b/gi;
+const CIRCLE_RE = /<circle\b/gi;
+const TEXT_RE = /<text\b[^>]*>([\s\S]*?)<\/text>/gi;
+const AI_ARTIFACT_RE = /(oaicite|turn0search|grok_card|contentReference|attributableIndex|lorem ipsum|placeholder)/i;
+
+export function scoreSvgPremium(svg: string): VisualScore {
+  const meta = {
+    elementCount: 0,
+    pathCount: 0,
+    rectCount: 0,
+    distinctColors: 0,
+    hasGradient: false,
+    emojiInText: 0,
+    textBlocks: 0,
+  };
+  const signals: VisualSignal[] = [];
+
+  if (!svg || !svg.includes('<svg')) {
+    return { score: 0, signals: [{ kind: 'too_ai', message: 'SVG vide ou mal formé.', severity: 'firm' }], meta };
+  }
+
+  // Comptages
+  meta.pathCount = (svg.match(PATH_RE) || []).length;
+  meta.rectCount = (svg.match(RECT_RE) || []).length;
+  const circleCount = (svg.match(CIRCLE_RE) || []).length;
+  meta.elementCount = meta.pathCount + meta.rectCount + circleCount;
+  meta.hasGradient = GRADIENT_RE.test(svg);
+
+  // Couleurs distinctes (normalisées à 6 chars upper)
+  const colors = new Set<string>();
+  let m: RegExpExecArray | null;
+  HEX_COLOR_RE.lastIndex = 0;
+  while ((m = HEX_COLOR_RE.exec(svg)) !== null) {
+    const c = m[0].toUpperCase();
+    // Familles approximées par les 4 premiers chars (ignore variations subtiles)
+    colors.add(c.slice(0, 4));
+  }
+  meta.distinctColors = colors.size;
+
+  // Text blocks + emojis
+  const textMatches = Array.from(svg.matchAll(TEXT_RE));
+  meta.textBlocks = textMatches.length;
+  for (const tm of textMatches) {
+    const inner = tm[1] || '';
+    meta.emojiInText += (inner.match(/\p{Extended_Pictographic}/gu) || []).length;
+  }
+
+  // ─── Signaux ─────────────────────────────────────────────────────
+  // 1. Hallucinations IA — drapeau rouge
+  if (AI_ARTIFACT_RE.test(svg)) {
+    signals.push({
+      kind: 'too_ai',
+      message: 'Le SVG contient un artefact technique IA (placeholder ou tag interne). À régénérer.',
+      severity: 'firm',
+    });
+  }
+
+  // 2. Emojis dans le texte = "trop Canva"
+  if (meta.emojiInText > 0) {
+    signals.push({
+      kind: 'too_canva',
+      message: `${meta.emojiInText} emoji${meta.emojiInText > 1 ? 's' : ''} dans le texte. Cadence préfère mots ou chiffres.`,
+      severity: 'firm',
+    });
+  }
+
+  // 3. Gradient + 4+ familles de couleur = "trop coloré"
+  if (meta.distinctColors >= 5) {
+    signals.push({
+      kind: 'too_colorful',
+      message: `${meta.distinctColors} familles de couleurs distinctes. Une seule famille d'accent suffit (bleu OU vert OU ambre).`,
+      severity: 'soft',
+    });
+  }
+
+  // 4. Trop d'éléments graphiques
+  if (meta.elementCount > 80) {
+    signals.push({
+      kind: 'too_busy',
+      message: `${meta.elementCount} éléments graphiques (path/rect/circle). Un visuel premium tient en moins de 60.`,
+      severity: 'soft',
+    });
+  }
+
+  // 5. Gradient agressif (≥ 2 ou couleurs très vives)
+  const brightCount = (svg.match(BRIGHT_HEX_RE) || []).length;
+  if (meta.hasGradient && brightCount >= 2) {
+    signals.push({
+      kind: 'too_canva',
+      message: 'Gradient + couleurs très saturées. Cadence évite les fonds flashy.',
+      severity: 'soft',
+    });
+  }
+
+  // 6. Pas d'accent : moins de 2 couleurs au total (ou que du gris)
+  if (meta.distinctColors <= 1) {
+    signals.push({
+      kind: 'too_pale',
+      message: 'Aucun accent de couleur. Un visuel premium a une couleur signature.',
+      severity: 'note',
+    });
+  }
+
+  // 7. Pas de hiérarchie : pas de texte du tout dans un visuel
+  if (meta.textBlocks === 0) {
+    signals.push({
+      kind: 'lacks_hierarchy',
+      message: 'Aucun bloc de texte. Un visuel éditorial a au moins un titre court.',
+      severity: 'note',
+    });
+  }
+
+  // ─── Score final ─────────────────────────────────────────────────
+  // Démarrage à 1, on retire 0.18 par firm, 0.10 par soft, 0.04 par note.
+  let score = 1;
+  for (const s of signals) {
+    if (s.severity === 'firm') score -= 0.18;
+    else if (s.severity === 'soft') score -= 0.10;
+    else score -= 0.04;
+  }
+  score = Math.max(0, +score.toFixed(2));
+
+  // Bonus : signal "good" si score >= 0.85
+  if (signals.length === 0 || score >= 0.85) {
+    signals.push({ kind: 'good', message: 'Visuel sobre et lisible.', severity: 'note' });
+  }
+
+  return { score, signals, meta };
+}
+
 // === Helpers d'affichage humain ===
 
 export function humanComposition(c: string | null | undefined): string {

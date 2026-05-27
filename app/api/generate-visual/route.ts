@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateClaudeDesignSvg, classifyVisualImage } from '@/lib/anthropic';
 import { getCredential } from '@/lib/credentials';
 import { supabase } from '@/lib/supabase';
-import { recordVisualItem, type VisualFormat } from '@/lib/visual-memory';
+import { recordVisualItem, scoreSvgPremium, type VisualFormat } from '@/lib/visual-memory';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -74,8 +74,13 @@ export async function POST(req: NextRequest) {
         }).catch(() => { /* silent */ });
       }
 
-      if (upErr) return NextResponse.json({ ok: true, mode, model, svg, format: 'svg', storage_error: upErr.message });
-      return NextResponse.json({ ok: true, mode, model, url: publicUrl, svg, format: 'svg', notion_page_id });
+      // V23.1 — Score premium calculé en pure JS sur le SVG (pas d'IA).
+      // Renvoyé pour permettre à l'UI de signaler "trop Canva", "trop
+      // chargé", "trop coloré" sans attendre la passe Vision async.
+      const visualScore = scoreSvgPremium(svg);
+
+      if (upErr) return NextResponse.json({ ok: true, mode, model, svg, format: 'svg', storage_error: upErr.message, visualScore });
+      return NextResponse.json({ ok: true, mode, model, url: publicUrl, svg, format: 'svg', notion_page_id, visualScore });
     }
 
     // OpenAI mode
