@@ -102,7 +102,41 @@ export const ANTI_PATTERNS = [
   // ── Question rhétorique vide : « Et si je vous disais que… ? », « Vous
   //    savez quoi ? », « Devinez quoi ? » — l'IA croit que ça crée du
   //    suspense, l'humain le trouve mou.
-  { id: 'question_rhetorique', label: 'Question rhétorique creuse ("Et si je vous disais que…", "Devinez quoi ?")', pattern: /(?:^|\n|\.\s+)\s*(?:Et si je vous disais|Vous savez quoi\s*\?|Devinez quoi\s*\?|Et si je vous dis que|Imaginez (?:un instant|que))/gi, severity: 'medium' }
+  { id: 'question_rhetorique', label: 'Question rhétorique creuse ("Et si je vous disais que…", "Devinez quoi ?")', pattern: /(?:^|\n|\.\s+)\s*(?:Et si je vous disais|Vous savez quoi\s*\?|Devinez quoi\s*\?|Et si je vous dis que|Imaginez (?:un instant|que))/gi, severity: 'medium' },
+  // V20.9 — Métaphore vs littéral (bigram-aware).
+  // Certains mots ("écosystème", "paysage", "tournant", "balise") sont
+  // OK littéralement (un écosystème logiciel, un paysage rural, un
+  // tournant routier) mais SIGNALENT du jargon creux dès qu'on les
+  // utilise au sens figuré (l'écosystème du futur, le paysage IA, le
+  // tournant entrepreneurial). On flag uniquement les usages figurés
+  // probables, repérés par les compagnons "de la/du/des" + concept
+  // abstrait derrière (réussite, transformation, croissance…) ou
+  // "réglementaire", "numérique", "entrepreneurial", "stratégique" en
+  // adjectif derrière.
+  { id: 'metaphor_misuse', label: 'Métaphore creuse ("écosystème", "paysage", "tournant" au sens figuré)', test: (t: string) => {
+      const abstractRe = /(?:r[ée]glementaire|num[ée]rique|entrepreneurial|strat[ée]gique|[ée]conomique|de la (?:r[ée]ussite|transformation|croissance|valeur|performance)|du futur|du march[ée])/i;
+      const metaphors = [
+        // \b ne matche pas devant un caractère accentué en regex JS sans /u,
+        // donc on cale sur une frontière manuelle (début / espace / apostrophe).
+        /(?:^|[\s'])[ée]cosyst[èe]me\s+/i,
+        /(?:^|[\s'])paysage\s+/i,
+        /(?:^|[\s'])tournant\s+(?:majeur|d[ée]cisif|crucial)/i,
+        /(?:^|[\s'])balise\s+(?:de la|du|d['e])/i,
+        /(?:^|[\s'])symphonie\s+(?:de|d['e])/i,
+        /(?:^|[\s'])tapisserie\s+(?:de|d['e])/i,
+      ];
+      for (const re of metaphors) {
+        const m = t.match(re);
+        if (!m) continue;
+        // Si l'environnement immédiat (40 chars après) contient un
+        // marqueur d'abstraction, c'est métaphorique creux.
+        const idx = t.search(re);
+        if (idx < 0) continue;
+        const ctx = t.slice(idx, idx + 60);
+        if (abstractRe.test(ctx)) return true;
+      }
+      return false;
+    }, severity: 'medium' }
 ];
 
 export type AntiPatternHit = { id: string; label: string; severity: string; matches: string[] };

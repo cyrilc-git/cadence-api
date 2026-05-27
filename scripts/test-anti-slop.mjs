@@ -49,7 +49,32 @@ const FIXTURES = [
   { name: 'rhétorique',    text: 'Et si je vous disais que la trésorerie peut être pilotée en 10 minutes par jour ? Devinez quoi ? C\'est possible.', expect: 'question_rhetorique' },
   { name: 'hedging dense', text: 'La situation est probablement complexe et il semble que les acteurs hésitent. Peut-être que les chiffres bougeront, vraisemblablement dans les mois qui viennent.', expect: 'hedging_density' },
   { name: 'cumul',         text: 'De plus, cette analyse pourrait éventuellement mettre en lumière des perspectives nouvelles. Considérablement plus riche que les approches classiques.', expect: 'intensifiers_creux' },
+  // V20.9 — bigram metaphor (échantillons figurés)
+  { name: 'metaphore-eco', text: 'L\'écosystème entrepreneurial français change vite. Les dirigeants suivent ou décrochent.', expect: 'metaphor_misuse' },
+  { name: 'metaphore-paysage', text: 'Le paysage réglementaire de la trésorerie évolue mois après mois. Tenez votre cap.', expect: 'metaphor_misuse' },
 ];
+
+// V20.9 — helper test pour metaphor_misuse
+function metaphorMisuse(text) {
+  const abstractRe = /(?:r[ée]glementaire|num[ée]rique|entrepreneurial|strat[ée]gique|[ée]conomique|de la (?:r[ée]ussite|transformation|croissance|valeur|performance)|du futur|du march[ée])/i;
+  const metaphors = [
+    /(?:^|[\s'])[ée]cosyst[èe]me\s+/i,
+    /(?:^|[\s'])paysage\s+/i,
+    /(?:^|[\s'])tournant\s+(?:majeur|d[ée]cisif|crucial)/i,
+    /(?:^|[\s'])balise\s+(?:de la|du|d['e])/i,
+    /(?:^|[\s'])symphonie\s+(?:de|d['e])/i,
+    /(?:^|[\s'])tapisserie\s+(?:de|d['e])/i,
+  ];
+  for (const re of metaphors) {
+    const m = text.match(re);
+    if (!m) continue;
+    const idx = text.search(re);
+    if (idx < 0) continue;
+    const ctx = text.slice(idx, idx + 60);
+    if (abstractRe.test(ctx)) return true;
+  }
+  return false;
+}
 
 let failed = 0;
 const lines = [];
@@ -58,6 +83,8 @@ for (const f of FIXTURES) {
   let matched = false;
   if (f.expect === 'hedging_density') {
     matched = hedgingDensity(f.text);
+  } else if (f.expect === 'metaphor_misuse') {
+    matched = metaphorMisuse(f.text);
   } else {
     const p = PATTERNS.find(p => p.id === f.expect);
     if (p && p.re.test(f.text)) matched = true;
