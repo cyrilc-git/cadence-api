@@ -14,7 +14,11 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const mem = await readStyleMemory();
+    // V31.1 — withFingerprints=true : recompute live les signatures
+    // désagrégées (sentence, paragraph, hook, closing, rhythm) à partir
+    // du corpus LinkedIn confirmé. Coûte 1 query SQL + ~50 posts d'analyse,
+    // négligeable côté serveur.
+    const mem = await readStyleMemory({ withFingerprints: true });
     return NextResponse.json({ memory: mem });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

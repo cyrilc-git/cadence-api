@@ -8,6 +8,14 @@
 import { useEffect, useState } from 'react';
 import { buildVoiceFiles } from '@/lib/voice-export';
 
+type StyleFingerprints = {
+  sentence_signature:  { label: string; avg_words: number; variance: number };
+  paragraph_signature: { label: string; avg_count: number; avg_len: number };
+  hook_signature:      { label: string; samples: string[] };
+  closing_signature:   { label: string; samples: string[] };
+  rhythm_signature:    { label: string; burstiness: number };
+};
+
 type StyleMemory = {
   avg_hook_len: number;
   avg_sentence_len: number;
@@ -27,6 +35,36 @@ type StyleMemory = {
   confidence_score: number;
   voice_summary: string;
   computed_at: string;
+  fingerprints?: StyleFingerprints;
+};
+
+// V31.1 — Libellés humains pour les fingerprints
+const SENTENCE_LABELS: Record<string, string> = {
+  court:     'Phrases courtes',
+  equilibre: 'Phrases équilibrées',
+  long:      'Phrases longues',
+  variable:  'Phrases à variance riche',
+};
+const RHYTHM_LABELS: Record<string, string> = {
+  saccade:  'Rythme saccadé',
+  soutenu:  'Rythme soutenu',
+  fluide:   'Rythme fluide',
+  lineaire: 'Rythme linéaire',
+};
+const HOOK_LABELS: Record<string, string> = {
+  scene:     'Ouverture par une scène',
+  chiffre:   'Ouverture par un chiffre',
+  metaphore: 'Ouverture imagée',
+  question:  'Ouverture par une question',
+  constat:   'Ouverture par un constat',
+  mixte:     'Ouvertures variées',
+};
+const CLOSING_LABELS: Record<string, string> = {
+  question_ouverte: 'Fermeture par une question ouverte',
+  lecon_implicite:  'Fermeture par leçon implicite',
+  appel_action:     'Fermeture par appel à l\'action',
+  phrase_seche:     'Fermeture par phrase sèche',
+  mixte:            'Fermetures variées',
 };
 
 export default function StyleMemoryView() {
@@ -120,6 +158,17 @@ export default function StyleMemoryView() {
         </p>
       </div>
 
+      {/* V31.1 — Signatures désagrégées : 5 dimensions de votre voix. */}
+      {mem.fingerprints && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <FingerprintTile label="Phrases" value={SENTENCE_LABELS[mem.fingerprints.sentence_signature.label] || mem.fingerprints.sentence_signature.label} sub={`${mem.fingerprints.sentence_signature.avg_words} mots`} />
+          <FingerprintTile label="Paragraphes" value={mem.fingerprints.paragraph_signature.label === 'court' ? 'Paragraphes courts' : mem.fingerprints.paragraph_signature.label === 'long' ? 'Paragraphes longs' : 'Paragraphes équilibrés'} sub={`${mem.fingerprints.paragraph_signature.avg_count} en moyenne`} />
+          <FingerprintTile label="Hook" value={HOOK_LABELS[mem.fingerprints.hook_signature.label] || mem.fingerprints.hook_signature.label} />
+          <FingerprintTile label="Fermeture" value={CLOSING_LABELS[mem.fingerprints.closing_signature.label] || mem.fingerprints.closing_signature.label} />
+          <FingerprintTile label="Rythme" value={RHYTHM_LABELS[mem.fingerprints.rhythm_signature.label] || mem.fingerprints.rhythm_signature.label} sub={`burstiness ${mem.fingerprints.rhythm_signature.burstiness}`} />
+        </div>
+      )}
+
       {/* V26.1 — Hooks réels : snippets des premières phrases de vos posts
           LinkedIn confirmés. Plus signature que les openings normalisés. */}
       {mem.top_hooks && mem.top_hooks.length > 0 && (
@@ -206,6 +255,18 @@ export default function StyleMemoryView() {
       </div>
       {recomputeMsg && <p className="text-2xs text-ink-500">{recomputeMsg}</p>}
     </section>
+  );
+}
+
+// V31.1 — Tile fingerprint : libellé court + valeur + sub optionnel.
+// Toujours discret, jamais bruyant. Border ink-100, hover ink-200.
+function FingerprintTile({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="border border-ink-100 rounded-lg p-3 transition hover:border-ink-200">
+      <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">{label}</p>
+      <p className="mt-1 text-xs text-ink-800 leading-snug">{value}</p>
+      {sub && <p className="mt-0.5 text-2xs text-ink-400 italic">{sub}</p>}
+    </div>
   );
 }
 

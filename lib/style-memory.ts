@@ -42,6 +42,25 @@ export type PostStyle = {
   emojiCount: number;
 };
 
+// V31.1 — Multi-fingerprints stylistiques
+// Décomposition de la "voix" en 5 signatures distinctes, lisibles
+// indépendamment. Calculées au moment de l'agrégation à partir des
+// posts confirmés LinkedIn, jamais persistées (recomputées à chaque
+// recompute). Affichées dans /cerveau pour donner une lecture
+// désagrégée de la voix.
+export type FingerprintLabel = 'court' | 'equilibre' | 'long' | 'variable';
+export type RhythmLabel = 'saccade' | 'soutenu' | 'fluide' | 'lineaire';
+export type HookLabel = 'scene' | 'chiffre' | 'metaphore' | 'question' | 'constat' | 'mixte';
+export type ClosingLabel = 'question_ouverte' | 'lecon_implicite' | 'appel_action' | 'phrase_seche' | 'mixte';
+
+export type StyleFingerprints = {
+  sentence_signature:  { label: FingerprintLabel; avg_words: number; variance: number };
+  paragraph_signature: { label: FingerprintLabel; avg_count: number; avg_len: number };
+  hook_signature:      { label: HookLabel; samples: string[] };
+  closing_signature:   { label: ClosingLabel; samples: string[] };
+  rhythm_signature:    { label: RhythmLabel; burstiness: number };
+};
+
 export type StyleMemory = {
   avg_hook_len: number;
   avg_sentence_len: number;
@@ -62,6 +81,8 @@ export type StyleMemory = {
   confidence_score: number;
   voice_summary: string;
   computed_at: string;
+  // V31.1 — Signatures désagrégées (in-memory uniquement, non persistées)
+  fingerprints?: StyleFingerprints;
 };
 
 // ─────────────────────────────────────────────────────────────────────
@@ -233,6 +254,107 @@ function modeOfStrings(arr: string[], topN = 5): string[] {
     .map(([s]) => s);
 }
 
+// V31.1 — Compute the multi-fingerprints from a list of post styles + raw texts.
+// Pure : aucune persistence, aucune IO.
+function computeFingerprints(
+  postStyles: { s: PostStyle; text: string }[]
+): StyleFingerprints {
+  // Sentence signature — moyenne des phrases en mots + variance
+  const allSentenceWords: number[] = [];
+  for (const { text } of postStyles) {
+    const ss = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+    for (const s of ss) {
+      const w = s.trim().split(/\s+/).filter(Boolean).length;
+      if (w > 0) allSentenceWords.push(w);
+    }
+  }
+  const avgW = allSentenceWords.length > 0
+    ? allSentenceWords.reduce((a, b) => a + b, 0) / allSentenceWords.length
+    : 0;
+  const variance = allSentenceWords.length > 0
+    ? allSentenceWords.reduce((acc, w) => acc + (w - avgW) ** 2, 0) / allSentenceWords.length
+    : 0;
+  const stdDev = Math.sqrt(variance);
+  // Label : court (< 12), équilibré (12-20), long (> 20), variable (stdDev > 50 % avg)
+  let sentenceLabel: FingerprintLabel = 'equilibre';
+  if (stdDev / Math.max(1, avgW) > 0.6 && allSentenceWords.length >= 12) sentenceLabel = 'variable';
+  else if (avgW < 12) sentenceLabel = 'court';
+  else if (avgW > 20) sentenceLabel = 'long';
+
+  // Paragraph signature
+  const avgParaCount = postStyles.length > 0
+    ? postStyles.reduce((a, b) => a + b.s.paragraphCount, 0) / postStyles.length
+    : 0;
+  const avgParaLen = postStyles.length > 0
+    ? postStyles.reduce((a, b) => a + b.s.paragraphLen, 0) / postStyles.length
+    : 0;
+  let paraLabel: FingerprintLabel = 'equilibre';
+  if (avgParaLen < 80) paraLabel = 'court';
+  else if (avgParaLen > 200) paraLabel = 'long';
+  if (avgParaCount >= 5 && avgParaLen < 130) paraLabel = 'court'; // beaucoup de petits paragraphes
+
+  // Hook signature — classifier les 1res phrases
+  let hookScene = 0, hookChiffre = 0, hookMetaphor = 0, hookQuestion = 0, hookConstat = 0;
+  const hookSamples: string[] = [];
+  for (const { s, text } of postStyles) {
+    const fl = (text.split('\n').find(l => l.trim().length > 0) || '').trim();
+    if (!fl) continue;
+    if (hookSamples.length < 3) hookSamples.push(fl.slice(0, 80));
+    if (/\?\s*$/.test(fl)) { hookQuestion++; continue; }
+    if (/\b\d{1,3}(?:[\s.,]\d{3})*\s*(?:%|€|k€|jours?|mois|fois|ans?)\b/i.test(fl)) { hookChiffre++; continue; }
+    if (s.hasMetaphor || /\bcomme\s+(?:un|une|le|la|les)\b/i.test(fl)) { hookMetaphor++; continue; }
+    if (/\b(hier|ce matin|un\s+(?:dirigeant|client|banquier)|m['e]?a\s+(?:dit|appelé|écrit))/i.test(fl)) { hookScene++; continue; }
+    hookConstat++;
+  }
+  const hookCounts: Record<HookLabel, number> = {
+    scene: hookScene, chiffre: hookChiffre, metaphore: hookMetaphor,
+    question: hookQuestion, constat: hookConstat, mixte: 0,
+  };
+  const topHookEntry = Object.entries(hookCounts).filter(([k]) => k !== 'mixte').sort((a, b) => b[1] - a[1])[0];
+  const total = hookScene + hookChiffre + hookMetaphor + hookQuestion + hookConstat;
+  const hookLabel: HookLabel = !topHookEntry || total === 0
+    ? 'mixte'
+    : (topHookEntry[1] / total < 0.45 ? 'mixte' : (topHookEntry[0] as HookLabel));
+
+  // Closing signature — analyse du dernier paragraphe
+  let cQuestion = 0, cLecon = 0, cAppel = 0, cSeche = 0;
+  const closingSamples: string[] = [];
+  for (const { text } of postStyles) {
+    const ps = text.split(/\n\s*\n/).map(p => p.trim()).filter(Boolean);
+    const last = (ps[ps.length - 1] || '').trim();
+    if (!last) continue;
+    if (closingSamples.length < 3) closingSamples.push(last.slice(0, 100));
+    if (/\?\s*$/.test(last)) { cQuestion++; continue; }
+    if (/\b(retenez|souvenez-vous|n['e]?oubliez pas|sachez|gardez|notez)\b/i.test(last)) { cAppel++; continue; }
+    if (last.length < 80) { cSeche++; continue; }
+    cLecon++;
+  }
+  const cCounts: Record<ClosingLabel, number> = {
+    question_ouverte: cQuestion, appel_action: cAppel, phrase_seche: cSeche,
+    lecon_implicite: cLecon, mixte: 0,
+  };
+  const topCloseEntry = Object.entries(cCounts).filter(([k]) => k !== 'mixte').sort((a, b) => b[1] - a[1])[0];
+  const totalClose = cQuestion + cAppel + cSeche + cLecon;
+  const closingLabel: ClosingLabel = !topCloseEntry || totalClose === 0
+    ? 'mixte'
+    : (topCloseEntry[1] / totalClose < 0.45 ? 'mixte' : (topCloseEntry[0] as ClosingLabel));
+
+  // Rhythm signature — burstiness = stdDev/avg
+  const burstiness = avgW > 0 ? stdDev / avgW : 0;
+  let rhythmLabel: RhythmLabel = 'fluide';
+  if (burstiness > 0.7) rhythmLabel = 'saccade';
+  else if (burstiness > 0.4) rhythmLabel = 'soutenu';
+  else if (burstiness < 0.2) rhythmLabel = 'lineaire';
+
+  return {
+    sentence_signature:  { label: sentenceLabel, avg_words: +avgW.toFixed(1), variance: +variance.toFixed(1) },
+    paragraph_signature: { label: paraLabel, avg_count: +avgParaCount.toFixed(1), avg_len: Math.round(avgParaLen) },
+    hook_signature:      { label: hookLabel, samples: hookSamples },
+    closing_signature:   { label: closingLabel, samples: closingSamples },
+    rhythm_signature:    { label: rhythmLabel, burstiness: +burstiness.toFixed(2) },
+  };
+}
+
 export function aggregateStyleMemory(
   posts: { text: string; narrativeKind?: string | null }[]
 ): StyleMemory {
@@ -300,6 +422,11 @@ export function aggregateStyleMemory(
     posts_analyzed: posts.length,
   });
 
+  // V31.1 — Fingerprints multi-dimensionnels
+  const fingerprints = computeFingerprints(
+    styles.map(({ s }, i) => ({ s, text: posts[i].text }))
+  );
+
   return {
     avg_hook_len: Math.round(avg('hookLen')),
     avg_sentence_len: Math.round(avg('sentenceLen')),
@@ -320,6 +447,7 @@ export function aggregateStyleMemory(
     confidence_score: +confidence_score.toFixed(2),
     voice_summary,
     computed_at: new Date().toISOString(),
+    fingerprints,
   };
 }
 
@@ -420,7 +548,7 @@ export async function persistStyleMemory(mem: StyleMemory): Promise<{ ok: boolea
   }
 }
 
-export async function readStyleMemory(): Promise<StyleMemory | null> {
+export async function readStyleMemory(opts?: { withFingerprints?: boolean }): Promise<StyleMemory | null> {
   try {
     const { data, error } = await supabase
       .from('style_memory')
@@ -429,7 +557,7 @@ export async function readStyleMemory(): Promise<StyleMemory | null> {
       .limit(1)
       .maybeSingle();
     if (error || !data) return null;
-    return {
+    const mem: StyleMemory = {
       avg_hook_len: Number(data.avg_hook_len) || 0,
       avg_sentence_len: Number(data.avg_sentence_len) || 0,
       avg_paragraph_len: Number(data.avg_paragraph_len) || 0,
@@ -450,6 +578,20 @@ export async function readStyleMemory(): Promise<StyleMemory | null> {
       voice_summary: data.voice_summary || '',
       computed_at: data.computed_at || new Date().toISOString(),
     };
+    // V31.1 — Si l'appelant veut les fingerprints, on les recompute live
+    // depuis les posts LinkedIn confirmés. Coûte 1 query SQL + un peu de
+    // CPU sur 30-50 posts, mais évite une migration de schéma.
+    if (opts?.withFingerprints && mem.posts_analyzed >= 5) {
+      try {
+        const corpus = await fetchLinkedInCorpus({ limit: 50 });
+        if (corpus.length >= 5) {
+          mem.fingerprints = computeFingerprints(
+            corpus.map(c => ({ s: analyzePostStyle(c.text), text: c.text }))
+          );
+        }
+      } catch { /* silent : si content_items pas dispo, on retourne sans */ }
+    }
+    return mem;
   } catch {
     return null;
   }
@@ -580,23 +722,32 @@ export function scoreStyleSimilarity(draft: string, mem: StyleMemory | null): St
 // Pipeline : recompute depuis les posts LinkedIn confirmés
 // ─────────────────────────────────────────────────────────────────────
 
-export async function recomputeStyleMemory(): Promise<{ ok: boolean; analyzed: number; error?: string }> {
+// V31.1 — Helper de lecture du corpus LinkedIn confirmé pour les fingerprints.
+// Réutilisé par readStyleMemory(withFingerprints) et par recomputeStyleMemory.
+async function fetchLinkedInCorpus(opts: { limit?: number }): Promise<Array<{ text: string; narrativeKind?: string | null; source_type?: string }>> {
   try {
-    // On prend les posts confirmés LinkedIn (URL vérifiée OU import ZIP),
-    // jusqu'à 50 récents. Suffisant pour une bonne signature.
     const { data, error } = await supabase
       .from('content_items')
-      .select('content, narrative_kind:meta')
+      .select('content, narrative_kind:meta, source_type')
       .or('source_type.eq.linkedin_published,source_type.eq.linkedin_import_zip')
       .order('published_at', { ascending: false, nullsFirst: false })
-      .limit(50);
-    if (error) return { ok: false, analyzed: 0, error: error.message };
-    const posts = (data || [])
-      .filter(r => r.content && r.content.trim().length > 100)
-      .map(r => ({
+      .limit(opts.limit ?? 50);
+    if (error) return [];
+    return (data || [])
+      .filter((r: any) => r.content && r.content.trim().length > 100)
+      .map((r: any) => ({
         text: r.content as string,
         narrativeKind: (r.narrative_kind as any)?.narrative_kind || null,
+        source_type: r.source_type as string | undefined,
       }));
+  } catch {
+    return [];
+  }
+}
+
+export async function recomputeStyleMemory(): Promise<{ ok: boolean; analyzed: number; error?: string }> {
+  try {
+    const posts = await fetchLinkedInCorpus({ limit: 50 });
     if (posts.length === 0) {
       return { ok: true, analyzed: 0 };
     }
