@@ -605,10 +605,13 @@ function StartHint({
             6 hooks selon 6 angles (chiffre, contre-courant, bascule, référence,
             aveu, présent vs futur). Un clic sur un hook l'insère comme
             ouverture du post et fait disparaître le StartHint. */}
+        {/* V33.1 — Même style de summary que la voix (dot brand-500, ton calme).
+            Le libellé "Idées de hooks" remplace "Cadence vous propose 6 hooks"
+            pour rendre l'IA moins visible. */}
         <details className="mt-2 group/hooks text-2xs">
           <summary className="select-none cursor-pointer inline-flex items-center gap-1.5 text-ink-500 hover:text-ink-900 transition">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden />
-            <span>Cadence vous propose 6 hooks</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-500" aria-hidden />
+            <span>Idées de hooks</span>
             <span className="text-ink-300 group-open/hooks:hidden">ouvrir</span>
             <span className="text-ink-300 hidden group-open/hooks:inline">replier</span>
           </summary>
