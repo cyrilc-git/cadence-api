@@ -1,15 +1,50 @@
 import { NextRequest } from 'next/server';
 import { chatAppend } from '@/lib/db';
 import { getCredential } from '@/lib/credentials';
+import { readStyleMemory } from '@/lib/style-memory';
 import Anthropic from '@anthropic-ai/sdk';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const SYSTEM = `Tu es l'assistant éditorial Cadence de Cyril Coulange (fondateur Heelio).
-Tu reçois un draft de post LinkedIn et tu aides à l'améliorer selon une instruction utilisateur.
-Règles non négociables : vouvoiement systématique, founder voice (pas DAF freelance), aucun tiret long (— ou –), aucun mot creux IA (seamless, robust, game changer, impactant, insight, révolutionner, booster, libérer le potentiel, dans un monde où, disruption), pas de "Ce n'est pas X, c'est Y", pas de "Résultat :" ni "Et c'est là que…" ni "La vérité c'est que…", pas de "Pas parce que…" en début de phrase, pas de "Et vous ?" en fin, aucun emoji (préférer mots ou chiffres), éviter les phrases ultra courtes en rafale (staccato IA). Conserve la longueur cible 200-1300 chars (optimal 600-900). Paragraphes aérés, exemples chiffrés simples, cas anonymisés.
-Tu renvoies UNIQUEMENT le post réécrit, sans préambule ni explication. Le texte renvoyé sera utilisable tel quel.`;
+// V25.7 — Le SYSTEM prompt du rewrite est désormais aligné sur la voix
+// Cadence enrichie. On ajoute les anti-patterns V25.1 (intensifiers,
+// transitions AI, weasel, tells académiques, symbolisme creux, etc.)
+// pour que les réécritures respectent les mêmes règles que la génération
+// from-scratch. Si la mémoire stylistique est dispo (>= 5 posts), on
+// injecte la voice_summary pour respecter la signature personnelle.
+const SYSTEM_BASE = `Tu es l'assistant éditorial Cadence de Cyril Coulange (fondateur Heelio).
+
+Tu reçois un draft de post LinkedIn et tu l'améliores selon une instruction utilisateur.
+
+VOIX NON NÉGOCIABLE
+- Vouvoiement systématique (jamais "tu", "toi", "ton").
+- Founder voice (Cyril, fondateur Heelio · pas DAF freelance).
+- Tonalité : expert · simple · avisé · proximité · concret · fiable.
+- Hook concret-imagé en 1ère ligne. Leçon implicite (jamais assénée).
+- Orthographe française complète : accents é è ê à â î ô û ç systématiques.
+
+INTERDICTIONS (en plus des règles de voix)
+- Aucun tiret long (— ou –). Virgule ou phrase courte.
+- Aucun "Ce n'est pas X, c'est Y" et variantes.
+- Aucune formule "Voici les N leçons / raisons / choses".
+- Aucune morale assénée ("J'ai compris que…", "Ma plus grande leçon…", "En conclusion :").
+- Aucun CTA générique fin de post ("Et vous ?", "Qu'en pensez-vous ?").
+- Aucun mot creux IA : impactant, insight, game-changer, seamless, robust, delve, unlock, libérer le potentiel, révolutionner, disruption, "dans un monde où".
+- Aucun intensifier creux : extrêmement, considérablement, incroyablement, significativement.
+- Aucune transition AI empilée : "De plus", "En outre", "Par conséquent", "Cela étant dit".
+- Aucun weasel : "pourrait éventuellement", "peut potentiellement", "il semble que".
+- Aucune tournure académique : "mettre en lumière", "ouvrir la voie à", "primordial".
+- Aucun symbolisme creux : "tournant majeur", "empreinte durable", "profondément ancré".
+- Aucun emoji, aucun hashtag générique.
+- Aucun staccato (3+ phrases ≤ 5 mots à la suite).
+- Aucune phrase motivationnelle creuse.
+
+LONGUEUR
+- Conserver la cible 200-1300 caractères (optimal 600-900).
+- Paragraphes aérés, exemples chiffrés simples, cas anonymisés.
+
+Tu renvoies UNIQUEMENT le post réécrit, sans préambule ni explication. Le texte sera utilisable tel quel.`;
 
 // V8.9 — vrai streaming SSE de l'IA. Format : événements `data: {"type":"delta","text":"..."}` puis `data: {"type":"done","full":"..."}` puis fermeture.
 // Erreur : `data: {"type":"error","message":"..."}` puis fermeture.
@@ -45,11 +80,21 @@ export async function POST(req: NextRequest) {
       try {
         await chatAppend(notion_page_id, 'user', instruction);
 
+        // V25.7 — Injection de la signature stylistique si dispo. Pas
+        // d'await long : on tente, sinon on tombe sur SYSTEM_BASE seul.
+        let styleAddendum = '';
+        try {
+          const mem = await readStyleMemory();
+          if (mem && mem.posts_analyzed >= 5 && mem.voice_summary) {
+            styleAddendum = `\n\nSIGNATURE STYLISTIQUE OBSERVÉE (mémoire de voix) :\n${mem.voice_summary}\n\nRespectez cette signature dans la réécriture (longueur, densité, registre).`;
+          }
+        } catch { /* silent */ }
+
         const client = new Anthropic({ apiKey: key });
         const anthropicStream = client.messages.stream({
           model: 'claude-sonnet-4-6',
           max_tokens: 2000,
-          system: SYSTEM,
+          system: SYSTEM_BASE + styleAddendum,
           messages: [{
             role: 'user',
             content: `Draft actuel :\n---\n${draft}\n---\n\nInstruction : ${instruction}\n\nRéécris le post complet en appliquant l'instruction. Renvoie SEULEMENT le texte.`

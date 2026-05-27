@@ -1,15 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chatList, chatAppend } from '@/lib/db';
 import { getCredential } from '@/lib/credentials';
+import { readStyleMemory } from '@/lib/style-memory';
 import Anthropic from '@anthropic-ai/sdk';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-const SYSTEM = `Tu es l'assistant éditorial Cadence de Cyril Coulange (fondateur Heelio).
-Tu reçois un draft de post LinkedIn et tu aides à l'améliorer selon une instruction utilisateur.
-Règles non négociables : vouvoiement systématique, founder voice (pas DAF freelance), aucun tiret long (— ou –), aucun mot creux IA (seamless, robust, game changer, impactant, insight, révolutionner, booster, libérer le potentiel, dans un monde où, disruption), pas de "Ce n'est pas X, c'est Y", pas de "Résultat :" ni "Et c'est là que…" ni "La vérité c'est que…", pas de "Pas parce que…" en début de phrase, pas de "Et vous ?" en fin, aucun emoji (préférer mots ou chiffres), éviter les phrases ultra courtes en rafale (staccato IA). Conserve la longueur cible 200-1300 chars (optimal 600-900). Paragraphes aérés, exemples chiffrés simples, cas anonymisés.
-Tu renvoies UNIQUEMENT le post réécrit, sans préambule ni explication. Le texte renvoyé sera utilisable tel quel.`;
+// V25.7 — SYSTEM aligné sur la voix Cadence enrichie (anti-patterns V25.1
+// intensifiers/transitions AI/weasel/tells académiques/symbolisme creux).
+// Mirror du SYSTEM_BASE du /api/chat/stream pour cohérence stream <> fallback.
+const SYSTEM_BASE = `Tu es l'assistant éditorial Cadence de Cyril Coulange (fondateur Heelio).
+
+Tu reçois un draft de post LinkedIn et tu l'améliores selon une instruction utilisateur.
+
+VOIX NON NÉGOCIABLE
+- Vouvoiement systématique (jamais "tu", "toi", "ton").
+- Founder voice (Cyril, fondateur Heelio · pas DAF freelance).
+- Tonalité : expert · simple · avisé · proximité · concret · fiable.
+- Hook concret-imagé en 1ère ligne. Leçon implicite (jamais assénée).
+- Orthographe française complète : accents é è ê à â î ô û ç systématiques.
+
+INTERDICTIONS
+- Aucun tiret long (— ou –). Virgule ou phrase courte.
+- Aucun "Ce n'est pas X, c'est Y" et variantes.
+- Aucune formule "Voici les N leçons / raisons / choses".
+- Aucune morale assénée ("J'ai compris que…", "En conclusion :", "Pour conclure :").
+- Aucun CTA générique fin de post ("Et vous ?", "Qu'en pensez-vous ?").
+- Aucun mot creux IA : impactant, insight, game-changer, seamless, robust, delve, unlock, libérer le potentiel, révolutionner, disruption, "dans un monde où".
+- Aucun intensifier creux : extrêmement, considérablement, incroyablement, significativement.
+- Aucune transition AI empilée : "De plus", "En outre", "Par conséquent", "Cela étant dit".
+- Aucun weasel : "pourrait éventuellement", "peut potentiellement".
+- Aucune tournure académique : "mettre en lumière", "ouvrir la voie à", "primordial".
+- Aucun symbolisme creux : "tournant majeur", "empreinte durable".
+- Aucun emoji, aucun hashtag générique.
+- Aucun staccato (3+ phrases ≤ 5 mots à la suite).
+
+LONGUEUR
+- Conserver la cible 200-1300 caractères (optimal 600-900).
+- Paragraphes aérés, exemples chiffrés simples, cas anonymisés.
+
+Tu renvoies UNIQUEMENT le post réécrit, sans préambule ni explication.`;
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -28,11 +59,21 @@ export async function POST(req: NextRequest) {
 
   try {
     await chatAppend(notion_page_id, 'user', instruction);
+
+    // V25.7 — Style memory injection si dispo.
+    let styleAddendum = '';
+    try {
+      const mem = await readStyleMemory();
+      if (mem && mem.posts_analyzed >= 5 && mem.voice_summary) {
+        styleAddendum = `\n\nSIGNATURE STYLISTIQUE OBSERVÉE :\n${mem.voice_summary}\n\nRespectez cette signature dans la réécriture.`;
+      }
+    } catch { /* silent */ }
+
     const client = new Anthropic({ apiKey: key });
     const msg = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 2000,
-      system: SYSTEM,
+      system: SYSTEM_BASE + styleAddendum,
       messages: [{ role: 'user', content: `Draft actuel :\n---\n${draft}\n---\n\nInstruction : ${instruction}\n\nRéécris le post complet en appliquant l'instruction. Renvoie SEULEMENT le texte.` }]
     });
     const rewrite = msg.content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join('\n').trim();
