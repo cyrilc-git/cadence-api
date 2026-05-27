@@ -18,6 +18,10 @@ import CadenceEditor, { useEditorMetrics } from '@/components/CadenceEditor';
 import CommandPalette, { Command } from '@/components/CommandPalette';
 import PreviewDrawer from '@/components/PreviewDrawer';
 import { SLASH_COMMANDS } from '@/components/SlashMenu';
+// V25.5 — Anti-patterns centralisés : on lit directement la table de
+// vérité dans lib/brand-config plutôt que de maintenir un double inline
+// qui dérive (les 9 patterns V25.1 anti-slop n'étaient pas reflétés ici).
+import { checkAntiPatterns } from '@/lib/brand-config';
 
 const PILIERS = [
   'Lundi · Cas client',
@@ -78,7 +82,7 @@ export default function NewPostClient({
 
   const { wordCount, charCount, readingMin, hookLen, hookTone, rhythmTone, paragraphCount } = useEditorMetrics(text);
   const pilierIsCasClient = pilier?.includes('Cas client') || pilier?.includes('Cas dirigeant');
-  const lint = useMemo(() => analyzeAntiPatterns(text), [text]);
+  const lint = useMemo(() => checkAntiPatterns(text), [text]);
   const criticalLint = lint.filter(h => h.severity === 'critical');
 
   useEffect(() => {
@@ -698,30 +702,6 @@ function GenerationStatus() {
   );
 }
 
-function analyzeAntiPatterns(text: string) {
-  // V9.1.1 — anti-patterns IA étendus : aligné sur lib/brand-config ANTI_PATTERNS
-  const hits: { id: string; label: string; severity: 'critical' | 'high' | 'medium'; matches: string[] }[] = [];
-  if (!text.trim()) return hits;
-  if (/[—–]/.test(text)) hits.push({ id: 'em_dash', label: 'Tiret long (— ou –) interdit', severity: 'critical', matches: text.match(/[—–]/g) || [] });
-  if (/(c['e]?st|n['e]?st)\s+pas\s+\w+[\s,]+c['e]?st\s+\w+/i.test(text)) hits.push({ id: 'not_x_y', label: '« Ce n\'est pas X, c\'est Y » interdit', severity: 'critical', matches: ['(détecté)'] });
-  const creux = text.match(/\b(impactant|impactante|insight|insights|game[- ]?changer|seamless|robust|delve|leverage|unlock|unleash|deep[- ]dive|dans un monde où|révolutionnaire|disrupter|disruption)\b/gi);
-  if (creux) hits.push({ id: 'mots_creux', label: 'Mot creux IA (impactant / insight / game-changer / etc.)', severity: 'high', matches: creux });
-  const resultat = text.match(/(?:^|\n|\.\s+)\s*(?:R[ée]sultat\s*:|Et\s+c['e]?st\s+l[àa]\s+que|La\s+v[ée]rit[ée]\s+c['e]?st\s+que|Voici\s+pourquoi\s*:|Le\s+vrai\s+probl[èe]me\s*c['e]?st)/gi);
-  if (resultat) hits.push({ id: 'resultat', label: 'Formule signature à éviter', severity: 'high', matches: resultat.map(s => s.trim().slice(0, 40)) });
-  // V9.1.1 — "Pas parce que..." en début de phrase = cliché IA
-  const pasParce = text.match(/(?:^|\n|\.\s+|\?\s+|!\s+)\s*Pas\s+parce\s+qu[e']/gi);
-  if (pasParce) hits.push({ id: 'pas_parce_que', label: '"Pas parce que…" (cliché IA)', severity: 'high', matches: pasParce.map(s => s.trim().slice(0, 30)) });
-  const emojiCount = (text.match(/\p{Extended_Pictographic}/gu) || []).length;
-  if (emojiCount >= 1) hits.push({ id: 'emoji', label: emojiCount > 3 ? `${emojiCount} emojis (trop)` : `${emojiCount} emoji (préférer mots / chiffres)`, severity: emojiCount > 3 ? 'high' : 'medium', matches: text.match(/\p{Extended_Pictographic}/gu) || [] });
-  // Staccato : 3+ phrases ≤ 5 mots à la suite
-  const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
-  let streak = 0, maxStreak = 0;
-  for (const s of sentences) {
-    const words = s.trim().split(/\s+/).length;
-    if (words > 0 && words <= 5) { streak++; if (streak > maxStreak) maxStreak = streak; }
-    else streak = 0;
-  }
-  if (maxStreak >= 3) hits.push({ id: 'staccato', label: `Staccato (${maxStreak} phrases courtes en rafale)`, severity: 'medium', matches: ['(détecté)'] });
-  if (/\b(tu|toi|ton|ta|tes)\b/i.test(text)) hits.push({ id: 'tu', label: 'Tutoiement (vouvoiement requis)', severity: 'high', matches: text.match(/\b(tu|toi|ton|ta|tes)\b/gi) || [] });
-  return hits;
-}
+// V25.5 — analyzeAntiPatterns inline supprimé. La source de vérité est
+// lib/brand-config.ts ANTI_PATTERNS, importée plus haut via checkAntiPatterns().
+// Les 9 patterns V25.1 anti-slop sont maintenant détectés ici aussi.
