@@ -109,9 +109,13 @@ export default function LinkedInImportClient() {
       let csvText = '';
       if (file.name.toLowerCase().endsWith('.zip')) {
         const zip = await JSZip.loadAsync(file);
-        const sharesFile = Object.values(zip.files).find(f => /shares\.csv$/i.test(f.name));
+        // V18 §fix-shares — LinkedIn nomme maintenant le fichier
+        // Shares_64244574.csv (avec suffixe ID member). On accepte
+        // Shares.csv ET Shares_<digits>.csv. Aussi tolérant aux
+        // sous-dossiers et à la casse.
+        const sharesFile = Object.values(zip.files).find(f => /(?:^|\/)shares(?:_\d+)?\.csv$/i.test(f.name));
         if (!sharesFile) {
-          throw new Error("Pas de Shares.csv trouvé dans le ZIP. Vérifiez que c'est bien l'archive LinkedIn officielle.");
+          throw new Error("Pas de Shares.csv trouvé dans le ZIP. Vérifiez que c'est bien l'archive LinkedIn officielle (le fichier peut s'appeler Shares.csv ou Shares_<ID>.csv).");
         }
         csvText = await sharesFile.async('string');
       } else if (file.name.toLowerCase().endsWith('.csv')) {
