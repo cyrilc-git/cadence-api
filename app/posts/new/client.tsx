@@ -259,6 +259,9 @@ export default function NewPostClient({
             recyclables={recyclables}
             voiceMode={voiceMode}
             onVoiceMode={setVoiceMode}
+            // V25.3 — Quand l'utilisateur choisit un hook, on l'insère
+            // tel quel comme ouverture du post. L'éditeur prend le relais.
+            onPickHook={(hook) => setText(hook + '\n\n')}
           />
         )}
 
@@ -468,14 +471,50 @@ const VOICE_MODE_LABELS: { key: VoiceMode; label: string; hint: string }[] = [
   { key: 'hors_style', label: 'Sortir du style', hint: 'explorer une voix inhabituelle' },
 ];
 
+// V25.3 — 6 angles de hooks, libellés FR pour le picker
+const HOOK_ANGLE_FR: { key: string; label: string }[] = [
+  { key: 'number_led',     label: 'Chiffre' },
+  { key: 'contrarian',     label: 'Contre-courant' },
+  { key: 'transformation', label: 'Bascule' },
+  { key: 'authority',      label: 'Référence' },
+  { key: 'admission',      label: 'Aveu' },
+  { key: 'future_shock',   label: 'Présent vs futur' },
+];
+
 function StartHint({
   pilier, brief, onBrief, onGenerate, generating, error, recyclables,
-  voiceMode, onVoiceMode,
+  voiceMode, onVoiceMode, onPickHook,
 }: {
   pilier: string; brief: string; onBrief: (s: string) => void;
   onGenerate: () => void; generating: boolean; error: string | null; recyclables: Recyclable[];
   voiceMode: VoiceMode; onVoiceMode: (m: VoiceMode) => void;
+  onPickHook: (hook: string) => void;
 }) {
+  // V25.3 — État du hook generator (replié par défaut)
+  const [hookLoading, setHookLoading] = useState(false);
+  const [hookError, setHookError] = useState<string | null>(null);
+  const [hooks, setHooks] = useState<Array<{ angle: string; line1: string; line2: string }>>([]);
+
+  async function fetchHooks() {
+    if (!brief.trim() || brief.trim().length < 4) {
+      setHookError('Posez d\'abord un sujet court dans le brief.');
+      return;
+    }
+    setHookLoading(true); setHookError(null); setHooks([]);
+    try {
+      const r = await fetch('/api/hooks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: brief.trim(), pilier, voiceMode }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      setHooks(d.hooks || []);
+    } catch (e: any) {
+      setHookError(e.message);
+    } finally {
+      setHookLoading(false);
+    }
+  }
   // V12.9 §2 — Onboarding écran "vide" plus habité.
   // Trois chemins clairs : 1) brief court → 3 propositions, 2) recycler un
   // ancien, 3) ouvrir le radar pour partir d'une idée fraîche.
@@ -539,6 +578,68 @@ function StartHint({
             {VOICE_MODE_LABELS.find(m => m.key === voiceMode)?.hint}
           </p>
         </details>
+
+        {/* V25.3 — Hook generator : à partir du brief court, Cadence propose
+            6 hooks selon 6 angles (chiffre, contre-courant, bascule, référence,
+            aveu, présent vs futur). Un clic sur un hook l'insère comme
+            ouverture du post et fait disparaître le StartHint. */}
+        <details className="mt-2 group/hooks text-2xs">
+          <summary className="select-none cursor-pointer inline-flex items-center gap-1.5 text-ink-500 hover:text-ink-900 transition">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden />
+            <span>Cadence vous propose 6 hooks</span>
+            <span className="text-ink-300 group-open/hooks:hidden">ouvrir</span>
+            <span className="text-ink-300 hidden group-open/hooks:inline">replier</span>
+          </summary>
+          <div className="mt-3 space-y-2">
+            {hooks.length === 0 && !hookLoading && (
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={fetchHooks}
+                  disabled={!brief.trim() || brief.trim().length < 4}
+                  className="text-2xs text-brand-700 hover:text-brand-900 transition underline decoration-dotted underline-offset-2 disabled:opacity-40 disabled:no-underline"
+                >
+                  Générer 6 hooks à partir de ce brief
+                </button>
+                {hookError && <span className="text-2xs text-danger-700">{hookError}</span>}
+              </div>
+            )}
+            {hookLoading && (
+              <p className="text-2xs text-ink-400 italic">Cadence cherche six angles…</p>
+            )}
+            {hooks.length > 0 && (
+              <ul className="space-y-2">
+                {hooks.map((h, i) => {
+                  const angleLabel = HOOK_ANGLE_FR.find(a => a.key === h.angle)?.label || h.angle;
+                  return (
+                    <li key={i}>
+                      <button
+                        type="button"
+                        onClick={() => onPickHook(`${h.line1}\n${h.line2}`)}
+                        className="w-full text-left border border-ink-100 hover:border-ink-300 hover:bg-ink-50/50 rounded-md p-3 transition group/h"
+                      >
+                        <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400 group-hover/h:text-ink-700">{angleLabel}</p>
+                        <p className="mt-1 text-sm text-ink-800 leading-snug font-editorial">{h.line1}</p>
+                        <p className="text-sm text-ink-600 leading-snug font-editorial">{h.line2}</p>
+                      </button>
+                    </li>
+                  );
+                })}
+                <li>
+                  <button
+                    type="button"
+                    onClick={fetchHooks}
+                    disabled={hookLoading}
+                    className="text-2xs text-ink-500 hover:text-ink-900 transition underline decoration-dotted underline-offset-2"
+                  >
+                    Six autres angles
+                  </button>
+                </li>
+              </ul>
+            )}
+          </div>
+        </details>
+
         {error && <p className="mt-3 text-xs text-danger-700">Erreur : {error}</p>}
       </div>
 

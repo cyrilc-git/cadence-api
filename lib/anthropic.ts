@@ -232,6 +232,106 @@ Produis 3 propositions distinctes, chacune respectant strictement les règles ci
   return { proposals, raw, model: MODEL };
 }
 
+// V25.3 — Hook generator structuré (6 angles)
+//
+// Inspiré du pattern charlie947/hook-generator : 6 angles distincts
+// (number-led, contrarian, transformation, authority, admission,
+// future-shock) avec 2 lignes ≤ 50 caractères. Adapté FR vouvoiement,
+// avec respect des anti-patterns Cadence (pas d'em-dash, pas de "voici
+// les N leçons", pas de "et c'est là que").
+
+export type HookAngle = 'number_led' | 'contrarian' | 'transformation' | 'authority' | 'admission' | 'future_shock';
+
+export type GeneratedHook = {
+  angle: HookAngle;
+  line1: string;
+  line2: string;
+};
+
+const HOOK_ANGLE_LABELS: Record<HookAngle, { label: string; brief: string }> = {
+  number_led:     { label: 'Chiffre',         brief: 'Ouvrir sur un chiffre précis (montant, délai, ratio).' },
+  contrarian:     { label: 'Contre-courant',  brief: 'Énoncer une croyance commune, puis la retourner.' },
+  transformation: { label: 'Bascule',         brief: 'Avant / après personnel ou client, avec un chiffre.' },
+  authority:      { label: 'Référence',       brief: 'Mentionner une figure, un livre, une marque connue.' },
+  admission:      { label: 'Aveu',            brief: 'Reconnaître une erreur ou une perte concrète.' },
+  future_shock:   { label: 'Présent vs futur',brief: 'Annoncer un basculement imminent du marché.' },
+};
+
+export async function generateHooks(input: { topic: string; pilier?: string; voiceMode?: VoiceMode; styleSummary?: string | null }): Promise<{ hooks: GeneratedHook[]; raw: string }> {
+  const c = await client();
+  const system = `Tu es l'éditeur LinkedIn de Cyril Coulange, fondateur de Heelio (SaaS trésorerie PME).
+
+${STATIC_VOICE}
+
+INTERDICTIONS ABSOLUES (extrait court pour la génération de hooks)
+- Aucun tiret long (— ou –).
+- Aucun "Ce n'est pas X, c'est Y" et variantes.
+- Aucune formule "Voici les N leçons / raisons / choses".
+- Aucun "Et c'est là que…", "La vérité c'est que…", "Spoiler :".
+- Aucun mot creux (impactant, insight, game-changer, seamless, robust).
+- Aucun emoji, aucun hashtag.
+- Pas de question rhétorique creuse ("Et si je vous disais que…").
+- Vouvoiement systématique.
+
+FORMAT DE SORTIE STRICT
+Pour chaque hook, tu produis EXACTEMENT 2 lignes :
+- Ligne 1 (ouverture) : ≤ 50 caractères. Affirmatif (pas de question).
+- Ligne 2 (relance ou contraste) : ≤ 50 caractères.
+
+Tu produis 6 hooks distincts, séparés par "===HOOK===" sur sa propre ligne.
+Chaque hook est PRÉCÉDÉ par son angle entre crochets, par exemple :
+[number_led]
+Ligne 1
+Ligne 2
+===HOOK===
+[contrarian]
+Ligne 1
+Ligne 2
+
+Aucun préambule, aucun commentaire, juste les 6 hooks.`;
+
+  const styleBlock = input.styleSummary
+    ? `\n\nSIGNATURE STYLISTIQUE OBSERVÉE :\n${input.styleSummary}`
+    : '';
+
+  const userPrompt = `SUJET : ${input.topic}
+${input.pilier ? `\nPILIER : ${input.pilier}` : ''}${styleBlock}
+
+Produisez 6 hooks DISTINCTS, un par angle, dans cet ordre :
+[number_led]   ${HOOK_ANGLE_LABELS.number_led.brief}
+[contrarian]   ${HOOK_ANGLE_LABELS.contrarian.brief}
+[transformation] ${HOOK_ANGLE_LABELS.transformation.brief}
+[authority]    ${HOOK_ANGLE_LABELS.authority.brief}
+[admission]    ${HOOK_ANGLE_LABELS.admission.brief}
+[future_shock] ${HOOK_ANGLE_LABELS.future_shock.brief}
+
+Chacun en 2 lignes ≤ 50 caractères, séparés par "===HOOK===".`;
+
+  const MODEL = 'claude-sonnet-4-6';
+  const msg = await c.messages.create({ model: MODEL, max_tokens: 800, system, messages: [{ role: 'user', content: userPrompt }] });
+  const raw = msg.content.filter((x: any) => x.type === 'text').map((x: any) => x.text).join('\n');
+
+  // V20.10 — Garde anti-hallucination markup
+  if (containsMarkupHallucination(raw)) {
+    throw new Error('Génération corrompue (artefact technique). Réessayez.');
+  }
+
+  // Parse : split par ===HOOK===, puis pour chaque bloc extrait [angle]\nL1\nL2
+  const blocks = raw.split(/^===HOOK===\s*$/m).map(b => b.trim()).filter(Boolean);
+  const hooks: GeneratedHook[] = [];
+  const angleRe = /^\[(number_led|contrarian|transformation|authority|admission|future_shock)\]\s*\n(.+?)\n(.+?)$/m;
+  for (const b of blocks) {
+    const m = b.match(angleRe);
+    if (!m) continue;
+    const angle = m[1] as HookAngle;
+    const line1 = m[2].trim().replace(/[—–]/g, ',').slice(0, 80);
+    const line2 = m[3].trim().replace(/[—–]/g, ',').slice(0, 80);
+    if (line1 && line2) hooks.push({ angle, line1, line2 });
+  }
+  if (hooks.length === 0) throw new Error('Claude n\'a pas renvoyé de hooks parsables.');
+  return { hooks, raw };
+}
+
 // V12.7 — Direction artistique Heelio durcie, alignement avec les visuels
 // que Cyril produit à la main pour ses posts LinkedIn.
 const VISUAL_SYSTEM_PROMPT_BASE = `Tu es directeur artistique éditorial pour un compte LinkedIn fintech B2B (Heelio / Cadence).
