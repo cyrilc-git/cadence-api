@@ -41,6 +41,14 @@ export async function POST(req: NextRequest) {
         'Cache-Control': 'no-store',
         'x-carousel-format': plan.format,
         'x-carousel-slides': String(plan.totalSlides),
+        // V30.1 — Surface le quality score pour permettre à l'UI de
+        // signaler un carrousel déséquilibré sans dénaturer le binaire PDF.
+        'x-carousel-quality': typeof plan.qualityScore === 'number' ? plan.qualityScore.toFixed(2) : '',
+        'x-carousel-signals': (plan.qualitySignals || [])
+          .filter(s => s.kind !== 'good')
+          .slice(0, 3)
+          .map(s => s.kind)
+          .join(','),
       },
     });
   } catch (e: any) {
