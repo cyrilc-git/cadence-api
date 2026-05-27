@@ -21,7 +21,7 @@ import { SLASH_COMMANDS } from '@/components/SlashMenu';
 // V25.5 — Anti-patterns centralisés : on lit directement la table de
 // vérité dans lib/brand-config plutôt que de maintenir un double inline
 // qui dérive (les 9 patterns V25.1 anti-slop n'étaient pas reflétés ici).
-import { checkAntiPatterns } from '@/lib/brand-config';
+import { checkAntiPatterns, autoFixAntiPatterns } from '@/lib/brand-config';
 
 const PILIERS = [
   'Lundi · Cas client',
@@ -309,9 +309,27 @@ export default function NewPostClient({
         )}
 
         {hasText && criticalLint.length > 0 && (
-          <div className="mt-4 text-xs text-danger-700 flex items-center gap-2 animate-fade-in">
-            <span>⚠</span>
-            <span>{criticalLint[0].label}{criticalLint[0].matches[0] ? ` (« ${criticalLint[0].matches[0]} »)` : ''}</span>
+          <div className="mt-4 text-xs text-danger-700 flex items-center gap-3 animate-fade-in flex-wrap">
+            <span className="inline-flex items-center gap-2">
+              <span aria-hidden>⚠</span>
+              <span>{criticalLint[0].label}{criticalLint[0].matches[0] ? ` (« ${criticalLint[0].matches[0]} »)` : ''}</span>
+            </span>
+            {/* V25.6 — "Calmer le texte" : corrige les patterns lexicaux
+                automatisables (em-dash, smart quotes, ellipsis, emojis,
+                espaces). Ne touche pas aux patterns sémantiques. */}
+            <button
+              type="button"
+              onClick={() => {
+                const { text: fixed, changes } = autoFixAntiPatterns(text);
+                if (changes.length > 0 && fixed !== text) {
+                  setText(fixed);
+                }
+              }}
+              className="ml-auto text-2xs text-brand-700 hover:text-brand-900 transition underline decoration-dotted underline-offset-2"
+              title="Corrige em-dash, smart quotes, ellipsis, emojis, espaces"
+            >
+              Calmer le texte
+            </button>
           </div>
         )}
 

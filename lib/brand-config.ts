@@ -120,6 +120,78 @@ export function sanitizeForBrandVoice(text: string): string {
     .trim();
 }
 
+// V25.6 — autoFixAntiPatterns : "Calmer le texte" en un clic.
+// Corrige UNIQUEMENT les patterns lexicaux automatisables sans risque :
+// em-dashes, smart quotes, doubles espaces, ellipses unicode, espaces
+// avant ponctuation, conversions d'emojis (supprimés). Ne touche PAS
+// aux patterns sémantiques ("voici les 3 leçons", morale assénée, etc.)
+// qui exigent une réécriture humaine. Retourne le texte corrigé et la
+// liste des changements appliqués (pour feedback éditorial).
+export type AutoFixResult = {
+  text: string;
+  changes: { kind: string; count: number }[];
+};
+
+export function autoFixAntiPatterns(text: string): AutoFixResult {
+  if (!text) return { text, changes: [] };
+  const changes: { kind: string; count: number }[] = [];
+  let out = text;
+
+  // 1. Em-dash et en-dash entourés d'espaces -> " · "
+  const emDashMatches = (out.match(/\s*[—–]\s*/g) || []).length;
+  if (emDashMatches > 0) {
+    out = out.replace(/\s*[—–]\s*/g, ' · ');
+    changes.push({ kind: 'tiret long remplacé par " · "', count: emDashMatches });
+  }
+
+  // 2. Smart double quotes “ ” -> "
+  const smartDQ = (out.match(/[“”]/g) || []).length;
+  if (smartDQ > 0) {
+    out = out.replace(/[“”]/g, '"');
+    changes.push({ kind: 'guillemets typographiques droits', count: smartDQ });
+  }
+
+  // 3. Smart single quotes ’ -> ' (l'apostrophe française reste correcte)
+  const smartSQ = (out.match(/[‘’]/g) || []).length;
+  if (smartSQ > 0) {
+    out = out.replace(/[‘’]/g, '\'');
+    changes.push({ kind: 'apostrophe typographique normalisée', count: smartSQ });
+  }
+
+  // 4. Ellipsis unicode … -> ...
+  const ellipsis = (out.match(/…/g) || []).length;
+  if (ellipsis > 0) {
+    out = out.replace(/…/g, '...');
+    changes.push({ kind: 'ellipsis unicode → trois points', count: ellipsis });
+  }
+
+  // 5. Emojis : suppression nette (anti-pattern emoji-burst Cadence)
+  const emoji = (out.match(/\p{Extended_Pictographic}/gu) || []).length;
+  if (emoji > 0) {
+    out = out.replace(/\p{Extended_Pictographic}\s*/gu, '');
+    changes.push({ kind: 'emojis supprimés', count: emoji });
+  }
+
+  // 6. Doubles espaces → simple
+  const doubleSp = (out.match(/  +/g) || []).length;
+  if (doubleSp > 0) {
+    out = out.replace(/  +/g, ' ');
+    changes.push({ kind: 'espaces doubles', count: doubleSp });
+  }
+
+  // 7. Espaces insécables collés à la ponctuation simple FR (.,;:)
+  //    On garde l'espace insécable devant ! ? : ; (norme FR), mais on
+  //    supprime les espaces fantômes après ouverture de parenthèse ou
+  //    devant virgule/point.
+  const beforeComma = (out.match(/\s+([,.])/g) || []).length;
+  if (beforeComma > 0) {
+    out = out.replace(/\s+([,.])/g, '$1');
+    changes.push({ kind: 'espace fantôme avant virgule/point', count: beforeComma });
+  }
+
+  return { text: out, changes };
+}
+
 export function checkAntiPatterns(text: string): AntiPatternHit[] {
   const hits: AntiPatternHit[] = [];
   for (const ap of ANTI_PATTERNS) {
