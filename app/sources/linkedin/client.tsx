@@ -98,6 +98,16 @@ export default function LinkedInImportClient() {
   const [reindexed, setReindexed] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // V19.1 — Curation : l'utilisateur choisit explicitement quels posts importer.
+  // Set<number> = indexes dans `posts`. Sélection initiale = posts récents (1 an)
+  // ET texte > 200 chars (filtre les reposts courts).
+  const [selectedIdx, setSelectedIdx] = useState<Set<number>>(new Set());
+  // Filtres
+  const [dateRange, setDateRange] = useState<'all' | '1y' | '6m' | '3m'>('1y');
+  const [minLen, setMinLen] = useState<200 | 0 | 500>(200);
+  const [pilierFilter, setPilierFilter] = useState<string>('all');
+  // Affichage : on borne à 100 items visibles pour ne pas laguer
+  const [showAll, setShowAll] = useState(false);
 
   const handleFile = useCallback(async (file: File) => {
     setError(null);
@@ -128,6 +138,18 @@ export default function LinkedInImportClient() {
         throw new Error("Aucun post trouvé. Le fichier est-il bien Shares.csv ?");
       }
       setPosts(parsed);
+      // V19.1 — Sélection par défaut : posts récents (1 an) ET texte > 200 chars.
+      // Évite d'importer 495 posts dont 80% sont des reposts courts.
+      const oneYearAgo = Date.now() - 365 * 86_400_000;
+      const defaultSelected = new Set<number>();
+      parsed.forEach((p, i) => {
+        const t = new Date(p.date).getTime();
+        if (!Number.isFinite(t)) return;
+        if (t < oneYearAgo) return;
+        if (p.text.length < 200) return;
+        defaultSelected.add(i);
+      });
+      setSelectedIdx(defaultSelected);
     } catch (e: any) {
       setError(e.message);
       setPosts([]);
@@ -173,18 +195,23 @@ export default function LinkedInImportClient() {
 
   async function importToNotion() {
     if (!posts.length) return;
-    const count = Math.min(posts.length, 200);
+    // V19.1 — n'importe QUE les posts sélectionnés
+    const toImport = posts.filter((_, i) => selectedIdx.has(i));
+    const count = toImport.length;
+    if (count === 0) {
+      toast.error('Sélectionnez au moins un post à importer.');
+      return;
+    }
     const ok = await confirmDialog({
-      title: `Importer ${count} post${count > 1 ? 's' : ''} dans votre workspace ?`,
-      body: 'Cadence évite les doublons automatiquement. Les posts seront marqués comme imports LinkedIn vérifiés dans la bibliothèque.',
+      title: `Importer ${count} post${count > 1 ? 's' : ''} sélectionné${count > 1 ? 's' : ''} ?`,
+      body: 'Cadence évite les doublons automatiquement. Les posts seront marqués comme imports LinkedIn vérifiés et alimenteront la mémoire stylistique.',
       confirmLabel: 'Importer',
     });
     if (!ok) return;
     setImporting(true); setError(null); setImportResult(null);
-    setProgress({ done: 0, total: Math.min(posts.length, 200) });
+    setProgress({ done: 0, total: count });
     try {
       const BATCH = 10;
-      const toImport = posts.slice(0, 200);
       let totalCreated = 0, totalSkipped = 0, totalErrors = 0, totalDuplicates = 0;
       let lastSynced: { fromNotion: number; fromEmbeddings: number; errors: number } | null = null;
       const allResults: Array<{ index: number; status: 'created'|'duplicate'|'error'|'invalid'; title?: string; error?: string }> = [];
@@ -309,9 +336,26 @@ export default function LinkedInImportClient() {
             </div>
           </div>
 
+          {/* V19.1 — Curation : filtre + liste à cocher + actions batch */}
+          {!importResult && (
+            <CurationPanel
+              posts={posts}
+              selectedIdx={selectedIdx}
+              setSelectedIdx={setSelectedIdx}
+              dateRange={dateRange}
+              setDateRange={setDateRange}
+              minLen={minLen}
+              setMinLen={setMinLen}
+              pilierFilter={pilierFilter}
+              setPilierFilter={setPilierFilter}
+              showAll={showAll}
+              setShowAll={setShowAll}
+            />
+          )}
+
           {/* Progress + import button */}
           {!importResult && (
-            <div className="pt-2 border-t border-ink-100">
+            <div className="pt-3 border-t border-ink-100">
               {progress ? (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs text-ink-600">
@@ -324,8 +368,8 @@ export default function LinkedInImportClient() {
                 </div>
               ) : (
                 <div className="flex items-center gap-3 flex-wrap">
-                  <button onClick={importToNotion} disabled={importing} className="btn-primary text-sm">
-                    {importing ? 'Import…' : `Importer ${Math.min(posts.length, 200)} posts`}
+                  <button onClick={importToNotion} disabled={importing || selectedIdx.size === 0} className="btn-primary text-sm">
+                    {importing ? 'Import…' : `Importer la sélection (${selectedIdx.size})`}
                   </button>
                   <span className="text-xs text-ink-500">Cadence détecte et ignore les doublons automatiquement.</span>
                 </div>
@@ -402,23 +446,9 @@ export default function LinkedInImportClient() {
             </div>
           )}
 
-          {/* Aperçu 5 premiers — discret */}
-          <details className="pt-2 border-t border-ink-100">
-            <summary className="text-xs text-ink-500 hover:text-ink-900 cursor-pointer transition">
-              Aperçu des 5 premiers posts
-            </summary>
-            <div className="mt-3 space-y-2">
-              {posts.slice(0, 5).map((p, i) => (
-                <div key={i} className="rounded-lg border border-ink-100 p-3 text-xs">
-                  <div className="flex items-center justify-between mb-1 text-ink-500">
-                    <span>{new Date(p.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                    {p.url && <a href={p.url} target="_blank" rel="noopener" className="text-brand-700 hover:underline">LinkedIn ↗</a>}
-                  </div>
-                  <p className="text-ink-800 whitespace-pre-wrap line-clamp-3">{p.text}</p>
-                </div>
-              ))}
-            </div>
-          </details>
+          {/* V19.1 — La liste de curation est désormais dans <CurationPanel>
+              au-dessus du bouton d'import. On a retiré l'ancien aperçu
+              "5 premiers posts" devenu redondant. */}
         </section>
       )}
     </section>
@@ -441,5 +471,191 @@ function ResultStat({ label, value, tone }: { label: string; value: number; tone
       <div className={`text-xl font-semibold tabular-nums ${color}`}>{value}</div>
       <div className="text-2xs text-ink-500 mt-0.5">{label}</div>
     </div>
+  );
+}
+
+// V19.1 — Panneau de curation : l'utilisateur choisit explicitement quels
+// posts entrent dans Cadence. Filtres + actions batch + liste à cocher.
+const PILIERS_LABELS = ['Tous', 'Cas client', 'Pédagogie', 'Produit', 'Opinion', 'Build in public', 'Autre'];
+function CurationPanel({
+  posts, selectedIdx, setSelectedIdx,
+  dateRange, setDateRange,
+  minLen, setMinLen,
+  pilierFilter, setPilierFilter,
+  showAll, setShowAll,
+}: {
+  posts: ParsedPost[];
+  selectedIdx: Set<number>;
+  setSelectedIdx: (s: Set<number>) => void;
+  dateRange: 'all' | '1y' | '6m' | '3m';
+  setDateRange: (v: 'all' | '1y' | '6m' | '3m') => void;
+  minLen: 0 | 200 | 500;
+  setMinLen: (v: 0 | 200 | 500) => void;
+  pilierFilter: string;
+  setPilierFilter: (v: string) => void;
+  showAll: boolean;
+  setShowAll: (v: boolean) => void;
+}) {
+  // Indices filtrés selon les critères courants (visibles en liste)
+  const visibleIdx = useMemo(() => {
+    const cutoff = dateRange === 'all' ? 0
+      : dateRange === '1y' ? Date.now() - 365 * 86_400_000
+      : dateRange === '6m' ? Date.now() - 182 * 86_400_000
+      : Date.now() - 91 * 86_400_000;
+    const out: number[] = [];
+    for (let i = 0; i < posts.length; i++) {
+      const p = posts[i];
+      const t = new Date(p.date).getTime();
+      if (Number.isFinite(t) && t < cutoff) continue;
+      if (p.text.length < minLen) continue;
+      if (pilierFilter !== 'all' && pilierFilter !== 'Tous') {
+        if (inferPilier(p.text) !== pilierFilter) continue;
+      }
+      out.push(i);
+    }
+    // Tri date desc (plus récent en haut)
+    out.sort((a, b) => new Date(posts[b].date).getTime() - new Date(posts[a].date).getTime());
+    return out;
+  }, [posts, dateRange, minLen, pilierFilter]);
+
+  const displayedIdx = showAll ? visibleIdx : visibleIdx.slice(0, 60);
+
+  // Actions batch
+  function selectAllVisible() {
+    const next = new Set(selectedIdx);
+    for (const i of visibleIdx) next.add(i);
+    setSelectedIdx(next);
+  }
+  function deselectAllVisible() {
+    const next = new Set(selectedIdx);
+    for (const i of visibleIdx) next.delete(i);
+    setSelectedIdx(next);
+  }
+  function selectTop50Longest() {
+    const sorted = [...visibleIdx].sort((a, b) => posts[b].text.length - posts[a].text.length);
+    const next = new Set(selectedIdx);
+    for (const i of sorted.slice(0, 50)) next.add(i);
+    setSelectedIdx(next);
+  }
+  function selectLastYear() {
+    const cutoff = Date.now() - 365 * 86_400_000;
+    const next = new Set<number>();
+    for (let i = 0; i < posts.length; i++) {
+      const t = new Date(posts[i].date).getTime();
+      if (Number.isFinite(t) && t >= cutoff && posts[i].text.length >= 200) next.add(i);
+    }
+    setSelectedIdx(next);
+  }
+  function toggleOne(i: number) {
+    const next = new Set(selectedIdx);
+    if (next.has(i)) next.delete(i);
+    else next.add(i);
+    setSelectedIdx(next);
+  }
+
+  return (
+    <div className="pt-3 border-t border-ink-100 space-y-3 animate-fade-in">
+      <div className="flex items-baseline justify-between flex-wrap gap-3">
+        <h3 className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Choisissez ce que Cadence apprend</h3>
+        <span className="text-2xs text-ink-500 tabular-nums">
+          {selectedIdx.size} sélectionné{selectedIdx.size > 1 ? 's' : ''} · {visibleIdx.length} visible{visibleIdx.length > 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {/* Filtres en chips horizontaux */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+        <div className="flex items-center gap-1">
+          <span className="text-ink-500">Période :</span>
+          <FilterChip active={dateRange === '3m'} onClick={() => setDateRange('3m')}>3 mois</FilterChip>
+          <FilterChip active={dateRange === '6m'} onClick={() => setDateRange('6m')}>6 mois</FilterChip>
+          <FilterChip active={dateRange === '1y'} onClick={() => setDateRange('1y')}>1 an</FilterChip>
+          <FilterChip active={dateRange === 'all'} onClick={() => setDateRange('all')}>Tout</FilterChip>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-ink-500">Longueur min :</span>
+          <FilterChip active={minLen === 0} onClick={() => setMinLen(0)}>0</FilterChip>
+          <FilterChip active={minLen === 200} onClick={() => setMinLen(200)}>200</FilterChip>
+          <FilterChip active={minLen === 500} onClick={() => setMinLen(500)}>500</FilterChip>
+        </div>
+        <div className="flex items-center gap-1">
+          <span className="text-ink-500">Pilier :</span>
+          <select
+            value={pilierFilter}
+            onChange={e => setPilierFilter(e.target.value)}
+            className="text-xs px-2 py-0.5 rounded-md border border-ink-200 bg-white hover:bg-ink-50 transition focus:outline-none focus:border-brand-400"
+          >
+            <option value="all">Tous</option>
+            {PILIERS_LABELS.filter(l => l !== 'Tous').map(l => <option key={l} value={l}>{l}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Actions batch */}
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        <button onClick={selectAllVisible} className="px-2.5 py-1 rounded-md border border-ink-200 hover:bg-ink-50 transition">Tout sélectionner ({visibleIdx.length})</button>
+        <button onClick={deselectAllVisible} className="px-2.5 py-1 rounded-md border border-ink-200 hover:bg-ink-50 transition">Désélectionner</button>
+        <button onClick={selectTop50Longest} className="px-2.5 py-1 rounded-md border border-ink-200 hover:bg-ink-50 transition" title="Sélectionne les 50 posts les plus longs (visibles)">Top 50 plus longs</button>
+        <button onClick={selectLastYear} className="px-2.5 py-1 rounded-md border border-ink-200 hover:bg-ink-50 transition" title="Sélectionne tout ce qui fait > 200 chars sur l'année passée">Année passée &gt; 200 chars</button>
+      </div>
+
+      {/* Liste à cocher */}
+      {visibleIdx.length === 0 ? (
+        <p className="text-xs text-ink-500 italic py-4">Aucun post ne correspond aux filtres. Élargissez la période ou baissez la longueur min.</p>
+      ) : (
+        <>
+          <ul className="space-y-1.5 max-h-[480px] overflow-y-auto pr-1">
+            {displayedIdx.map(i => {
+              const p = posts[i];
+              const pilier = inferPilier(p.text);
+              const dateStr = new Date(p.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+              const isSelected = selectedIdx.has(i);
+              return (
+                <li key={i} className={`flex items-start gap-3 rounded-lg border p-3 transition cursor-pointer ${isSelected ? 'border-brand-300 bg-brand-50/40' : 'border-ink-100 hover:border-ink-200 bg-white'}`} onClick={() => toggleOne(i)}>
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleOne(i)}
+                    onClick={e => e.stopPropagation()}
+                    className="mt-1 w-3.5 h-3.5 rounded border-ink-300 text-brand-500 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-baseline gap-2 text-2xs text-ink-500 mb-1 flex-wrap">
+                      <span className="tabular-nums">{dateStr}</span>
+                      <span className="text-ink-300">·</span>
+                      <span>{pilier}</span>
+                      <span className="text-ink-300">·</span>
+                      <span className="tabular-nums">{p.text.length} car.</span>
+                      {p.url && (
+                        <>
+                          <span className="text-ink-300">·</span>
+                          <a href={p.url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="text-brand-700 hover:underline">LinkedIn ↗</a>
+                        </>
+                      )}
+                    </div>
+                    <p className="text-xs text-ink-800 leading-relaxed line-clamp-2">{p.text}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {visibleIdx.length > displayedIdx.length && (
+            <button onClick={() => setShowAll(true)} className="text-xs text-ink-500 hover:text-ink-900 transition underline decoration-dotted underline-offset-2">
+              Voir les {visibleIdx.length - displayedIdx.length} restants
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-2 py-0.5 rounded-md transition ${active ? 'bg-brand-50 text-brand-700 border border-brand-300' : 'border border-transparent text-ink-600 hover:bg-ink-50'}`}
+    >
+      {children}
+    </button>
   );
 }
