@@ -57,7 +57,52 @@ export const ANTI_PATTERNS = [
   { id: 'cta_generique', label: 'CTA générique fin de post ("Et vous ?", "Qu\'en pensez-vous ?")', pattern: /(?:^|\n|\.\s+)\s*(?:Et\s+vous\s*\?|Qu['e]en pensez-vous\s*\?|Vos\s+retours\s*\?|Partagez\s+en\s+commentaires|Dites-moi\s+(?:en\s+)?(?:commentaires?|ce\s+que))/gi, severity: 'high' },
   { id: 'changement_dramatique', label: 'Bascule dramatique surjouée ("Et c\'est là que tout a changé")', pattern: /(?:^|\n|\.\s+)\s*(?:Et\s+c['e]?st\s+l[àa]\s+que\s+(?:tout\s+)?a\s+chang[ée]|Tout\s+a\s+chang[ée]\s+(?:le\s+jour\s+où|quand|en\s+un\s+instant)|Et\s+puis\s+un\s+jour)/gi, severity: 'high' },
   { id: 'vision_abstraite', label: 'Vocabulaire vision abstraite (visionnaire, stratégique, tournant majeur, optimiser…)', pattern: /\b(visionnaire|tournant\s+majeur|optimiser\s+la\s+valeur|impacter\s+durablement|cl[ée]\s+de\s+la\s+r[ée]ussite|cr[ée]er\s+de\s+la\s+valeur|aligner\s+les\s+[ée]quipes|excellence\s+op[ée]rationnelle)\b/gi, severity: 'medium' },
-  { id: 'motivation_creuse', label: 'Phrase motivationnelle (la peur, le doute, les rêves, l\'audace…)', pattern: /\b(?:n['e]?ayez plus peur|osez (?:vraiment|enfin)|croyez en (?:vous|vos r[êe]ves)|sortez de (?:votre )?zone de confort|libérez votre potentiel|d[ée]passez vos limites)\b/gi, severity: 'high' }
+  { id: 'motivation_creuse', label: 'Phrase motivationnelle (la peur, le doute, les rêves, l\'audace…)', pattern: /\b(?:n['e]?ayez plus peur|osez (?:vraiment|enfin)|croyez en (?:vous|vos r[êe]ves)|sortez de (?:votre )?zone de confort|libérez votre potentiel|d[ée]passez vos limites)\b/gi, severity: 'high' },
+  // V25.1 — Anti-slop FR enrichi inspiré du corpus Rossmann (24 règles)
+  // adapté au français. Tous les patterns ci-dessous viennent de signaux
+  // qui distinguent un texte humain d'un texte IA même quand le lexique
+  // semble naturel.
+  // ── Intensifiers vides : « extrêmement », « considérablement »…
+  //    L'humain met un chiffre, l'IA met un adverbe. Sortie possible :
+  //    « les prix sont extrêmement élevés » → « les prix ont doublé en 18 mois ».
+  { id: 'intensifiers_creux', label: 'Intensifiers creux (extrêmement, considérablement, incroyablement…)', pattern: /\b(extr[êe]mement|dramatiquement|consid[ée]rablement|incroyablement|profond[ée]ment|v[ée]ritablement|absolument|litt[ée]ralement|remarquablement|exceptionnellement|significativement)\b/gi, severity: 'high' },
+  // ── Transitions IA : « de plus », « en outre », « cela étant dit »…
+  //    L'humain enchaîne avec « et », « mais », « pourtant ». L'IA empile.
+  { id: 'transitions_ai', label: 'Transitions IA empilées (de plus, en outre, cela étant dit, à sa base…)', pattern: /\b(?:de plus|en outre|n[ée]anmoins|cela [ée]tant dit|ceci [ée]tant|il convient de noter que|[àa] sa base|pour simplifier|en essence|par cons[ée]quent)\b/gi, severity: 'medium' },
+  // ── Weasel words : « pourrait éventuellement », « peut potentiellement »…
+  //    Soit l'affirmation est vraie, soit elle ne l'est pas. Couper le hedge
+  //    ou la phrase complète.
+  { id: 'weasel_words', label: 'Hedging fuyant ("pourrait éventuellement", "peut potentiellement", "il se pourrait que")', pattern: /\b(?:pourrait [ée]ventuellement|peut potentiellement|est susceptible de|il se pourrait que|il semble que|il appara[îi]t que|on pourrait dire que)\b/gi, severity: 'high' },
+  // ── Tells académiques FR : « mettre en lumière », « ouvrir la voie à »,
+  //    « primordial », « préalablement à »…
+  { id: 'academic_tells', label: 'Tournures académiques IA (mettre en lumière, ouvrir la voie à, primordial, dans le cadre de…)', pattern: /\b(?:mettre en lumi[èe]re|ouvrir la voie [àa]|primordial(?:e|es|aux)?|pr[ée]alablement [àa]|[àa] la lumi[èe]re de|au regard de|dans le cadre de|le fait que|au sein de la dynamique)\b/gi, severity: 'medium' },
+  // ── Symbolisme creux : phrases AI-tells multipliées 100-400x dans le
+  //    corpus IA. Version FR de « left an indelible mark », « provide a
+  //    valuable insight », « a stark reminder », « watershed moment ».
+  { id: 'symbolisme_creux', label: 'Symbolisme creux IA (empreinte durable, tournant majeur, profondément ancré, signal fort…)', pattern: /\b(?:ouvrir de nouvelles perspectives|laisser(?:a|ait)?\s+une empreinte durable|un t[ée]moignage de|un tournant majeur|profond[ée]ment ancr[ée]e?s?|un signal fort|une le[çc]on (?:pr[ée]cieuse|essentielle)|un rappel saisissant)\b/gi, severity: 'high' },
+  // ── Hallucinations markup : artefacts d'outils IA recopiés sans relecture.
+  //    Tolérance zéro — si présent, le texte n'a pas été relu.
+  { id: 'markup_hallucination', label: 'Artefact de markup IA ("oaicite", "turn0search", "grok_card", "contentReference")', pattern: /\b(oaicite|turn0search\d+|grok_card|contentReference|attributableIndex)\b/gi, severity: 'critical' },
+  // ── Narration de processus : « je n'ai pas trouvé », « impossible de
+  //    vérifier ». L'IA raconte sa recherche, l'humain coupe ce qu'il
+  //    ne peut pas tenir.
+  { id: 'process_narration', label: 'Narration du processus de recherche ("je n\'ai pas trouvé", "impossible de vérifier")', pattern: /\b(?:je n['e]?ai pas (?:pu )?trouv[ée]|je n['e]?ai pas (?:pu )?identifier|impossible de v[ée]rifier|aucune source disponible|n['e]?a pas pu [êe]tre identifi[ée]|d['e]?apr[èe]s mes recherches)\b/gi, severity: 'medium' },
+  // ── Hedging density : > 3 marqueurs (peut-être, probablement, semble-t-il,
+  //    il se peut que, possiblement) dans un même paragraphe = drapeau rouge.
+  //    Mesuré paragraphe par paragraphe.
+  { id: 'hedging_density', label: 'Densité de prudence (>3 marqueurs "peut-être/probablement/sans doute" dans un même paragraphe)', test: (t: string) => {
+      const paras = t.split(/\n\s*\n/).map(p => p.trim()).filter(p => p.length > 50);
+      const hedgeRe = /\b(?:peut-?[êe]tre|probablement|vraisemblablement|sans doute|possiblement|apparemment|il semble que|il se peut que|on dirait que|en quelque sorte|grosso modo)\b/gi;
+      for (const p of paras) {
+        const hits = (p.match(hedgeRe) || []).length;
+        if (hits > 3) return true;
+      }
+      return false;
+    }, severity: 'medium' },
+  // ── Question rhétorique vide : « Et si je vous disais que… ? », « Vous
+  //    savez quoi ? », « Devinez quoi ? » — l'IA croit que ça crée du
+  //    suspense, l'humain le trouve mou.
+  { id: 'question_rhetorique', label: 'Question rhétorique creuse ("Et si je vous disais que…", "Devinez quoi ?")', pattern: /(?:^|\n|\.\s+)\s*(?:Et si je vous disais|Vous savez quoi\s*\?|Devinez quoi\s*\?|Et si je vous dis que|Imaginez (?:un instant|que))/gi, severity: 'medium' }
 ];
 
 export type AntiPatternHit = { id: string; label: string; severity: string; matches: string[] };

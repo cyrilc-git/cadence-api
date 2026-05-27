@@ -89,7 +89,17 @@ const STATIC_BANNED = [
   'Aucune bascule dramatique surjouée : « Et c\'est là que tout a changé », « Tout a changé le jour où », « Et puis un jour ».',
   'Aucun vocabulaire vision abstraite : « visionnaire », « tournant majeur », « optimiser la valeur », « impacter durablement », « clé de la réussite », « créer de la valeur », « excellence opérationnelle ».',
   'Aucune phrase motivationnelle : « n\'ayez plus peur », « osez enfin », « croyez en vos rêves », « sortez de votre zone de confort », « libérez votre potentiel », « dépassez vos limites ».',
-  'Aucune fausse vulnérabilité performative (« j\'ai failli tout perdre », « j\'ai pleuré ce jour-là », « j\'ai dû me regarder en face ») sauf si elle est vraie, factuelle et utile au propos.'
+  'Aucune fausse vulnérabilité performative (« j\'ai failli tout perdre », « j\'ai pleuré ce jour-là », « j\'ai dû me regarder en face ») sauf si elle est vraie, factuelle et utile au propos.',
+  // V25.1 — Anti-slop FR (adapté du corpus Rossmann 24 règles)
+  'Aucun intensifier creux : "extrêmement", "considérablement", "incroyablement", "significativement", "dramatiquement", "véritablement", "absolument", "littéralement". Remplacer par un chiffre ou couper.',
+  'Aucune transition AI empilée : "De plus", "En outre", "Par conséquent", "Cela étant dit", "Néanmoins", "Il convient de noter que", "À sa base", "En essence". Préférer "et", "mais", "donc".',
+  'Aucun hedging fuyant : "pourrait éventuellement", "peut potentiellement", "est susceptible de", "il se pourrait que", "il semble que". Soit l\'affirmation tient, soit on coupe.',
+  'Aucune tournure académique IA : "mettre en lumière", "ouvrir la voie à", "primordial", "préalablement à", "à la lumière de", "au regard de", "dans le cadre de", "le fait que".',
+  'Aucun symbolisme creux : "ouvrir de nouvelles perspectives", "laisser une empreinte durable", "un témoignage de", "un tournant majeur", "profondément ancré", "un signal fort", "un rappel saisissant".',
+  'Aucune question rhétorique vide : "Et si je vous disais que…", "Devinez quoi ?", "Vous savez quoi ?", "Imaginez un instant".',
+  'Aucune narration du processus : "je n\'ai pas trouvé", "impossible de vérifier", "d\'après mes recherches". Couper le fait au lieu de raconter qu\'on cherche.',
+  'Aucun artefact de markup IA recopié : "oaicite", "turn0search…", "grok_card", "contentReference", "attributableIndex". Présence = sortie corrompue.',
+  'Pas plus de 3 marqueurs de prudence ("peut-être", "probablement", "sans doute", "vraisemblablement") dans un même paragraphe.'
 ];
 
 const STATIC_INSPIRATION_RULES =
