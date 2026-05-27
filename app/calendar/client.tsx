@@ -338,6 +338,39 @@ export default function CalendarClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // V37.4 — Mini timeline historique : densité mois par mois sur toute
+  // la période où il y a des posts. Permet de comprendre visuellement
+  // OÙ se trouve l'historique et de naviguer en 1 clic. Discret : barres
+  // verticales 4px de large, hauteur proportionnelle (max 28px).
+  const historyTimeline = useMemo(() => {
+    if (!fullRange.min || !fullRange.max || fullRange.total === 0) return null;
+    // Buckets : 1 par mois entre min et max (inclus). On clamp à 84 mois
+    // (7 ans) max pour ne pas exploser la barre sur des archives plus longues.
+    const start = new Date(fullRange.min.getFullYear(), fullRange.min.getMonth(), 1);
+    const end = new Date(fullRange.max.getFullYear(), fullRange.max.getMonth(), 1);
+    const months: Array<{ ym: string; year: number; month: number; count: number; label: string }> = [];
+    const d = new Date(start);
+    while (d <= end && months.length < 84) {
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      months.push({
+        ym, year: d.getFullYear(), month: d.getMonth(), count: 0,
+        label: `${MONTH_FR[d.getMonth()]} ${d.getFullYear()}`,
+      });
+      d.setMonth(d.getMonth() + 1);
+    }
+    // Compte les posts par mois
+    for (const p of postsForView) {
+      if (!p.scheduled_at) continue;
+      const pd = new Date(p.scheduled_at);
+      if (!Number.isFinite(pd.getTime())) continue;
+      const ym = `${pd.getFullYear()}-${String(pd.getMonth() + 1).padStart(2, '0')}`;
+      const bucket = months.find(m => m.ym === ym);
+      if (bucket) bucket.count++;
+    }
+    const max = Math.max(1, ...months.map(m => m.count));
+    return { months, max };
+  }, [postsForView, fullRange.min, fullRange.max, fullRange.total]);
+
   // V37.3 — Décompte par SOURCE sur la fenêtre courante (LinkedIn confirmé
   // vs brouillon Notion vs archive Notion). Affiché sous le H1 pour donner
   // la photo claire de ce que la période contient.
@@ -448,6 +481,40 @@ export default function CalendarClient({
         <div className="card p-3 flex items-center gap-3 border-brand-200 bg-brand-50/40 animate-fade-in">
           <span className="dot bg-brand-500 animate-pulse-soft" />
           <span className="text-sm text-ink-700 flex-1">{genStage}</span>
+        </div>
+      )}
+
+      {/* V37.4 — Mini timeline historique. Affichée seulement si > 6 mois
+          de range pour éviter le bruit visuel sur un usage courant. */}
+      {historyTimeline && historyTimeline.months.length > 6 && (
+        <div className="flex items-end gap-px h-8 overflow-x-auto">
+          {historyTimeline.months.map(m => {
+            const isActive = view === 'month'
+              ? (m.year === cursor.getFullYear() && m.month === cursor.getMonth())
+              : (m.year === grid[0]?.[0]?.getFullYear() && m.month === grid[0]?.[0]?.getMonth());
+            const h = m.count === 0 ? 3 : Math.max(4, Math.round((m.count / historyTimeline.max) * 28));
+            const isYearBoundary = m.month === 0;
+            return (
+              <button
+                key={m.ym}
+                onClick={() => {
+                  const d = new Date(m.year, m.month, 1);
+                  setCursor(d);
+                  if (view === 'week') setView('month');
+                }}
+                className={`flex-shrink-0 w-1.5 rounded-sm transition-colors ${
+                  m.count === 0
+                    ? 'bg-ink-100 hover:bg-ink-200'
+                    : isActive
+                      ? 'bg-brand-700'
+                      : 'bg-brand-300 hover:bg-brand-500'
+                } ${isYearBoundary ? 'ml-1.5 sm:ml-2' : ''}`}
+                style={{ height: `${h}px` }}
+                title={`${m.label} — ${m.count} post${m.count > 1 ? 's' : ''}`}
+                aria-label={`${m.label}, ${m.count} post${m.count > 1 ? 's' : ''}`}
+              />
+            );
+          })}
         </div>
       )}
 
