@@ -17,48 +17,80 @@ import { confirmDialog, toast } from '@/components/Dialog';
 
 type ParsedPost = { date: string; text: string; url?: string; sharedUrl?: string };
 
-function parseCsvRow(row: string): string[] {
-  const out: string[] = [];
+// V19.1 §csv-fix — Parser CSV qui respecte les sauts de ligne dans les
+// cellules entre guillemets. L'ancien parser splittait le texte par \n
+// puis essayait de parser chaque ligne, ce qui cassait sur tous les posts
+// LinkedIn dont le texte contient des \n (la quasi-totalité). Symptôme :
+// "Cannot read properties of undefined (reading 'trim')" car les rows
+// produits avaient une cellule par ligne au lieu d'une cellule par champ.
+//
+// Implémentation : on parse le CSV en UNE seule passe sur tout le buffer,
+// en suivant l'état "inQuote". Les retours-chariot et lignes blanches à
+// l'intérieur de cellules quotées sont préservés.
+function parseCsvBuffer(text: string): string[][] {
+  const rows: string[][] = [];
   let cur = '';
+  let row: string[] = [];
   let inQuote = false;
-  for (let i = 0; i < row.length; i++) {
-    const c = row[i];
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    const next = text[i + 1];
     if (inQuote) {
       if (c === '"') {
-        if (row[i + 1] === '"') { cur += '"'; i++; }
-        else inQuote = false;
-      } else cur += c;
+        if (next === '"') { cur += '"'; i++; }  // échappement ""
+        else { inQuote = false; }
+      } else {
+        cur += c;
+      }
     } else {
-      if (c === ',') { out.push(cur); cur = ''; }
-      else if (c === '"') inQuote = true;
-      else cur += c;
+      if (c === '"') {
+        inQuote = true;
+      } else if (c === ',') {
+        row.push(cur);
+        cur = '';
+      } else if (c === '\r') {
+        // ignoré (LF qui suit gère la fin de row)
+      } else if (c === '\n') {
+        row.push(cur);
+        // on jette les rows entièrement vides
+        if (row.length > 1 || (row.length === 1 && row[0])) rows.push(row);
+        row = [];
+        cur = '';
+      } else {
+        cur += c;
+      }
     }
   }
-  out.push(cur);
-  return out;
+  // Flush final
+  if (cur.length > 0 || row.length > 0) {
+    row.push(cur);
+    if (row.length > 1 || (row.length === 1 && row[0])) rows.push(row);
+  }
+  return rows;
 }
 
 function parseSharesCsv(text: string): ParsedPost[] {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (!lines.length) return [];
-  const header = parseCsvRow(lines[0]).map(s => s.trim().toLowerCase());
+  const rows = parseCsvBuffer(text);
+  if (rows.length < 2) return [];
+  const header = rows[0].map(s => (s || '').trim().toLowerCase());
   const idx = (name: string) => header.findIndex(h => h.includes(name));
   const idxDate = idx('date');
   const idxLink = idx('sharelink');
   const idxText = idx('sharecommentary');
   const idxShared = idx('sharedurl');
   const out: ParsedPost[] = [];
-  for (let i = 1; i < lines.length; i++) {
-    const cells = parseCsvRow(lines[i]);
+  for (let i = 1; i < rows.length; i++) {
+    const cells = rows[i];
     if (cells.length < 2) continue;
-    const date = (idxDate >= 0 ? cells[idxDate] : '').trim();
-    const text = (idxText >= 0 ? cells[idxText] : '').trim();
-    if (!date || !text) continue;
+    // Defensive : on coalesce undefined -> '' avant tout trim
+    const date = ((idxDate >= 0 ? cells[idxDate] : '') || '').trim();
+    const t = ((idxText >= 0 ? cells[idxText] : '') || '').trim();
+    if (!date || !t) continue;
     out.push({
       date,
-      text,
-      url: idxLink >= 0 ? cells[idxLink].trim() : undefined,
-      sharedUrl: idxShared >= 0 ? cells[idxShared]?.trim() : undefined
+      text: t,
+      url: idxLink >= 0 ? ((cells[idxLink] || '').trim() || undefined) : undefined,
+      sharedUrl: idxShared >= 0 ? ((cells[idxShared] || '').trim() || undefined) : undefined,
     });
   }
   return out;
