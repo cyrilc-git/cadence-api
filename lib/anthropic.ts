@@ -175,6 +175,16 @@ const VOICE_MODE_HINTS: Record<VoiceMode, string> = {
   hors_style: 'MODULATION VOIX : SORTEZ volontairement de la signature stylistique habituelle de l\'utilisateur. Si ses posts sont d\'habitude pédagogiques courts, ici écrivez long et opinion. Si d\'habitude narratifs, ici écrivez démonstratif. Explorez une voix qu\'il n\'utilise pas, en restant cohérent avec les règles voix (vouvoiement, terrain concret, leçon implicite).',
 };
 
+// V20.10 — Markup hallucinations zero-tolerance
+// Les modèles IA recopient parfois des artefacts d'outils internes
+// ("oaicite", "turn0search3", "grok_card", "contentReference",
+// "attributableIndex"). Présence = sortie corrompue, le texte n'a pas
+// été relu. On les détecte et on relance une fois, sinon on rejette.
+const MARKUP_HALLUCINATION_RE = /\b(oaicite\d*|turn0search\d+|grok_card|contentReference|attributableIndex)\b/i;
+export function containsMarkupHallucination(text: string): boolean {
+  return MARKUP_HALLUCINATION_RE.test(text);
+}
+
 export async function generateThreeProposals(input: { pilier?: string; brief: string; inspirations?: string[]; voiceMode?: VoiceMode; styleSummary?: string | null }): Promise<{ proposals: string[]; raw: string; model: string }> {
   const c = await client();
   const pilierHint = input.pilier && PILIER_HINTS[input.pilier]
@@ -197,9 +207,27 @@ Produis 3 propositions distinctes, chacune respectant strictement les règles ci
 
   const system = await buildSystemPrompt(input.pilier);
   const MODEL = 'claude-sonnet-4-6';
-  const msg = await c.messages.create({ model: MODEL, max_tokens: 2400, system, messages: [{ role: 'user', content: userPrompt }] });
-  const raw = msg.content.filter((x: any) => x.type === 'text').map((x: any) => x.text).join('\n');
-  const proposals = raw.split(/^===PROP===\s*$/m).map(s => s.trim()).filter(Boolean).slice(0, 3);
+
+  // V20.10 — Boucle de garde : 1 tentative normale + 1 retry si markup
+  // hallucination détecté. Au-delà, on lève une erreur explicite.
+  let raw = '';
+  let proposals: string[] = [];
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const msg = await c.messages.create({ model: MODEL, max_tokens: 2400, system, messages: [{ role: 'user', content: userPrompt }] });
+    raw = msg.content.filter((x: any) => x.type === 'text').map((x: any) => x.text).join('\n');
+    if (containsMarkupHallucination(raw)) {
+      // On log côté serveur sans exposer le texte exact (juste la
+      // présence d'un artefact). Le retry tente une seconde fois avec
+      // exactement le même prompt — souvent suffit.
+      console.warn(`[generate-post] markup hallucination détecté (tentative ${attempt + 1}/2). Retry.`);
+      continue;
+    }
+    proposals = raw.split(/^===PROP===\s*$/m).map(s => s.trim()).filter(Boolean).slice(0, 3);
+    if (proposals.length > 0) break;
+  }
+  if (containsMarkupHallucination(raw)) {
+    throw new Error('La génération a renvoyé un artefact technique IA persistant. Réessayez dans un instant.');
+  }
   if (proposals.length === 0) throw new Error('Claude a répondu sans propositions exploitables.');
   return { proposals, raw, model: MODEL };
 }
