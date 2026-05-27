@@ -146,7 +146,7 @@ export async function POST(req: Request) {
     // case-study), on signale doucement la possibilité d'export PDF.
     // Seuil : texte > 600 chars et format détecté autre que 'breakdown'
     // (le défaut). En dessous, pas de pertinence à proposer.
-    let carouselHint: { format: string; message: string; slides: number } | null = null;
+    let carouselHint: { format: string; message: string; slides: number; quality?: number } | null = null;
     if (text.length > 600) {
       try {
         const plan = planSlides(text);
@@ -159,10 +159,18 @@ export async function POST(req: Request) {
             timeline: 'timeline',
             comparison: 'comparaison',
           }[plan.format];
+          // V30.3 — qualityScore exposé. Si > 0.85, la suggestion gagne en
+          // confiance ; en dessous, on garde la formulation neutre.
+          const qualityNote = (plan.qualityScore && plan.qualityScore >= 0.85)
+            ? ' Rythme équilibré.'
+            : (plan.qualityScore && plan.qualityScore < 0.6)
+              ? ' Une slide à compacter avant export.'
+              : '';
           carouselHint = {
             format: plan.format,
             slides: plan.totalSlides,
-            message: `Ce sujet fonctionnerait bien en carrousel ${formatLabel} (${plan.totalSlides} slides).`,
+            quality: plan.qualityScore,
+            message: `Ce sujet fonctionnerait bien en carrousel ${formatLabel} (${plan.totalSlides} slides).${qualityNote}`,
           };
         }
       } catch { /* silent */ }
