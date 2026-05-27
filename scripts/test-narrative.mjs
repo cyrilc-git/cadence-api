@@ -71,6 +71,24 @@ const FIXTURES = [
     text: `Comment optimiser sa trésorerie en PME ?\n\nVoici comment procéder. Premièrement, il faut un dashboard clair.\n\nC'est-à-dire un outil qui montre encaissements et décaissements.\n\nDeuxièmement, il faut suivre l'évolution. Donc tracer la tendance.\n\nTroisièmement, communiquer avec la banque. Ainsi, vous gagnez du temps.\n\nDe plus, vous évitez les surprises. Par ailleurs, vous rassurez vos partenaires.\n\nEn outre, la transparence est un atout.`,
     expectAny: ['tout_demonstratif', 'sans_friction_concrete'],
   },
+  // V25.2 — V25.3 — Fixtures structurelles (post sans défaut narratif
+  // évident, mais signature IA structurelle : symétrie, transitions,
+  // openings répétés, phrases uniformes).
+  {
+    name: 'paragraphes-uniformes',
+    text: `Hier matin, un dirigeant m'a appelé. Il avait 18 jours de cash devant lui. La situation était inconfortable mais pas désespérée.\n\nNous avons regardé son BFR ensemble. Il payait ses fournisseurs à 30 jours et facturait à 60 jours. Trente jours de décalage à porter.\n\nIl a accepté de renégocier deux gros postes. Refus initial du premier fournisseur, accord sur le second. Trois semaines de délai gagnées.`,
+    expectAny: ['paragraphes_uniformes', 'phrases_uniformes', 'openings_repetes'],
+  },
+  {
+    name: 'openings-repetes',
+    text: `Le DAF m'a appelé hier matin. Il avait un problème de cash.\n\nLe banquier a refusé sa demande de découvert. Trois fois en six mois.\n\nLe fondateur a paniqué cinq minutes. Puis il a rappelé deux clients en retard de paiement.\n\nLe lendemain, deux virements sont tombés. Quinze mille euros sur le compte.`,
+    expectAny: ['openings_repetes', 'paragraphes_uniformes'],
+  },
+  {
+    name: 'transitions-lourdes',
+    text: `Le dirigeant a un problème de trésorerie depuis trois mois. Il faut agir.\n\nDonc on regarde le BFR. On voit que les délais clients sont à 65 jours.\n\nAinsi on relance les retards de paiement. On récupère 22 000 euros en deux semaines.\n\nPar ailleurs on négocie un crédit fournisseur à 45 jours. On gagne du cash.\n\nDe plus on suit le cash tous les vendredis. On évite les mauvaises surprises.`,
+    expectAny: ['transitions_lourdes', 'tout_demonstratif'],
+  },
 ];
 
 // ── Run tests ──

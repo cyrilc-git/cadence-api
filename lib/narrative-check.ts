@@ -18,6 +18,15 @@ export type NarrativeSignal = {
     | 'ralentit_trop'
     | 'scene_absente'
     | 'leçon_explicite'
+    // V25.2 — V25.3 — Signaux structurels inspirés du corpus Rossmann
+    // (burstiness, paragraph uniformity, transition density, opening
+    // repetition). Ce ne sont pas des règles de voix, ce sont des
+    // patterns qui distinguent une prose humaine d'une prose IA même
+    // quand chaque phrase semble correcte.
+    | 'phrases_uniformes'
+    | 'paragraphes_uniformes'
+    | 'transitions_lourdes'
+    | 'openings_repetes'
     | 'none';
   message: string;
   severity: 'note' | 'soft' | 'firm';
@@ -94,6 +103,64 @@ const EXPLAIN_STARTERS = /(?:^|\n)\s*(comment|pourquoi|voici|c['e]st-à-dire|en 
 function explainStarters(text: string): number {
   const m = text.match(EXPLAIN_STARTERS);
   return m ? m.length : 0;
+}
+
+/** V25.2 — Burstiness des phrases : un texte humain alterne phrases
+ *  courtes et longues. Une IA cluster autour de 15-20 mots, donc on
+ *  cherche soit aucune phrase ≤ 7 mots, soit aucune phrase ≥ 28 mots
+ *  dans un texte d'au moins 5 phrases. */
+function lacksBurstiness(text: string): boolean {
+  const ss = sentences(text);
+  if (ss.length < 5) return false;
+  const words = ss.map(s => s.split(/\s+/).filter(Boolean).length);
+  const minW = Math.min(...words);
+  const maxW = Math.max(...words);
+  // Critère : pas une seule phrase courte ET pas une seule phrase longue
+  return minW >= 8 && maxW <= 27;
+}
+
+/** V25.2 — Paragraphes trop uniformes : tous les paragraphes du post
+ *  ont une longueur (mots) à ±20 % de la moyenne. Symétrie visuelle =
+ *  signature IA. Seuil : 3+ paragraphes, écart-type < 20 % de la moyenne. */
+function paragraphsTooUniform(text: string): boolean {
+  const ps = paragraphs(text);
+  if (ps.length < 3) return false;
+  const counts = ps.map(p => p.split(/\s+/).filter(Boolean).length);
+  const avg = counts.reduce((a, b) => a + b, 0) / counts.length;
+  if (avg < 15) return false; // trop court pour avoir du sens
+  const variance = counts.reduce((a, b) => a + (b - avg) ** 2, 0) / counts.length;
+  const stdDev = Math.sqrt(variance);
+  return stdDev / avg < 0.2;
+}
+
+/** V25.3 — Densité de transitions : si plus de 30 % des paragraphes
+ *  commencent par un mot de transition explicite ("Donc", "Ainsi",
+ *  "Par ailleurs", "D'ailleurs", "De plus", "En outre", "Cela dit",
+ *  "Par conséquent"), c'est artificiel. Un humain enchaîne sans béquille. */
+const TRANSITION_STARTERS = /^(donc|ainsi|par ailleurs|d['e]?ailleurs|de plus|en outre|cela dit|cela [ée]tant|par cons[ée]quent|n[ée]anmoins|toutefois|en revanche|du coup|enfin)\b/i;
+function tooManyTransitions(text: string): { rate: number; flag: boolean } {
+  const ps = paragraphs(text);
+  if (ps.length < 4) return { rate: 0, flag: false };
+  const hits = ps.filter(p => TRANSITION_STARTERS.test(p.trim())).length;
+  const rate = hits / ps.length;
+  return { rate, flag: rate > 0.3 && hits >= 2 };
+}
+
+/** V25.3 — Openings répétés intra-post : si 3 paragraphes commencent
+ *  par le même mot (ou la même séquence de 2 mots), c'est mécanique. */
+function repeatedOpenings(text: string): boolean {
+  const ps = paragraphs(text);
+  if (ps.length < 3) return false;
+  const firsts = ps.map(p => {
+    const w = p.trim().split(/\s+/);
+    return (w[0] || '').toLowerCase().replace(/[^\p{L}]/gu, '');
+  });
+  const counts: Record<string, number> = {};
+  for (const f of firsts) {
+    if (f.length < 2) continue;
+    counts[f] = (counts[f] || 0) + 1;
+  }
+  return Object.values(counts).some(c => c >= 3);
 }
 
 /** Détecte une leçon finale assénée (au-delà de l'anti-pattern lexical).
@@ -216,6 +283,48 @@ export function analyzeNarrative(text: string): NarrativeSignal {
       kind: 'ralentit_trop',
       message: `Un paragraphe de ${longest} caractères ralentit la lecture. Cassez-le en deux blocs.`,
       severity: 'soft',
+    };
+  }
+
+  // ─── V25.2 — V25.3 ────────────────────────────────────────────────
+  // Signaux structurels (moins prioritaires que les défauts narratifs
+  // ci-dessus). Ils ne se déclenchent que sur un texte déjà costaud
+  // (≥ 400 chars, ≥ 4 phrases) où les défauts évidents ne sont pas là.
+
+  // 9. Openings répétés intra-post (3+ paragraphes même premier mot)
+  if (ps.length >= 3 && repeatedOpenings(t)) {
+    return {
+      kind: 'openings_repetes',
+      message: 'Plusieurs paragraphes commencent par le même mot. Variez les attaques pour casser la mécanique.',
+      severity: 'soft',
+    };
+  }
+
+  // 10. Trop de mots de transition en début de paragraphe
+  const trans = tooManyTransitions(t);
+  if (trans.flag) {
+    return {
+      kind: 'transitions_lourdes',
+      message: `${Math.round(trans.rate * 100)} % de vos paragraphes commencent par une transition ("donc", "ainsi", "par ailleurs"). Coupez les béquilles : le lecteur n'en a pas besoin.`,
+      severity: 'soft',
+    };
+  }
+
+  // 11. Paragraphes trop uniformes (symétrie IA)
+  if (len > 350 && paragraphsTooUniform(t)) {
+    return {
+      kind: 'paragraphes_uniformes',
+      message: 'Tous vos paragraphes font la même taille. Une variation (un bloc court, puis un long) rendrait la lecture plus humaine.',
+      severity: 'soft',
+    };
+  }
+
+  // 12. Pas de burstiness (que des phrases de longueur moyenne)
+  if (len > 400 && lacksBurstiness(t)) {
+    return {
+      kind: 'phrases_uniformes',
+      message: 'Vos phrases font toutes la même longueur (15-25 mots). Une phrase très courte casserait le rythme.',
+      severity: 'note',
     };
   }
 
