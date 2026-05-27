@@ -241,17 +241,25 @@ export function analyzePostStyle(text: string): PostStyle {
 // Agrégation d'un corpus de posts
 // ─────────────────────────────────────────────────────────────────────
 
-function modeOfStrings(arr: string[], topN = 5): string[] {
+// V31.2 — Mode pondéré : permet à un post LinkedIn publié certifié de
+// peser plus qu'un post archivé sans URL (ex: linkedin_import_zip ancien
+// vs linkedin_published vérifié). On reste sur des entiers pour préserver
+// la sémantique "X occurrences" du seuil min.
+function modeOfStringsWeighted(items: Array<{ value: string; weight: number }>, topN = 5): string[] {
   const counts: Record<string, number> = {};
-  for (const s of arr) {
-    const k = s.toLowerCase();
-    counts[k] = (counts[k] || 0) + 1;
+  for (const it of items) {
+    const k = it.value.toLowerCase();
+    counts[k] = (counts[k] || 0) + it.weight;
   }
   return Object.entries(counts)
-    .filter(([, c]) => c >= 2) // ne garde que si répété au moins 2 fois
+    .filter(([, c]) => c >= 2) // seuil minimal pondéré
     .sort((a, b) => b[1] - a[1])
     .slice(0, topN)
     .map(([s]) => s);
+}
+// Conservation de l'API simple pour rétrocompatibilité ailleurs si besoin.
+function modeOfStrings(arr: string[], topN = 5): string[] {
+  return modeOfStringsWeighted(arr.map(v => ({ value: v, weight: 1 })), topN);
 }
 
 // V31.1 — Compute the multi-fingerprints from a list of post styles + raw texts.
@@ -355,23 +363,59 @@ function computeFingerprints(
   };
 }
 
+// V31.2 — Poids par source pour la mémoire stylistique. Un post LinkedIn
+// publié certifié (URL vérifiée) compte plus qu'un import ZIP ancien,
+// qui compte plus qu'un brouillon Notion. La voix doit refléter ce que
+// Cyril publie VRAIMENT, pas ce qu'il a noté quelque part.
+function sourceWeight(sourceType?: string | null): number {
+  switch (sourceType) {
+    case 'linkedin_published':   return 2;  // URL LinkedIn vérifiée → poids max
+    case 'linkedin_import_zip':  return 1;  // archive ZIP officielle → poids standard
+    case 'cadence_generated':    return 1;  // posts générés et publiés par Cadence
+    case 'notion_archive':       return 0;  // archive Notion non certifiée → exclue de la voix
+    default:                     return 0;  // autres → exclus
+  }
+}
+
 export function aggregateStyleMemory(
-  posts: { text: string; narrativeKind?: string | null }[]
+  posts: { text: string; narrativeKind?: string | null; source_type?: string | null }[]
 ): StyleMemory {
   if (posts.length === 0) {
     return emptyStyleMemory();
   }
 
-  const styles = posts.map(p => ({ s: analyzePostStyle(p.text), narrativeKind: p.narrativeKind || 'none' }));
+  // V31.2 — Filtre & pondère par source. On ignore les posts avec weight 0.
+  const weighted = posts.map(p => ({ p, weight: sourceWeight(p.source_type) }));
+  const kept = weighted.filter(w => w.weight > 0);
+  if (kept.length === 0) {
+    return emptyStyleMemory();
+  }
 
+  const styles = kept.map(({ p, weight }) => ({
+    s: analyzePostStyle(p.text),
+    narrativeKind: p.narrativeKind || 'none',
+    weight,
+  }));
+
+  // V31.2 — Moyennes pondérées (un post linkedin_published pèse 2× plus
+  // dans la moyenne qu'un import ZIP).
   const avg = (k: keyof PostStyle) => {
-    const vals = styles.map(({ s }) => Number(s[k] as any)).filter(v => Number.isFinite(v));
-    return vals.length === 0 ? 0 : vals.reduce((a, b) => a + b, 0) / vals.length;
+    let sumW = 0;
+    let sumWX = 0;
+    for (const { s, weight } of styles) {
+      const v = Number(s[k] as any);
+      if (!Number.isFinite(v)) continue;
+      sumW += weight;
+      sumWX += weight * v;
+    }
+    return sumW === 0 ? 0 : sumWX / sumW;
   };
 
-  const top_hooks = modeOfStrings(styles.map(({ s }) => s.hookSnippet), 5);
-  const top_openings = modeOfStrings(styles.map(({ s }) => s.openingFirstWords), 5);
-  const top_closings = modeOfStrings(styles.map(({ s }) => s.closingFirstWords), 5);
+  // V31.2 — modeOfStringsWeighted : un hook utilisé sur un post LinkedIn
+  // publié compte 2 occurrences (vs 1 pour un ZIP).
+  const top_hooks = modeOfStringsWeighted(styles.map(({ s, weight }) => ({ value: s.hookSnippet, weight })), 5);
+  const top_openings = modeOfStringsWeighted(styles.map(({ s, weight }) => ({ value: s.openingFirstWords, weight })), 5);
+  const top_closings = modeOfStringsWeighted(styles.map(({ s, weight }) => ({ value: s.closingFirstWords, weight })), 5);
 
   // Narrative kinds count
   const narrative_kinds: Record<string, number> = {};
@@ -380,15 +424,16 @@ export function aggregateStyleMemory(
     narrative_kinds[narrativeKind] = (narrative_kinds[narrativeKind] || 0) + 1;
   }
 
-  // Favorite words : agrège top words de chaque post, garde ceux qui reviennent
+  // V31.2 — Favorite words pondérés : un mot d'un post LinkedIn publié
+  // pèse 2× plus dans la signature qu'un mot d'archive ZIP.
   const wordTotals: Record<string, number> = {};
-  for (const { s } of styles) {
+  for (const { s, weight } of styles) {
     for (const w of s.topWords) {
-      wordTotals[w] = (wordTotals[w] || 0) + 1;
+      wordTotals[w] = (wordTotals[w] || 0) + weight;
     }
   }
   const favorite_words = Object.entries(wordTotals)
-    .filter(([, c]) => c >= Math.max(2, Math.floor(posts.length / 4)))
+    .filter(([, c]) => c >= Math.max(2, Math.floor(kept.length / 4)))
     .sort((a, b) => b[1] - a[1])
     .slice(0, 12)
     .map(([word, count]) => ({ word, count }));
@@ -406,8 +451,9 @@ export function aggregateStyleMemory(
     6
   );
 
-  // Confidence : 0 → 1, plafonne autour de 30 posts
-  const confidence_score = Math.min(1, posts.length / 30);
+  // V31.2 — Confidence : basée sur kept (les posts qui comptent), pas
+  // sur la totalité (qui peut inclure des notion_archive ignorés).
+  const confidence_score = Math.min(1, kept.length / 30);
 
   // Voice summary prose (200-400 chars)
   const voice_summary = buildVoiceSummary({
@@ -419,12 +465,12 @@ export function aggregateStyleMemory(
     density_score: avg('densityScore'),
     top_openings,
     top_closings,
-    posts_analyzed: posts.length,
+    posts_analyzed: kept.length,
   });
 
-  // V31.1 — Fingerprints multi-dimensionnels
+  // V31.1 — Fingerprints multi-dimensionnels (sur le corpus pondéré uniquement)
   const fingerprints = computeFingerprints(
-    styles.map(({ s }, i) => ({ s, text: posts[i].text }))
+    styles.map(({ s }, i) => ({ s, text: kept[i].p.text }))
   );
 
   return {
@@ -443,7 +489,7 @@ export function aggregateStyleMemory(
     favorite_words,
     metaphors,
     repeated_phrases,
-    posts_analyzed: posts.length,
+    posts_analyzed: kept.length,
     confidence_score: +confidence_score.toFixed(2),
     voice_summary,
     computed_at: new Date().toISOString(),
