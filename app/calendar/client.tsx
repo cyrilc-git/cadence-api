@@ -49,13 +49,14 @@ function enrichWithProvenance(list: any[]): any[] {
   }));
 }
 
-export default function CalendarClient({ initialPosts }: { initialPosts: any[] }) {
+export default function CalendarClient({ initialPosts, showNotion = false }: { initialPosts: any[]; showNotion?: boolean }) {
   const [posts, setPosts] = useState(() => enrichWithProvenance(initialPosts));
-  // V12.9 §3 — Filtre source : 'all' / 'linkedin' / 'notion'.
-  // L'utilisateur peut isoler ce qui est réellement publié sur LinkedIn vs
-  // les drafts Notion. Cadence n'utilise plus Notion comme source de vérité
-  // de ce qui est publié.
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'linkedin' | 'notion'>('all');
+  // V12.9 §3 + V18 §calendar-clean — Filtre source :
+  // 'all' / 'linkedin' / 'notion'. Par défaut 'linkedin' (= LinkedIn +
+  // Cadence) pour masquer les brouillons Notion bruts. L'utilisateur peut
+  // réactiver l'affichage Notion via le toggle dans /settings/notion qui
+  // remonte ici en prop showNotion.
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'linkedin' | 'notion'>(showNotion ? 'all' : 'linkedin');
   // V14.6 — Cursor init à aujourd'hui plutôt que le 1er du mois. En vue
   // semaine, partir du 1er affichait la semaine contenant le 1er, jamais
   // la semaine en cours. Maintenant on landait toujours sur la semaine de
@@ -325,9 +326,18 @@ export default function CalendarClient({ initialPosts }: { initialPosts: any[] }
           })()}
         </p>
         <div className="inline-flex bg-ink-100 rounded-lg p-0.5 gap-0.5" role="group" aria-label="Filtre source">
-          <button onClick={() => setSourceFilter('all')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'all' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500 hover:text-ink-700'}`}>Tout</button>
-          <button onClick={() => setSourceFilter('linkedin')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'linkedin' ? 'bg-white text-[#0A66C2] shadow-xs' : 'text-ink-500 hover:text-ink-700'}`} title="Posts publiés ou en route vers LinkedIn">Publié</button>
-          <button onClick={() => setSourceFilter('notion')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'notion' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500 hover:text-ink-700'}`} title="Brouillons et archives qui vivent uniquement dans Notion">Brouillons</button>
+          {/* V18 §calendar-clean — bouton "Brouillons" caché par défaut.
+              Visible uniquement si l'utilisateur a explicitement activé
+              "Afficher Notion dans le calendrier" depuis /settings/notion.
+              Le bouton "Tout" est conservé même quand Notion est masqué,
+              mais en pratique il aura le même contenu que "Publié". */}
+          {showNotion && (
+            <button onClick={() => setSourceFilter('all')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'all' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500 hover:text-ink-700'}`}>Tout</button>
+          )}
+          <button onClick={() => setSourceFilter('linkedin')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'linkedin' ? 'bg-white text-[#0A66C2] shadow-xs' : 'text-ink-500 hover:text-ink-700'}`} title="Posts publiés ou en route vers LinkedIn">LinkedIn{showNotion ? '' : ' & Cadence'}</button>
+          {showNotion && (
+            <button onClick={() => setSourceFilter('notion')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'notion' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500 hover:text-ink-700'}`} title="Brouillons et archives qui vivent uniquement dans Notion">Brouillons Notion</button>
+          )}
         </div>
       </div>
 

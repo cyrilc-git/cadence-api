@@ -1,8 +1,27 @@
 import CalendarClient from './client';
 import { notionStatus } from '@/lib/notion';
 import { listPostSummaries, ensureFreshContentItems } from '@/lib/content-items';
+import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
+
+// V18 §calendar-clean — Lit le toggle "calendar.show_notion" depuis design_system.
+// Par défaut FALSE : on n'affiche que les posts dont la provenance est LinkedIn
+// ou Cadence (les brouillons Notion sont masqués de la vue).
+async function calendarShowNotion(): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from('design_system')
+      .select('value')
+      .eq('key', 'calendar.show_notion')
+      .maybeSingle();
+    if (!data) return false;
+    const v = String(data.value || '').toLowerCase().trim();
+    return v === 'true' || v === '1' || v === 'on' || v === 'yes';
+  } catch {
+    return false;
+  }
+}
 
 // V11.1 — Calendrier lit la couche canonique content_items.
 export default async function CalendarPage() {
@@ -22,5 +41,6 @@ export default async function CalendarPage() {
   }
   ensureFreshContentItems(120);
   const posts = await listPostSummaries({ limit: 300 });
-  return <CalendarClient initialPosts={posts} />;
+  const showNotion = await calendarShowNotion();
+  return <CalendarClient initialPosts={posts} showNotion={showNotion} />;
 }

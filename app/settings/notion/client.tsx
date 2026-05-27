@@ -67,6 +67,9 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
           la Bibliothèque Cadence. */}
       <NotionReadToggle />
 
+      {/* V18 §calendar-clean — Toggle d'affichage Notion dans le calendrier. */}
+      <CalendarShowNotionToggle />
+
       {/* Editorial memory — V8.1 */}
       <EditorialMemoryCard />
 
@@ -224,6 +227,77 @@ function NotionReadToggle() {
         >
           <span className={`inline-block w-2 h-2 rounded-full ${enabled ? 'bg-white' : 'bg-ink-300'}`} aria-hidden />
           {enabled ? 'Lecture activée' : 'Lecture désactivée'}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+// V18 §calendar-clean — Toggle "Afficher les brouillons Notion dans le
+// calendrier". Indépendant de notion.read_enabled : même quand on aspire
+// les brouillons Notion dans content_items, on peut vouloir ne PAS les
+// voir dans la vue calendrier (qui doit refléter la réalité éditoriale
+// LinkedIn + Cadence par défaut).
+function CalendarShowNotionToggle() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/design-system?key=calendar.show_notion', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => {
+        const val = String(d?.value || '').toLowerCase().trim();
+        setEnabled(val === 'true' || val === '1' || val === 'on');
+      })
+      .catch(() => setEnabled(false));
+  }, []);
+
+  async function toggle() {
+    if (enabled === null) return;
+    const next = !enabled;
+    setSaving(true);
+    try {
+      const r = await fetch('/api/design-system', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'calendar.show_notion', value: next ? 'true' : 'false', category: 'sync' }),
+      });
+      if (r.ok) {
+        setEnabled(next);
+        toast.success(next ? 'Notion affiché dans le calendrier' : 'Notion masqué du calendrier');
+      } else {
+        toast.error('Échec de la mise à jour');
+      }
+    } catch (e: any) {
+      toast.error('Erreur : ' + e.message);
+    } finally { setSaving(false); }
+  }
+
+  if (enabled === null) return null;
+
+  return (
+    <section className="border-l-2 border-ink-200 pl-4 py-1">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex-1 min-w-0 max-w-2xl">
+          <h2 className="text-sm font-semibold text-ink-900">Brouillons Notion dans le calendrier</h2>
+          <p className="mt-1 text-xs text-ink-500 leading-relaxed">
+            Par défaut, le calendrier n&apos;affiche que les posts LinkedIn vérifiés et ceux
+            créés dans Cadence. Les brouillons qui ne vivent que dans Notion sont masqués
+            pour ne pas saturer la vue.
+          </p>
+          <p className="mt-2 text-2xs text-ink-400 leading-relaxed">
+            {enabled
+              ? 'Le filtre "Brouillons Notion" est visible dans la barre de filtres du calendrier.'
+              : 'Le calendrier reste concentré sur la réalité LinkedIn. Vous pouvez réactiver ici à tout moment.'}
+          </p>
+        </div>
+        <button
+          onClick={toggle}
+          disabled={saving}
+          className={`shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition disabled:opacity-50 ${enabled ? 'bg-brand-500 text-white hover:bg-brand-700' : 'border border-ink-200 text-ink-700 hover:bg-ink-50'}`}
+        >
+          <span className={`inline-block w-2 h-2 rounded-full ${enabled ? 'bg-white' : 'bg-ink-300'}`} aria-hidden />
+          {enabled ? 'Notion affiché' : 'Notion masqué'}
         </button>
       </div>
     </section>
