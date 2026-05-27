@@ -63,7 +63,11 @@ export default function CalendarClient({ initialPosts, showNotion = false }: { i
   // today, cohérent avec "voici ce qui se passe maintenant".
   const [cursor, setCursor] = useState<Date>(() => { const d = new Date(); d.setHours(0,0,0,0); return d; });
   // V9.1 §2 — vue semaine par défaut (Notion Calendar / Linear style)
-  const [view, setView] = useState<'month' | 'week'>('week');
+  // V36.2 — Vue mois par défaut. La vue semaine était trop étroite pour
+  // visualiser le rythme éditorial réel, et restait sur la semaine courante
+  // ce qui rendait les posts importés (souvent datés sur plusieurs années)
+  // invisibles par défaut.
+  const [view, setView] = useState<'month' | 'week'>('month');
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<{ created: number; pilierList: string[] } | null>(null);
   const [genStage, setGenStage] = useState<string | null>(null);
@@ -267,15 +271,61 @@ export default function CalendarClient({ initialPosts, showNotion = false }: { i
     return counts;
   }, [postsForView, grid]);
 
+  // V36.3 — Range complet des posts (min / max scheduled_at) pour
+  // construire un hint "vos N posts s'étalent de X à Y" quand la fenêtre
+  // active est vide. Critique pour les imports LinkedIn datés sur plusieurs
+  // années : sans ce hint, on croit que rien n'a été importé.
+  const fullRange = useMemo(() => {
+    let min: Date | null = null;
+    let max: Date | null = null;
+    let total = 0;
+    for (const p of postsForView) {
+      if (!p.scheduled_at) continue;
+      const d = new Date(p.scheduled_at);
+      if (!Number.isFinite(d.getTime())) continue;
+      total++;
+      if (!min || d < min) min = d;
+      if (!max || d > max) max = d;
+    }
+    return { min, max, total };
+  }, [postsForView]);
+
+  // V36.3 — Fenêtre actuelle vide alors qu'il y a des posts ailleurs ?
+  const totalInWindow = statsFiltered.published + statsFiltered.scheduled +
+    statsFiltered.needs_validation + statsFiltered.late +
+    statsFiltered.archive + statsFiltered.draft;
+  const isWindowEmpty = totalInWindow === 0 && fullRange.total > 0;
+
   return (
     <div className="space-y-5">
       <header className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Réalité éditoriale LinkedIn</p>
-          <h1 className="mt-1 text-2xl font-semibold text-ink-900 tracking-tight">Calendrier</h1>
-          <p className="mt-1 text-sm text-ink-500 leading-relaxed">
-            {view === 'month' ? `${MONTH_FR[cursor.getMonth()]} ${cursor.getFullYear()}` : `Semaine du ${grid[0]?.[0]?.toLocaleDateString('fr-FR')}`}
-            <span className="text-ink-400"> · Source de vérité : LinkedIn. Notion sert de workspace de brouillons.</span>
+          {/* V36.3 — Titre intègre la période active (mois ou semaine).
+              En vue mois : "Mai 2026". En vue semaine : "Semaine du 25 mai
+              · Mai 2026". On rend la période visible AU NIVEAU DU H1,
+              plus seulement en sous-titre. */}
+          <h1 className="mt-1 text-2xl sm:text-3xl font-semibold text-ink-900 tracking-tight">
+            {view === 'month'
+              ? `${MONTH_FR[cursor.getMonth()]} ${cursor.getFullYear()}`
+              : (() => {
+                  const start = grid[0]?.[0];
+                  const end = grid[0]?.[6];
+                  if (!start || !end) return 'Calendrier';
+                  const sameMonth = start.getMonth() === end.getMonth();
+                  const startStr = start.toLocaleDateString('fr-FR', { day: 'numeric', month: sameMonth ? undefined : 'short' });
+                  const endStr = end.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+                  return `Semaine du ${startStr} → ${endStr}`;
+                })()
+            }
+          </h1>
+          {view === 'week' && (
+            <p className="mt-1 text-sm text-ink-600 leading-relaxed">
+              {MONTH_FR[cursor.getMonth()]} {cursor.getFullYear()}
+            </p>
+          )}
+          <p className="mt-1 text-xs text-ink-400 leading-relaxed">
+            Source de vérité : LinkedIn. Notion sert de workspace de brouillons.
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -284,9 +334,27 @@ export default function CalendarClient({ initialPosts, showNotion = false }: { i
             <button onClick={() => setView('week')}  className={`px-3 py-1 rounded-md text-xs font-medium transition ${view === 'week'  ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-600'}`}>Semaine</button>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => { const d = new Date(cursor); d.setMonth(d.getMonth() - 1); setCursor(d); }} className="btn-secondary w-9 h-9 p-0" aria-label="Mois précédent">‹</button>
-            <button onClick={() => setCursor(new Date(new Date().getFullYear(), new Date().getMonth(), 1))} className="btn-secondary text-xs">Aujourd'hui</button>
-            <button onClick={() => { const d = new Date(cursor); d.setMonth(d.getMonth() + 1); setCursor(d); }} className="btn-secondary w-9 h-9 p-0" aria-label="Mois suivant">›</button>
+            {/* V36.3 — En vue semaine, la navigation prev/next bouge d'une
+                semaine (pas d'un mois). En vue mois, on reste à -/+ 1 mois. */}
+            <button
+              onClick={() => {
+                const d = new Date(cursor);
+                if (view === 'week') d.setDate(d.getDate() - 7); else d.setMonth(d.getMonth() - 1);
+                setCursor(d);
+              }}
+              className="btn-secondary w-9 h-9 p-0"
+              aria-label={view === 'week' ? 'Semaine précédente' : 'Mois précédent'}
+            >‹</button>
+            <button onClick={() => { const d = new Date(); d.setHours(0,0,0,0); setCursor(d); }} className="btn-secondary text-xs">Aujourd&apos;hui</button>
+            <button
+              onClick={() => {
+                const d = new Date(cursor);
+                if (view === 'week') d.setDate(d.getDate() + 7); else d.setMonth(d.getMonth() + 1);
+                setCursor(d);
+              }}
+              className="btn-secondary w-9 h-9 p-0"
+              aria-label={view === 'week' ? 'Semaine suivante' : 'Mois suivant'}
+            >›</button>
           </div>
           <button
             onClick={generateWeek}
@@ -307,6 +375,49 @@ export default function CalendarClient({ initialPosts, showNotion = false }: { i
         <div className="card p-3 flex items-center gap-3 border-brand-200 bg-brand-50/40 animate-fade-in">
           <span className="dot bg-brand-500 animate-pulse-soft" />
           <span className="text-sm text-ink-700 flex-1">{genStage}</span>
+        </div>
+      )}
+
+      {/* V36.3 — Bandeau "vos posts existent ailleurs" quand la fenêtre
+          active est vide mais que postsForView en contient. Critique pour
+          les imports LinkedIn datés sur plusieurs années : sans ce hint, on
+          croit que l'import a échoué. */}
+      {isWindowEmpty && fullRange.min && fullRange.max && (
+        <div className="border-l-2 border-amber-300 pl-4 py-2 animate-fade-in">
+          <p className="text-sm text-ink-800 leading-relaxed">
+            {fullRange.total} post{fullRange.total > 1 ? 's' : ''} en mémoire, du{' '}
+            <span className="font-medium">
+              {fullRange.min.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
+            </span>{' '}
+            au{' '}
+            <span className="font-medium">
+              {fullRange.max.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
+            </span>
+            . Rien sur la {view === 'week' ? 'semaine' : 'période'} affichée.
+          </p>
+          <div className="mt-2 flex items-center gap-2 flex-wrap text-xs">
+            <button
+              onClick={() => {
+                const d = new Date(fullRange.max!);
+                d.setHours(0, 0, 0, 0);
+                setCursor(d);
+              }}
+              className="text-brand-700 hover:text-brand-900 transition underline decoration-dotted underline-offset-2"
+            >
+              Aller au plus récent ({fullRange.max.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}) →
+            </button>
+            <span className="text-ink-300">·</span>
+            <button
+              onClick={() => {
+                const d = new Date(fullRange.min!);
+                d.setHours(0, 0, 0, 0);
+                setCursor(d);
+              }}
+              className="text-ink-500 hover:text-ink-900 transition"
+            >
+              Aller au plus ancien
+            </button>
+          </div>
         </div>
       )}
 

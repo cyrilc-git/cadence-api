@@ -4,7 +4,47 @@ import { markCadenceDraft } from '@/lib/db';
 import { syncContentItems } from '@/lib/content-items';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+// V36.1 — Import LinkedIn ZIP peut prendre plusieurs minutes sur des
+// gros volumes (100+ posts) avec throttle Notion 3 req/s. On monte le
+// timeout pour ne pas couper l'import à mi-chemin.
+export const maxDuration = 300;
+
+// V36.1 — Throttle Notion 3 req/s avec retry exponentiel sur 429.
+// Notion API publique limite à ~3 requêtes/seconde par intégration.
+// Avant ce fix : batch import de 95 posts → 2 erreurs 429 + perte de
+// données. Maintenant : on espace les writes et on retry jusqu'à 3 fois.
+const NOTION_MIN_DELAY_MS = 350;
+let notionLastCall = 0;
+async function notionThrottle() {
+  const now = Date.now();
+  const elapsed = now - notionLastCall;
+  if (elapsed < NOTION_MIN_DELAY_MS) {
+    await new Promise(r => setTimeout(r, NOTION_MIN_DELAY_MS - elapsed));
+  }
+  notionLastCall = Date.now();
+}
+
+async function withRetry429<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  let lastErr: any = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await notionThrottle();
+    try {
+      return await fn();
+    } catch (e: any) {
+      lastErr = e;
+      const msg = e?.message || '';
+      // 429 rate limit ou 5xx → on backoff
+      if (/429|rate_limit|503|502|504/i.test(msg)) {
+        const wait = 1500 * Math.pow(2, attempt); // 1.5s, 3s, 6s
+        console.warn(`[notion-import] ${label} 429/5xx (tentative ${attempt + 1}/3) — pause ${wait}ms`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      throw e; // erreur non rate-limit : on remonte direct
+    }
+  }
+  throw lastErr;
+}
 
 // V9.4 — Import LinkedIn enrichi : statut détaillé par post, dédup explicite, log structuré.
 // V10.4.3 — Auto-sync content_items après import si created > 0 (non bloquant pour la
@@ -43,14 +83,23 @@ export async function POST(req: Request) {
         continue;
       }
       try {
-        const result = await upsertDraft({
-          title,
-          pilier: undefined,
-          date: dateOnly,
-          time: '07:30',
-          anonymisation_ok: true,
-        });
-        await replacePageContent(result.id, p.text);
+        // V36.1 — Chaque call Notion passe par withRetry429 + throttle.
+        // upsertDraft + replacePageContent = 2 calls par post (+ ajout
+        // de blocs si paragraphes multiples). On les espace tous.
+        const result = await withRetry429(
+          () => upsertDraft({
+            title,
+            pilier: undefined,
+            date: dateOnly,
+            time: '07:30',
+            anonymisation_ok: true,
+          }),
+          `upsertDraft ${i}`,
+        );
+        await withRetry429(
+          () => replacePageContent(result.id, p.text),
+          `replaceContent ${i}`,
+        );
         await markCadenceDraft(result.id, 'linkedin_archive').catch(() => {});
         // Ajoute sa signature pour éviter qu'un doublon dans la même batch passe deux fois
         sigs.add(sig);
