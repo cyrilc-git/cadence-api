@@ -21,6 +21,7 @@ type StyleMemory = {
   top_closings: string[];
   narrative_kinds: Record<string, number>;
   favorite_words: { word: string; count: number }[];
+  metaphors?: string[];
   repeated_phrases: string[];
   posts_analyzed: number;
   confidence_score: number;
@@ -119,9 +120,24 @@ export default function StyleMemoryView() {
         </p>
       </div>
 
+      {/* V26.1 — Hooks réels : snippets des premières phrases de vos posts
+          LinkedIn confirmés. Plus signature que les openings normalisés. */}
+      {mem.top_hooks && mem.top_hooks.length > 0 && (
+        <div className="border-l-2 border-brand-300 pl-4">
+          <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-1.5">Vos hooks réels</p>
+          <p className="text-2xs text-ink-400 italic mb-2">Issus de vos posts LinkedIn publiés. Les openings que vous avez vraiment écrits.</p>
+          <ul className="space-y-1.5">
+            {mem.top_hooks.slice(0, 5).map((h, i) => (
+              <li key={i} className="text-sm text-ink-800 leading-relaxed font-editorial">« {h} »</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {mem.top_openings.length > 0 && (
         <div className="border-l-2 border-ink-200 pl-4">
-          <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-1.5">Vos openings récurrents</p>
+          <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-1.5">Attaques dominantes</p>
+          <p className="text-2xs text-ink-400 italic mb-2">Les 4-5 premiers mots qui reviennent le plus. À varier consciemment.</p>
           <ul className="space-y-1">
             {mem.top_openings.map((o, i) => (
               <li key={i} className="text-sm text-ink-700 leading-relaxed">« {o}… »</li>
