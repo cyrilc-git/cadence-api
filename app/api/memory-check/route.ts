@@ -91,7 +91,10 @@ export async function POST(req: Request) {
     // V21.1 — Similarity score : "très vous / un peu vous / éloigné"
     let styleSimilarity: { score: number; label: string; message: string; reasons: string[] } | null = null;
     try {
-      const mem = await readStyleMemory();
+      // V31.3 — withFingerprints permet d'enrichir les raisons du
+      // similarity score avec des comparaisons qualitatives (hook habituel
+      // vs hook draft, rythme habituel vs rythme draft).
+      const mem = await readStyleMemory({ withFingerprints: true });
       // V21.1 — Score de similarité (à partir de 5 posts analysés)
       if (mem && mem.posts_analyzed >= 5 && text.length >= 200) {
         const sim = scoreStyleSimilarity(text, mem);

@@ -693,6 +693,37 @@ export function scoreStyleSimilarity(draft: string, mem: StyleMemory | null): St
   const s = analyzePostStyle(draft);
   const reasons: string[] = [];
 
+  // V31.3 — Comparaison avec les fingerprints quand dispo : ajoute des
+  // raisons plus précises ("votre rythme habituel est saccadé, ici
+  // tout est linéaire", "vous ouvrez d'habitude par une scène, ici par
+  // un constat"). Ces raisons sont qualitatives et viennent en plus des
+  // raisons quantitatives basées sur les écarts de moyennes.
+  if (mem.fingerprints) {
+    const fp = mem.fingerprints;
+    // Hook signature divergence : draft commence par X, votre habitude est Y
+    const fl = draft.split('\n').find(l => l.trim().length > 0)?.trim() || '';
+    let draftHookKind: string = 'constat';
+    if (/\?\s*$/.test(fl)) draftHookKind = 'question';
+    else if (/\b\d{1,3}(?:[\s.,]\d{3})*\s*(?:%|€|k€|jours?|mois|fois|ans?)\b/i.test(fl)) draftHookKind = 'chiffre';
+    else if (s.hasMetaphor || /\bcomme\s+(?:un|une|le|la|les)\b/i.test(fl)) draftHookKind = 'metaphore';
+    else if (/\b(hier|ce matin|un\s+(?:dirigeant|client|banquier)|m['e]?a\s+(?:dit|appelé|écrit))/i.test(fl)) draftHookKind = 'scene';
+    if (fp.hook_signature.label !== 'mixte' && fp.hook_signature.label !== draftHookKind) {
+      reasons.push(`hook par ${draftHookKind} (d'habitude vous ouvrez par ${fp.hook_signature.label})`);
+    }
+    // Rythme : si la draft a des phrases très uniformes alors que l'auteur
+    // est saccadé d'habitude
+    const ss = draft.split(/(?<=[.!?])\s+/).filter(x => x.trim().length > 0);
+    const draftWords = ss.map(x => x.trim().split(/\s+/).filter(Boolean).length);
+    const minW = draftWords.length ? Math.min(...draftWords) : 0;
+    const maxW = draftWords.length ? Math.max(...draftWords) : 0;
+    const draftBurstiness = maxW > 0 && minW > 0 ? (maxW - minW) / Math.max(1, maxW) : 0;
+    if (fp.rhythm_signature.label === 'saccade' && draftBurstiness < 0.4) {
+      reasons.push('rythme plus linéaire que vos posts habituels');
+    } else if (fp.rhythm_signature.label === 'lineaire' && draftBurstiness > 0.7) {
+      reasons.push('rythme plus heurté que d\'habitude');
+    }
+  }
+
   // Pondération : on privilégie ce qui est le plus signature (jargon,
   // hook, longueur). La densité et la pédagogie pèsent moins.
   const lengthScore     = proximity(s.postLen, mem.avg_post_len, Math.max(300, mem.avg_post_len * 0.7));
