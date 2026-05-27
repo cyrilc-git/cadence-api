@@ -450,26 +450,48 @@ function humanizeTokenKey(key: string): string {
 }
 
 // V12.4 §2 + V12.7 §4 — Patterns compris + derniers visuels générés
+// V32.1 — Libellés humanisés de composition pour la section "Vos meilleurs visuels"
+const COMPOSITION_LABELS: Record<string, string> = {
+  centered:     'centrée',
+  verticale:    'verticale',
+  horizontale:  'horizontale',
+  grille:       'en grille',
+  asymetrique:  'asymétrique',
+  minimaliste:  'minimaliste',
+  dense:        'dense',
+  editorial:    'éditoriale',
+  data_first:   'avec un chiffre dominant',
+  photo_first:  'photo dominante',
+};
+
 function VisualMemoryRead() {
   const [patterns, setPatterns] = useState<Array<{ kind: string; message: string }> | null>(null);
   const [items, setItems] = useState<any[] | null>(null);
+  // V32.1 — Top visuels par impressions (les meilleurs visuels réels)
+  const [topVisuals, setTopVisuals] = useState<any[] | null>(null);
+
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/visual-memory?limit=8')
-      .then(r => r.json())
-      .then(d => {
+    // Fetch in parallel : patterns + recent items + top visuals
+    Promise.all([
+      fetch('/api/visual-memory?limit=8').then(r => r.json()),
+      fetch('/api/visual-memory?top=1&limit=6').then(r => r.json()).catch(() => ({ top: [] })),
+    ])
+      .then(([d1, d2]) => {
         if (cancelled) return;
-        setPatterns(d.patterns || []);
-        setItems(d.items || []);
+        setPatterns(d1.patterns || []);
+        setItems(d1.items || []);
+        setTopVisuals(d2.top || []);
       })
-      .catch(() => { if (!cancelled) { setPatterns([]); setItems([]); } });
+      .catch(() => { if (!cancelled) { setPatterns([]); setItems([]); setTopVisuals([]); } });
     return () => { cancelled = true; };
   }, []);
 
   const meaningful = (patterns || []).filter(p => p.kind !== 'low_data');
   const visibleItems = (items || []).filter(i => i.svg || i.url || i.thumbnail_url).slice(0, 6);
+  const visibleTops = (topVisuals || []).filter(i => (i.svg || i.url || i.thumbnail_url) && Number(i.impressions) > 0).slice(0, 6);
 
-  if (meaningful.length === 0 && visibleItems.length === 0) return null;
+  if (meaningful.length === 0 && visibleItems.length === 0 && visibleTops.length === 0) return null;
 
   return (
     <div className="space-y-8">
@@ -486,6 +508,40 @@ function VisualMemoryRead() {
           </ul>
         </section>
       )}
+
+      {/* V32.1 — Vos meilleurs visuels : ceux qui ont vraiment performé sur
+          LinkedIn (impressions > 0). Section forte, border ink-200, sous-titre
+          composition humanisée. */}
+      {visibleTops.length > 0 && (
+        <section>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Vos meilleurs visuels</h2>
+          <p className="text-xs text-ink-500 leading-relaxed mb-3">Ceux qui ont le plus performé sur LinkedIn. La composition gagnante en sous-titre.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {visibleTops.map((it, i) => {
+              const src = it.url || it.thumbnail_url;
+              const compLabel = COMPOSITION_LABELS[it.composition] || it.composition || 'composition inconnue';
+              const impressions = Number(it.impressions) || 0;
+              return (
+                <figure key={i} className="space-y-1.5">
+                  <div className="aspect-[4/3] rounded-lg overflow-hidden border border-ink-200 bg-white">
+                    {it.svg ? (
+                      <div className="w-full h-full" dangerouslySetInnerHTML={{ __html: it.svg }} />
+                    ) : src ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    ) : null}
+                  </div>
+                  <figcaption className="text-2xs text-ink-500 leading-tight">
+                    <span className="text-ink-800 font-medium">{impressions.toLocaleString('fr-FR')} impressions</span>
+                    {it.composition && <span className="text-ink-400"> · {compLabel}</span>}
+                  </figcaption>
+                </figure>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {visibleItems.length > 0 && (
         <section>
           <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Derniers visuels</h2>
