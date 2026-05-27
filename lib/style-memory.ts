@@ -456,6 +456,127 @@ export async function readStyleMemory(): Promise<StyleMemory | null> {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+// V21.1 — Score de similarité stylistique
+//
+// Compare un brouillon à la signature StyleMemory et renvoie un score
+// 0-1 + un libellé éditorial : "très vous" / "un peu vous" / "éloigné
+// de votre voix". Permet à Cadence de murmurer ("ce post sonne moins
+// que d'habitude") sans bloquer ni juger.
+//
+// Heuristique multi-critère pondérée, pas de cosine ML. On regarde :
+//  - longueur du post vs moyenne habituelle
+//  - longueur du hook vs moyenne
+//  - niveau pédagogique
+//  - niveau de jargon
+//  - densité
+//  - présence d'un opening très récurrent
+// ─────────────────────────────────────────────────────────────────────
+
+export type StyleSimilarity = {
+  score: number;                                 // 0..1
+  label: 'tres_vous' | 'un_peu_vous' | 'eloigne' | 'inconnu';
+  message: string;
+  reasons: string[];                             // 1-3 raisons lisibles
+  confidence: number;                            // confiance globale 0..1
+};
+
+/** Renvoie 1 - écart normalisé entre a et b, sur une échelle [0,scale].
+ *  Score 1 quand a === b, 0 quand l'écart dépasse `scale`. */
+function proximity(a: number, b: number, scale: number): number {
+  if (scale <= 0) return 1;
+  const diff = Math.abs(a - b) / scale;
+  return Math.max(0, 1 - diff);
+}
+
+export function scoreStyleSimilarity(draft: string, mem: StyleMemory | null): StyleSimilarity {
+  if (!mem || mem.posts_analyzed < 5 || mem.confidence_score < 0.2) {
+    return {
+      score: 0, label: 'inconnu', message: '', reasons: [],
+      confidence: mem ? mem.confidence_score : 0,
+    };
+  }
+  if (!draft || draft.trim().length < 120) {
+    return {
+      score: 0, label: 'inconnu', message: '', reasons: [],
+      confidence: mem.confidence_score,
+    };
+  }
+
+  const s = analyzePostStyle(draft);
+  const reasons: string[] = [];
+
+  // Pondération : on privilégie ce qui est le plus signature (jargon,
+  // hook, longueur). La densité et la pédagogie pèsent moins.
+  const lengthScore     = proximity(s.postLen, mem.avg_post_len, Math.max(300, mem.avg_post_len * 0.7));
+  const hookScore       = proximity(s.hookLen, mem.avg_hook_len, Math.max(40, mem.avg_hook_len * 0.6));
+  const pedagScore      = proximity(s.pedagogicalLevel, mem.pedagogical_level, 0.5);
+  const jargonScore     = proximity(s.jargonLevel, mem.jargon_level, 0.3);
+  const densityScore    = proximity(s.densityScore, mem.density_score, 0.2);
+
+  // Opening match : si l'ouverture commence exactement comme un top
+  // opening, gros bonus. Sinon score neutre.
+  let openingScore = 0.5;
+  if (mem.top_openings.length > 0) {
+    const opening = s.openingFirstWords.toLowerCase();
+    const matched = mem.top_openings.some(o => {
+      const oN = o.toLowerCase();
+      return oN === opening || (opening.length > 5 && opening.startsWith(oN.slice(0, 10)));
+    });
+    openingScore = matched ? 1 : 0.4;
+  }
+
+  // Pondérations (somme = 1)
+  const score =
+    lengthScore  * 0.20 +
+    hookScore    * 0.20 +
+    pedagScore   * 0.12 +
+    jargonScore  * 0.18 +
+    densityScore * 0.10 +
+    openingScore * 0.20;
+
+  // Raisons : ce qui s'éloigne le plus
+  if (lengthScore < 0.5) {
+    if (s.postLen < mem.avg_post_len * 0.6) reasons.push('post plus court que votre habitude');
+    else if (s.postLen > mem.avg_post_len * 1.5) reasons.push('post plus long que votre habitude');
+  }
+  if (hookScore < 0.5) {
+    if (s.hookLen < mem.avg_hook_len * 0.6) reasons.push('hook plus serré que d\'habitude');
+    else if (s.hookLen > mem.avg_hook_len * 1.5) reasons.push('hook plus long que d\'habitude');
+  }
+  if (jargonScore < 0.4) {
+    if (s.jargonLevel > mem.jargon_level + 0.15) reasons.push('vocabulaire métier plus dense que d\'habitude');
+    else if (s.jargonLevel < mem.jargon_level - 0.15 && mem.jargon_level > 0.15) reasons.push('moins de jargon métier que d\'habitude');
+  }
+  if (pedagScore < 0.4) {
+    if (s.pedagogicalLevel > mem.pedagogical_level + 0.2) reasons.push('plus pédagogique que d\'habitude');
+    else if (s.pedagogicalLevel < mem.pedagogical_level - 0.2 && mem.pedagogical_level > 0.2) reasons.push('moins pédagogique que d\'habitude');
+  }
+
+  // Libellé éditorial
+  let label: StyleSimilarity['label'];
+  let message = '';
+  if (score >= 0.72) {
+    label = 'tres_vous';
+    message = 'Ce post sonne très vous.';
+  } else if (score >= 0.5) {
+    label = 'un_peu_vous';
+    message = 'Ce post ressemble à votre voix, avec quelques inflexions.';
+  } else {
+    label = 'eloigne';
+    message = 'Ce post s\'éloigne de votre voix habituelle.';
+    if (reasons.length === 0) reasons.push('plusieurs signaux stylistiques sortent de votre moyenne');
+  }
+
+  return {
+    score: +score.toFixed(2),
+    label,
+    message,
+    reasons: reasons.slice(0, 3),
+    confidence: mem.confidence_score,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────
 // Pipeline : recompute depuis les posts LinkedIn confirmés
 // ─────────────────────────────────────────────────────────────────────
 

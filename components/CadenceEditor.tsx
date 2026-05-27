@@ -104,6 +104,9 @@ export default function CadenceEditor({
   // V18.5 — Signal de répétition stylistique (opening / closing répété)
   const [styleRepetition, setStyleRepetition] = useState<{ kind: 'opening' | 'hook' | 'closing'; message: string } | null>(null);
   const [dismissedStyleKind, setDismissedStyleKind] = useState<string | null>(null);
+  // V21.1 — Score de similarité stylistique : "très vous / éloigné de votre voix"
+  const [styleSimilarity, setStyleSimilarity] = useState<{ score: number; label: string; message: string; reasons: string[] } | null>(null);
+  const [dismissedSimilarity, setDismissedSimilarity] = useState(false);
   // V18.9 — Carousel hint : "ce sujet fonctionnerait en carrousel"
   const [carouselHint, setCarouselHint] = useState<{ format: string; message: string; slides: number } | null>(null);
   const [dismissedCarousel, setDismissedCarousel] = useState(false);
@@ -140,6 +143,8 @@ export default function CadenceEditor({
         setNarrativeSignal(d?.narrative || null);
         // V18.5 — Style repetition signal (opening / closing)
         setStyleRepetition(d?.styleRepetition || null);
+        // V21.1 — Style similarity score
+        setStyleSimilarity(d?.styleSimilarity || null);
         // V18.9 — Carousel hint
         setCarouselHint(d?.carouselHint || null);
       } catch { /* abort or network: silent */ }
@@ -487,7 +492,7 @@ export default function CadenceEditor({
           mémoire, contre-angle, visuel, narration. Tous en italic 2xs,
           calmes, jamais bloquants. Le narrative signal vient AVANT le
           visualHint quand il existe (priorité éditoriale > forme). */}
-      {(memorySignal || visualHint || (narrativeSignal && dismissedNarrativeKind !== narrativeSignal.kind)) && !aiBusy && (
+      {(memorySignal || visualHint || (narrativeSignal && dismissedNarrativeKind !== narrativeSignal.kind) || (styleSimilarity && !dismissedSimilarity && (styleSimilarity.label === 'tres_vous' || styleSimilarity.label === 'eloigne'))) && !aiBusy && (
         <div className="mt-2 space-y-0.5" aria-live="polite">
           {memorySignal && (
             <p
@@ -532,6 +537,27 @@ export default function CadenceEditor({
               <button
                 type="button"
                 onClick={() => setDismissedStyleKind(styleRepetition.kind)}
+                className="text-ink-400 hover:text-ink-700 transition not-italic"
+                title="Ignorer ce signal pour ce post"
+              >
+                plus tard
+              </button>
+            </p>
+          )}
+          {/* V21.1 — Similarity score : Cadence murmure "ce post sonne
+              très vous" ou "ce post s'éloigne de votre voix" avec
+              raisons concrètes. On n'affiche que les extrêmes (tres_vous
+              et eloigne), pas le milieu, pour rester calme. */}
+          {styleSimilarity && !dismissedSimilarity && (styleSimilarity.label === 'tres_vous' || styleSimilarity.label === 'eloigne') && (
+            <p className={`text-2xs italic leading-relaxed ${styleSimilarity.label === 'eloigne' ? 'text-amber-700' : 'text-emerald-700'}`}>
+              {styleSimilarity.message}
+              {styleSimilarity.reasons.length > 0 && (
+                <span className="text-ink-500"> {styleSimilarity.reasons.join(' · ')}.</span>
+              )}
+              {' '}
+              <button
+                type="button"
+                onClick={() => setDismissedSimilarity(true)}
                 className="text-ink-400 hover:text-ink-700 transition not-italic"
                 title="Ignorer ce signal pour ce post"
               >

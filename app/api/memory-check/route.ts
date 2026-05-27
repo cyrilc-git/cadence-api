@@ -5,7 +5,7 @@
 import { NextResponse } from 'next/server';
 import { noveltyScore } from '@/lib/embeddings';
 import { analyzeNarrative } from '@/lib/narrative-check';
-import { readStyleMemory } from '@/lib/style-memory';
+import { readStyleMemory, scoreStyleSimilarity } from '@/lib/style-memory';
 import { planSlides } from '@/lib/carousel';
 
 export const runtime = 'nodejs';
@@ -88,8 +88,22 @@ export async function POST(req: Request) {
     // de la signature personnelle, on signale doucement. Cadence pousse
     // la variété sans bloquer (toujours dismissable côté éditeur).
     let styleRepetition: { kind: 'opening' | 'hook' | 'closing'; message: string } | null = null;
+    // V21.1 — Similarity score : "très vous / un peu vous / éloigné"
+    let styleSimilarity: { score: number; label: string; message: string; reasons: string[] } | null = null;
     try {
       const mem = await readStyleMemory();
+      // V21.1 — Score de similarité (à partir de 5 posts analysés)
+      if (mem && mem.posts_analyzed >= 5 && text.length >= 200) {
+        const sim = scoreStyleSimilarity(text, mem);
+        if (sim.label !== 'inconnu') {
+          styleSimilarity = {
+            score: sim.score,
+            label: sim.label,
+            message: sim.message,
+            reasons: sim.reasons,
+          };
+        }
+      }
       if (mem && mem.confidence_score >= 0.3) {
         const firstLine = text.split('\n').find((l: string) => l.trim().length > 0) || '';
         const firstWords4 = firstLine.toLowerCase().split(/\s+/).slice(0, 4).join(' ');
@@ -158,6 +172,7 @@ export async function POST(req: Request) {
       visualHint,
       narrative,
       styleRepetition,
+      styleSimilarity,
       carouselHint,
       novelty: Math.round(novelty * 100),
       saturation,
