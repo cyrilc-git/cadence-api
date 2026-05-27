@@ -6,6 +6,7 @@
 // action explicite pour la recalculer manuellement.
 
 import { useEffect, useState } from 'react';
+import { buildVoiceFiles } from '@/lib/voice-export';
 
 type StyleMemory = {
   avg_hook_len: number;
@@ -169,6 +170,12 @@ export default function StyleMemoryView() {
         </div>
       )}
 
+      {/* V21.2 — Voice files exportables : two Markdown blocks (about-me + voice)
+          que l'utilisateur peut copier dans Notion, dans un repo, ou dans la
+          section system prompt d'un autre assistant. Caché par défaut, déplié
+          à la demande pour ne pas alourdir la vue. */}
+      <VoiceExportBlock mem={mem} />
+
       <div className="pt-3 border-t border-ink-100 flex items-baseline justify-between flex-wrap gap-2">
         <p className="text-2xs text-ink-400 italic">
           Calculé sur {mem.posts_analyzed} post{mem.posts_analyzed > 1 ? 's' : ''} · dernière analyse {new Date(mem.computed_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}.
@@ -183,5 +190,62 @@ export default function StyleMemoryView() {
       </div>
       {recomputeMsg && <p className="text-2xs text-ink-500">{recomputeMsg}</p>}
     </section>
+  );
+}
+
+// V21.2 — Bloc déplié à la demande : génère about-me.md + voice.md à partir
+// de la mémoire stylistique. Boutons "Copier" sur chaque fichier. Pas de
+// download direct, pas de save serveur : Cadence laisse l'utilisateur
+// porter ces fichiers ailleurs (Notion, GitHub, autre assistant).
+function VoiceExportBlock({ mem }: { mem: StyleMemory }) {
+  const [open, setOpen] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const files = buildVoiceFiles(mem as any);
+
+  async function copy(key: string, text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    } catch { /* clipboard blocked, silent */ }
+  }
+
+  return (
+    <div className="pt-3 border-t border-ink-100">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="text-2xs uppercase tracking-wider font-semibold text-ink-500 hover:text-ink-900 transition"
+      >
+        {open ? '— Masquer l\'export voix' : '+ Exporter ma voix en Markdown'}
+      </button>
+      {open && (
+        <div className="mt-3 space-y-4">
+          <p className="text-xs text-ink-500 leading-relaxed max-w-2xl">
+            Deux blocs Markdown générés à partir de votre signature actuelle. Copiez-les dans Notion, dans un repo, ou dans le system prompt d&apos;un autre assistant. Cadence reste la source de vérité : tout se recalcule à chaque publication confirmée.
+          </p>
+          {([
+            { key: 'aboutMe', label: 'about-me.md', body: files.aboutMe },
+            { key: 'voice',   label: 'voice.md',    body: files.voice },
+          ]).map(f => (
+            <div key={f.key} className="border-l-2 border-ink-200 pl-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500">{f.label}</p>
+                <button
+                  type="button"
+                  onClick={() => copy(f.key, f.body)}
+                  className="text-2xs text-brand-700 hover:text-brand-900 transition underline decoration-dotted underline-offset-2"
+                >
+                  {copiedKey === f.key ? 'Copié' : 'Copier'}
+                </button>
+              </div>
+              <pre className="text-2xs text-ink-700 leading-relaxed whitespace-pre-wrap max-h-72 overflow-y-auto bg-ink-50 rounded-md p-3 font-mono">
+                {f.body}
+              </pre>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
