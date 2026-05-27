@@ -45,7 +45,7 @@ export default function ImportLinkedInPage() {
       {/* Comment obtenir l'archive : discret, en bas */}
       <section className="pt-6 border-t border-ink-100 text-xs text-ink-500 leading-relaxed">
         <strong className="text-ink-700 font-medium">Comment obtenir l&apos;archive : </strong>
-        Allez sur <a href="https://www.linkedin.com/mypreferences/d/download-my-data" target="_blank" rel="noopener" className="text-brand-700 hover:underline">linkedin.com/mypreferences/d/download-my-data</a>, cochez «&nbsp;Posts&nbsp;» puis «&nbsp;Request archive&nbsp;». LinkedIn envoie le ZIP par email sous 10 min à 24h. Tout est traité dans votre navigateur, rien n&apos;est envoyé à Cadence avant validation.
+        Allez sur <a href="https://www.linkedin.com/mypreferences/d/download-my-data" target="_blank" rel="noopener" className="text-brand-700 hover:underline">linkedin.com/mypreferences/d/download-my-data</a>, choisissez «&nbsp;Want something in particular&nbsp;? Select the data files you&apos;re most interested in.&nbsp;» et cochez la case <strong className="text-ink-700">Posts</strong> (qui inclut le fichier <code className="text-ink-700">Shares.csv</code>, vos vrais posts du feed). Cliquez «&nbsp;Request archive&nbsp;». LinkedIn envoie le ZIP par email sous 10 min à 24&nbsp;h. Si vous ne voyez que vos articles longs, c&apos;est que vous avez pris l&apos;archive «&nbsp;Fast file only&nbsp;» qui ne contient pas les posts&nbsp;: relancez en mode complet. Tout est traité dans votre navigateur, rien n&apos;est envoyé à Cadence avant validation.
       </section>
     </div>
   );
