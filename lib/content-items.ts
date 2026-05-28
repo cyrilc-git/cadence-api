@@ -415,7 +415,23 @@ export async function ensureFreshContentItems(maxAgeMinutes = 120): Promise<void
 // NotionPostSummary depuis content_items.
 export async function listPostSummaries(opts?: { limit?: number }): Promise<NotionPostSummary[]> {
   const items = await listContentItems({ limit: opts?.limit ?? 200 });
-  return items.map(contentItemToPostSummary);
+  const summaries = items.map(contentItemToPostSummary);
+  // V50.3 — Attache la miniature du visuel généré par Cadence (tracé dans
+  // visual_items via meta.notion_page_id) quand le post n'a pas déjà de
+  // couverture. Le calendrier et la bibliothèque montrent du contenu.
+  try {
+    const { getPostCovers } = await import('./visual-memory');
+    const covers = await getPostCovers(summaries.map(s => s.id));
+    for (const s of summaries) {
+      const c = covers[s.id];
+      if (!c) continue;
+      if (!s.cover_url) { s.cover_url = c.url; s.cover_source = 'cadence'; }
+      else { s.cover_source = 'notion'; }
+      s.visual_format = c.format;
+      s.is_carousel = c.isCarousel;
+    }
+  } catch { /* silent */ }
+  return summaries;
 }
 
 // Compteurs par provenance (utilisé par /cerveau et la Bibliothèque).

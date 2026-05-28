@@ -56,6 +56,29 @@ export async function listVisualItems(opts?: { limit?: number; pilier?: string; 
   return (data || []) as VisualItem[];
 }
 
+// V50.3 — Couvertures de posts. Pour chaque notion_page_id, renvoie le dernier
+// visuel généré (URL + format) afin d'afficher une miniature dans le calendrier
+// et la bibliothèque. Les visuels sont tracés avec meta.notion_page_id par la
+// route /api/generate-visual. On garde le plus récent par page (created_at desc).
+export type PostCover = { url: string; format: VisualFormat | null; isCarousel: boolean };
+export async function getPostCovers(notionPageIds: string[]): Promise<Record<string, PostCover>> {
+  const ids = (notionPageIds || []).filter(Boolean);
+  if (!ids.length) return {};
+  const { data } = await supabase
+    .from('visual_items')
+    .select('url, format, created_at, meta')
+    .not('url', 'is', null)
+    .filter('meta->>notion_page_id', 'in', `(${ids.join(',')})`)
+    .order('created_at', { ascending: false });
+  const map: Record<string, PostCover> = {};
+  for (const r of (data || []) as Array<{ url: string | null; format: VisualFormat | null; meta: any }>) {
+    const pid = r.meta?.notion_page_id as string | undefined;
+    if (!pid || map[pid] || !r.url) continue; // premier rencontré = plus récent
+    map[pid] = { url: r.url, format: r.format || null, isCarousel: r.format === 'carousel' };
+  }
+  return map;
+}
+
 export async function topVisualsByImpressions(opts?: { limit?: number }): Promise<VisualItem[]> {
   const { data } = await supabase
     .from('visual_items')

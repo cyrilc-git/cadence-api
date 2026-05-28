@@ -719,7 +719,11 @@ export default function CalendarClient({
                         >
                           <Link href={`/posts/${p.id}/edit`} draggable={false} className={`block text-2xs rounded-md border ${t.bg} ${t.text} ${t.ring} hover:shadow-xs transition overflow-hidden cursor-grab active:cursor-grabbing`}>
                             {p.cover_url ? (
-                              <div className="h-10 bg-cover bg-center" style={{ backgroundImage: `url(${p.cover_url})` }} />
+                              <div className="relative h-10 bg-cover bg-center" style={{ backgroundImage: `url(${p.cover_url})` }}>
+                                {p.is_carousel && (
+                                  <span className="absolute bottom-0.5 right-0.5 inline-flex items-center rounded bg-ink-900/75 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-white" title="Carrousel">Carrousel</span>
+                                )}
+                              </div>
                             ) : (
                               // V8.8 — fallback miniature : gradient subtil par pilier + dot
                               <div className={`h-8 ${t.bg} flex items-center px-1.5`}>

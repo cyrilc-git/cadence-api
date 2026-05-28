@@ -309,6 +309,14 @@ function PostRow({ p }: { p: any }) {
 
   return (
     <Link href={`/posts/${p.id}/edit`} className="card card-hover p-4 flex items-center gap-3 group">
+      {/* V50.3 — Miniature du visuel attaché (généré par Cadence ou couverture Notion). */}
+      {p.cover_url && (
+        <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md border border-ink-100 bg-cover bg-center" style={{ backgroundImage: `url(${p.cover_url})` }}>
+          {p.is_carousel && (
+            <span className="absolute bottom-0 right-0 inline-flex items-center bg-ink-900/75 px-0.5 text-[7px] font-semibold uppercase tracking-wider text-white" title="Carrousel">⤢</span>
+          )}
+        </div>
+      )}
       <span className={`chip ${STATUS_CHIP[p.primaryStatus as DerivedStatus]} shrink-0`}>
         <span className={`dot ${STATUS_DOT[p.primaryStatus as DerivedStatus]}`} />
         {STATUS_LABEL[p.primaryStatus as DerivedStatus]}

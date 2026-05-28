@@ -1,5 +1,6 @@
 import { getCredential } from './credentials';
 import { getValidations, logNotionAction, markCadenceDraft, getCadenceDraftSources } from './db';
+import { getPostCovers, type PostCover } from './visual-memory';
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
 
@@ -44,6 +45,9 @@ export type NotionPostSummary = {
   late?: boolean;
   cadence_source?: string | null;
   cover_url?: string | null;
+  cover_source?: 'notion' | 'cadence' | null;
+  visual_format?: string | null;
+  is_carousel?: boolean;
   impressions?: number;
   likes?: number;
   comments?: number;
@@ -134,6 +138,7 @@ export async function listNotionPosts(limit = 50): Promise<NotionPostSummary[]> 
       visuel_pret: !!props['Visuel prêt']?.checkbox,
       anonymisation_ok: !!props['Anonymisation OK']?.checkbox,
       cover_url: page.cover?.external?.url || page.cover?.file?.url || null,
+      cover_source: (page.cover?.external?.url || page.cover?.file?.url) ? 'notion' : null,
       impressions: props["Nombre d'impressions"]?.number ?? undefined,
       likes:       props['Nombre de likes']?.number ?? undefined,
       comments:    props['Nombre de commentaires']?.number ?? undefined,
@@ -145,9 +150,19 @@ export async function listNotionPosts(limit = 50): Promise<NotionPostSummary[]> 
     const v = await getValidations(ids);
     const now = Date.now();
     const cs = await getCadenceDraftSources(ids);
+    // V50.3 — Miniature du visuel généré par Cadence si le post n'a pas de
+    // couverture Notion. Le calendrier et la bibliothèque montrent ainsi du
+    // contenu, pas seulement du texte.
+    const covers = await getPostCovers(ids).catch(() => ({} as Record<string, PostCover>));
     for (const p of posts) {
       p.validated = !!v[p.id];
       p.cadence_source = cs[p.id] || null;
+      const cadenceCover = covers[p.id];
+      if (cadenceCover) {
+        if (!p.cover_url) { p.cover_url = cadenceCover.url; p.cover_source = 'cadence'; }
+        p.visual_format = cadenceCover.format;
+        p.is_carousel = cadenceCover.isCarousel;
+      }
       if (p.status === 'scheduled' && p.scheduled_at && new Date(p.scheduled_at).getTime() < now) p.late = true;
     }
   } catch {}
@@ -187,13 +202,21 @@ export async function getNotionPost(id: string): Promise<{ summary: NotionPostSu
     linkedin_url: props['URL']?.url || undefined,
     visuel_pret: !!props['Visuel prêt']?.checkbox,
     anonymisation_ok: !!props['Anonymisation OK']?.checkbox,
-    cover_url: page.cover?.external?.url || page.cover?.file?.url || null
+    cover_url: page.cover?.external?.url || page.cover?.file?.url || null,
+    cover_source: (page.cover?.external?.url || page.cover?.file?.url) ? 'notion' : null
   };
 
-  // Enrich with cadence_source flag
+  // Enrich with cadence_source flag + visuel généré (V50.3)
   try {
     const cs = await getCadenceDraftSources([summary.id]);
     summary.cadence_source = cs[summary.id] || null;
+    const covers = await getPostCovers([summary.id]).catch(() => ({} as Record<string, PostCover>));
+    const cadenceCover = covers[summary.id];
+    if (cadenceCover) {
+      if (!summary.cover_url) { summary.cover_url = cadenceCover.url; summary.cover_source = 'cadence'; }
+      summary.visual_format = cadenceCover.format;
+      summary.is_carousel = cadenceCover.isCarousel;
+    }
   } catch {/* silent */}
 
   const blocksRes = await fetch(`${NOTION_API}/blocks/${id}/children?page_size=100`, { headers: headers() });
