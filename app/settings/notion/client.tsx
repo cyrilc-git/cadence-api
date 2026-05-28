@@ -44,7 +44,7 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
         {dbInfo ? (
           <p className="text-sm text-ink-700 leading-relaxed">
             Database <a href={dbInfo.url} target="_blank" rel="noopener" className="text-brand-700 hover:text-brand-900 transition font-medium">{dbInfo.title}</a>.
-            {' '}Les brouillons générés par Cadence y atterrissent et restent filtrables dans la <Link href="/posts?provenance=cadence_generated" className="text-brand-700 hover:text-brand-900 transition">Bibliothèque</Link>.
+            {' '}Les brouillons générés par Cadence y atterrissent et restent visibles dans la <Link href="/posts" className="text-brand-700 hover:text-brand-900 transition">Bibliothèque</Link>.
             {' '}
             <button
               onClick={() => navigator.clipboard?.writeText(dbInfo.id)}

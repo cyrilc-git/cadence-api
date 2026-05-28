@@ -3,83 +3,86 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import ProvenanceBadge from '@/components/ProvenanceBadge';
-import { inferFromNotion, type Provenance, type SourceType } from '@/lib/provenance';
+import { inferFromNotion, type Provenance } from '@/lib/provenance';
 import { toast } from '@/components/Dialog';
 
-// V9.2 §2.4 — Bibliothèque alignée sur la provenance réelle.
-// Règle clé : un post Notion publié SANS URL LinkedIn est "Archive Notion", pas "Publié".
+// V51 §4 — Bibliothèque recentrée : 6 filtres simples, une recherche, un
+// aperçu de chaque post et une action claire. Fin de la double rangée de
+// filtres et des badges de provenance bavards. La provenance reste calculée
+// en interne (distinguer un vrai publié LinkedIn d'une archive Notion non
+// confirmée, garde-fou « pas de fake state ») mais n'encombre plus l'écran.
 
-type DerivedStatus = 'all' | 'draft' | 'needs_validation' | 'scheduled' | 'late' | 'published' | 'archive' | 'recyclable';
-const STATUS_LABEL: Record<DerivedStatus, string> = {
+type LibFilter = 'all' | 'draft' | 'scheduled' | 'published' | 'recyclable' | 'visual';
+const FILTER_ORDER: LibFilter[] = ['all', 'draft', 'scheduled', 'published', 'recyclable', 'visual'];
+const FILTER_LABEL: Record<LibFilter, string> = {
   all: 'Tous',
   draft: 'Brouillons',
-  needs_validation: 'À valider',
   scheduled: 'Programmés',
-  late: 'En retard',
   published: 'Publiés',
-  archive: 'Archives',
   recyclable: 'À recycler',
-};
-const STATUS_CHIP: Record<DerivedStatus, string> = {
-  all: 'chip-neutral', draft: 'chip-neutral', needs_validation: 'chip-warn',
-  scheduled: 'chip-brand', late: 'chip-danger', published: 'chip-success',
-  archive: 'chip-neutral', recyclable: 'chip-brand',
-};
-const STATUS_DOT: Record<DerivedStatus, string> = {
-  all: 'bg-ink-400', draft: 'bg-ink-400', needs_validation: 'bg-warn-500',
-  scheduled: 'bg-brand-500', late: 'bg-danger-500', published: 'bg-success-500',
-  archive: 'bg-amber-500', recyclable: 'bg-brand-500',
+  visual: 'Visuels',
 };
 
-type ProvenanceFilter = 'all' | SourceType;
-const PROVENANCE_FILTERS: { key: ProvenanceFilter; label: string }[] = [
-  { key: 'all', label: 'Toutes provenances' },
-  { key: 'linkedin_published', label: 'Publiés LinkedIn' },
-  { key: 'linkedin_import_zip', label: 'Imports LinkedIn' },
-  { key: 'notion_draft', label: 'Brouillons Notion' },
-  { key: 'notion_archive', label: 'Archives Notion' },
-  { key: 'cadence_generated', label: 'Créés par Cadence' },
-];
+// Statut principal d'un post, pour la pastille de chaque ligne.
+type PostStatus = 'draft' | 'needs_validation' | 'scheduled' | 'late' | 'published' | 'archive';
+const STATUS_LABEL: Record<PostStatus, string> = {
+  draft: 'Brouillon', needs_validation: 'À valider', scheduled: 'Programmé',
+  late: 'En retard', published: 'Publié', archive: 'Archive',
+};
+const STATUS_DOT: Record<PostStatus, string> = {
+  draft: 'bg-ink-400', needs_validation: 'bg-warn-500', scheduled: 'bg-brand-500',
+  late: 'bg-danger-500', published: 'bg-success-500', archive: 'bg-amber-500',
+};
+const STATUS_CHIP: Record<PostStatus, string> = {
+  draft: 'chip-neutral', needs_validation: 'chip-warn', scheduled: 'chip-brand',
+  late: 'chip-danger', published: 'chip-success', archive: 'chip-neutral',
+};
 
-function derive(p: any, prov: Provenance): DerivedStatus[] {
-  const out: DerivedStatus[] = [];
-  // "Publiés" devient strictement "publié confirmé sur LinkedIn".
-  if (prov.source_type === 'linkedin_published' || prov.source_type === 'linkedin_import_zip') {
-    out.push('published');
-    if (p.scheduled_at && new Date(p.scheduled_at).getTime() < Date.now() - 1000 * 60 * 60 * 24 * 180) {
-      out.push('recyclable');
-    }
-  } else if (prov.source_type === 'notion_archive') {
-    out.push('archive');
-  } else if (p.status === 'draft' || !p.scheduled_at) {
-    out.push('draft');
-  } else if (p.late) {
-    out.push('late');
-  } else if (!p.validated) {
-    out.push('needs_validation');
-  } else {
-    out.push('scheduled');
-  }
-  return out;
+function statusOf(p: any, prov: Provenance): PostStatus {
+  // Provenance prime : un Notion publié sans URL LinkedIn = archive, pas publié.
+  if (prov.source_type === 'linkedin_published' || prov.source_type === 'linkedin_import_zip') return 'published';
+  if (prov.source_type === 'notion_archive') return 'archive';
+  if (p.status === 'draft' || !p.scheduled_at) return 'draft';
+  if (p.late) return 'late';
+  if (!p.validated) return 'needs_validation';
+  return 'scheduled';
 }
-function primary(statuses: DerivedStatus[]): DerivedStatus { return statuses[0]; }
+function isRecyclable(p: any, status: PostStatus): boolean {
+  return status === 'published' && !!p.scheduled_at &&
+    new Date(p.scheduled_at).getTime() < Date.now() - 1000 * 60 * 60 * 24 * 180;
+}
+
+// Normalise un ?status= (anciens liens inclus) vers le nouvel ensemble.
+function normalizeFilter(raw: string | null): LibFilter {
+  switch (raw) {
+    case 'all': case 'draft': case 'scheduled': case 'published': case 'recyclable': case 'visual':
+      return raw;
+    case 'needs_validation': case 'late': return 'draft';
+    default: return 'all';
+  }
+}
+
+function matchesFilter(p: any, filter: LibFilter): boolean {
+  switch (filter) {
+    case 'all': return true;
+    case 'draft': return p._status === 'draft' || p._status === 'needs_validation' || p._status === 'late';
+    case 'scheduled': return p._status === 'scheduled';
+    case 'published': return p._status === 'published';
+    case 'recyclable': return p._recyclable;
+    case 'visual': return !!p.cover_url;
+  }
+}
 
 export default function PostsLibraryClient({ initial }: { initial: any[] }) {
   const params = useSearchParams();
   const router = useRouter();
-  const initialFilter = (params.get('status') as DerivedStatus) || 'all';
-  const initialProvenance = (params.get('provenance') as ProvenanceFilter) || 'all';
-  const [filter, setFilter] = useState<DerivedStatus>(initialFilter);
-  const [provFilter, setProvFilter] = useState<ProvenanceFilter>(initialProvenance);
+  const [filter, setFilter] = useState<LibFilter>(normalizeFilter(params.get('status')));
   const [search, setSearch] = useState('');
   const [pilier, setPilier] = useState('all');
 
   useEffect(() => {
-    const f = (params.get('status') as DerivedStatus) || 'all';
-    if (f !== filter) setFilter(f);
-    const pf = (params.get('provenance') as ProvenanceFilter) || 'all';
-    if (pf !== provFilter) setProvFilter(pf);
+    const f = normalizeFilter(params.get('status'));
+    setFilter(prev => (prev !== f ? f : prev));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
 
@@ -91,37 +94,28 @@ export default function PostsLibraryClient({ initial }: { initial: any[] }) {
 
   const enriched = useMemo(() => initial.map(p => {
     const provenance = inferFromNotion({
-      id: p.id,
-      title: p.title,
-      status: p.status,
-      linkedin_url: p.linkedin_url,
-      notion_url: p.notion_url,
-      scheduled_at: p.scheduled_at,
-      validated: p.validated,
+      id: p.id, title: p.title, status: p.status, linkedin_url: p.linkedin_url,
+      notion_url: p.notion_url, scheduled_at: p.scheduled_at, validated: p.validated,
       cadence_source: p.cadence_source,
     });
-    const derivedStatuses = derive(p, provenance);
-    return { ...p, provenance, derivedStatuses, primaryStatus: primary(derivedStatuses) };
+    const status = statusOf(p, provenance);
+    return { ...p, _status: status, _recyclable: isRecyclable(p, status) };
   }), [initial]);
 
-  const counts: Record<DerivedStatus, number> = useMemo(() => {
-    const c: any = { all: enriched.length, draft: 0, needs_validation: 0, scheduled: 0, late: 0, published: 0, archive: 0, recyclable: 0 };
-    for (const p of enriched) { for (const s of p.derivedStatuses) c[s]++; }
-    return c;
-  }, [enriched]);
-
-  const provCounts: Record<ProvenanceFilter, number> = useMemo(() => {
-    const c: any = { all: enriched.length };
-    for (const f of PROVENANCE_FILTERS) {
-      if (f.key === 'all') continue;
-      c[f.key] = enriched.filter(p => p.provenance?.source_type === f.key).length;
+  const counts = useMemo(() => {
+    const c: Record<LibFilter, number> = { all: enriched.length, draft: 0, scheduled: 0, published: 0, recyclable: 0, visual: 0 };
+    for (const p of enriched) {
+      if (matchesFilter(p, 'draft')) c.draft++;
+      if (matchesFilter(p, 'scheduled')) c.scheduled++;
+      if (matchesFilter(p, 'published')) c.published++;
+      if (matchesFilter(p, 'recyclable')) c.recyclable++;
+      if (matchesFilter(p, 'visual')) c.visual++;
     }
     return c;
   }, [enriched]);
 
   const filtered = enriched.filter(p => {
-    if (filter !== 'all' && !p.derivedStatuses.includes(filter)) return false;
-    if (provFilter !== 'all' && p.provenance?.source_type !== provFilter) return false;
+    if (!matchesFilter(p, filter)) return false;
     if (pilier !== 'all' && p.pilier !== pilier) return false;
     if (search && !p.title.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
@@ -129,14 +123,12 @@ export default function PostsLibraryClient({ initial }: { initial: any[] }) {
 
   const sorted = useMemo(() => {
     const list = [...filtered];
-    if (filter === 'published') {
-      list.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
-    } else {
-      list.sort((a, b) => (b.scheduled_at || '').localeCompare(a.scheduled_at || ''));
-    }
+    if (filter === 'published') list.sort((a, b) => (b.impressions || 0) - (a.impressions || 0));
+    else list.sort((a, b) => (b.scheduled_at || '').localeCompare(a.scheduled_at || ''));
     return list;
   }, [filtered, filter]);
 
+  // Regroupement par mois (sauf "Publiés", trié par impressions).
   const grouped = useMemo(() => {
     if (filter === 'published') return null;
     const groups: { key: string; label: string; items: typeof sorted }[] = [];
@@ -155,10 +147,9 @@ export default function PostsLibraryClient({ initial }: { initial: any[] }) {
     return groups;
   }, [sorted, filter]);
 
-  function updateUrl(s: DerivedStatus, prov: ProvenanceFilter) {
+  function updateUrl(s: LibFilter) {
     const usp = new URLSearchParams();
     if (s !== 'all') usp.set('status', s);
-    if (prov !== 'all') usp.set('provenance', prov);
     router.replace(`/posts${usp.toString() ? '?' + usp.toString() : ''}`);
   }
 
@@ -167,93 +158,49 @@ export default function PostsLibraryClient({ initial }: { initial: any[] }) {
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">Bibliothèque</h1>
-          <p className="mt-1 text-sm text-ink-500 lead">Tous vos posts, regroupés par provenance réelle. Un post Notion sans URL LinkedIn reste une archive, pas une publication confirmée.</p>
+          <p className="mt-1 text-sm text-ink-500 leading-relaxed">Tous vos posts et visuels, au même endroit.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/posts/new" className="btn-primary">+ Nouveau post</Link>
-        </div>
+        <Link href="/posts/new" className="btn-primary">+ Nouveau post</Link>
       </header>
 
-      {/* Status filter chips */}
-      <div className="card p-3 flex items-center gap-1.5 flex-wrap overflow-x-auto">
-        {(['all', 'draft', 'needs_validation', 'scheduled', 'late', 'published', 'archive', 'recyclable'] as DerivedStatus[]).map(s => (
-          <button
-            key={s}
-            onClick={() => { setFilter(s); updateUrl(s, provFilter); }}
-            className={`text-xs px-3 py-1.5 rounded-full border transition flex items-center gap-1.5 ${filter === s ? 'bg-brand-50 text-brand-700 border-brand-300 font-semibold' : 'bg-white text-ink-700 border-ink-200 hover:bg-ink-50'}`}
-          >
-            <span className={`dot ${STATUS_DOT[s]}`} />
-            {STATUS_LABEL[s]}
-            <span className={filter === s ? 'text-brand-600' : 'text-ink-400'}>{counts[s]}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Provenance filter + search + pilier */}
+      {/* V51 §4 — Une seule rangée de filtres simples. */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="inline-flex bg-ink-100 rounded-lg p-0.5 gap-0.5 flex-wrap">
-          {PROVENANCE_FILTERS.map(f => (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {FILTER_ORDER.map(s => (
             <button
-              key={f.key}
-              onClick={() => { setProvFilter(f.key); updateUrl(filter, f.key); }}
-              className={`text-xs px-2.5 py-1 rounded-md font-medium transition ${provFilter === f.key ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500 hover:text-ink-700'}`}
+              key={s}
+              onClick={() => { setFilter(s); updateUrl(s); }}
+              className={`text-xs px-3 py-1.5 rounded-full border transition inline-flex items-center gap-1.5 ${filter === s ? 'bg-brand-50 text-brand-700 border-brand-300 font-semibold' : 'bg-white text-ink-700 border-ink-200 hover:bg-ink-50'}`}
             >
-              {f.label}
-              <span className="ml-1 text-ink-400">{provCounts[f.key]}</span>
+              {FILTER_LABEL[s]}
+              <span className={filter === s ? 'text-brand-600' : 'text-ink-400'}>{counts[s]}</span>
             </button>
           ))}
         </div>
-        <div className="flex-1 min-w-[200px] relative">
+      </div>
+
+      {/* Recherche + pilier */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1 min-w-[220px] relative">
           <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-ink-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path strokeLinecap="round" d="M21 21l-4.3-4.3" /></svg>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher dans les titres…" className="input text-sm pl-9" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un post…" className="input text-sm pl-9" />
         </div>
-        <select value={pilier} onChange={e => setPilier(e.target.value)} className="input text-sm w-auto">
-          <option value="all">Tous piliers</option>
-          {piliers.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
+        {piliers.length > 0 && (
+          <select value={pilier} onChange={e => setPilier(e.target.value)} className="input text-sm w-auto">
+            <option value="all">Tous piliers</option>
+            {piliers.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        )}
         <span className="text-xs text-ink-500 ml-auto whitespace-nowrap">{filtered.length} / {enriched.length}</span>
       </div>
 
-      {/* V37.5 — Banner contextuel quand le filtre "Imports LinkedIn" est
-          actif et qu'il y a des résultats : raccourci vers la vue calendrier. */}
-      {provFilter === 'linkedin_import_zip' && filtered.length > 0 && (() => {
-        const dates = filtered
-          .map(p => p.scheduled_at)
-          .filter(Boolean)
-          .map(s => new Date(s).getTime())
-          .filter(t => Number.isFinite(t))
-          .sort((a, b) => b - a);
-        const mostRecent = dates[0] ? new Date(dates[0]) : null;
-        const oldest = dates.length > 0 ? new Date(dates[dates.length - 1]) : null;
-        const rangeText = (mostRecent && oldest)
-          ? `${oldest.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })} → ${mostRecent.toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}`
-          : 'période inconnue';
-        return (
-          <div className="border-l-2 border-[#0A66C2] pl-4 py-2 animate-fade-in">
-            <p className="text-sm text-ink-800 leading-relaxed">
-              {filtered.length} import{filtered.length > 1 ? 's' : ''} LinkedIn en mémoire · {rangeText}.
-            </p>
-            {mostRecent && (
-              <div className="mt-1.5">
-                <Link
-                  href={`/calendar?d=${mostRecent.toISOString().slice(0, 10)}&source=linkedin`}
-                  className="text-xs text-brand-700 hover:text-brand-900 transition underline decoration-dotted underline-offset-2"
-                >
-                  Voir tous dans le calendrier →
-                </Link>
-              </div>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* Results */}
+      {/* Résultats */}
       {filtered.length === 0 ? (
         <div className="py-12 max-w-md">
           <p className="text-sm text-ink-700 leading-relaxed">
-            Rien ne correspond à ces filtres pour le moment.{' '}
+            Rien ne correspond à ce filtre.{' '}
             <Link href="/posts/new" className="text-brand-700 hover:text-brand-900 underline decoration-dotted underline-offset-2 transition">Écrire un nouveau post</Link>
-            {' '}ou relâchez un filtre pour élargir.
+            {' '}ou choisissez « Tous » pour tout voir.
           </p>
         </div>
       ) : grouped ? (
@@ -281,9 +228,9 @@ function PostRow({ p }: { p: any }) {
   const [schedDate, setSchedDate] = useState<string | null>(p.scheduled_at ? p.scheduled_at.slice(0, 10) : null);
   const [picking, setPicking] = useState(false);
   const [saving, setSaving] = useState(false);
-  // Un post "programmable" = brouillon ou à valider (pas publié, pas archive).
-  const isSchedulable = p.derivedStatuses.includes('draft') || p.derivedStatuses.includes('needs_validation') || p.derivedStatuses.includes('late');
-  const isPublished = p.derivedStatuses.includes('published');
+  const status: PostStatus = p._status;
+  const isSchedulable = status === 'draft' || status === 'needs_validation' || status === 'late';
+  const isPublished = status === 'published';
 
   async function schedule(dateStr: string) {
     if (!dateStr) return;
@@ -309,19 +256,22 @@ function PostRow({ p }: { p: any }) {
 
   return (
     <Link href={`/posts/${p.id}/edit`} className="card card-hover p-4 flex items-center gap-3 group">
-      {/* V50.3 — Miniature du visuel attaché (généré par Cadence ou couverture Notion). */}
-      {p.cover_url && (
+      {/* Miniature : visuel attaché, sinon pastille de statut. */}
+      {p.cover_url ? (
         <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-md border border-ink-100 bg-cover bg-center" style={{ backgroundImage: `url(${p.cover_url})` }}>
           {p.is_carousel && (
             <span className="absolute bottom-0 right-0 inline-flex items-center bg-ink-900/75 px-0.5 text-[7px] font-semibold uppercase tracking-wider text-white" title="Carrousel">⤢</span>
           )}
         </div>
+      ) : (
+        <div className="h-11 w-11 shrink-0 rounded-md bg-ink-50 border border-ink-100 flex items-center justify-center">
+          <span className={`dot ${STATUS_DOT[status]}`} />
+        </div>
       )}
-      <span className={`chip ${STATUS_CHIP[p.primaryStatus as DerivedStatus]} shrink-0`}>
-        <span className={`dot ${STATUS_DOT[p.primaryStatus as DerivedStatus]}`} />
-        {STATUS_LABEL[p.primaryStatus as DerivedStatus]}
+      <span className={`chip ${STATUS_CHIP[status]} shrink-0`}>
+        <span className={`dot ${STATUS_DOT[status]}`} />
+        {STATUS_LABEL[status]}
       </span>
-      <ProvenanceBadge provenance={p.provenance} size="xs" className="shrink-0" />
       <div className="flex-1 min-w-0">
         <div className="font-medium text-ink-900 truncate group-hover:text-brand-700 transition">{p.title}</div>
         <div className="text-xs text-ink-500 flex items-center gap-2 mt-0.5 flex-wrap">
@@ -330,10 +280,7 @@ function PostRow({ p }: { p: any }) {
         </div>
       </div>
 
-      {/* V41 — Statut de programmation visible + action inline.
-          - Programmé : pastille bleue "Programmé le X" + clic calendrier.
-          - Brouillon non daté : bouton "Programmer" → date input inline.
-          - Publié : on n'affiche pas de programmation. */}
+      {/* Programmation inline (jamais sur un post publié). */}
       {!isPublished && (
         <div className="shrink-0 flex items-center gap-2" onClick={e => { e.preventDefault(); e.stopPropagation(); }}>
           {picking ? (
@@ -367,7 +314,7 @@ function PostRow({ p }: { p: any }) {
         </div>
       )}
 
-      {p.derivedStatuses.includes('recyclable') && (
+      {p._recyclable && (
         <span onClick={e => { e.stopPropagation(); e.preventDefault(); window.location.href = `/posts/new?from=${p.id}&recycle=1`; }} className="btn-secondary text-xs cursor-pointer shrink-0">Recycler</span>
       )}
       {schedDate && (
