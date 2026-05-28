@@ -123,6 +123,16 @@ export default function VisualGenerator({
   // - openai        : DALL-E 3 (illustrations bitmap)
   // - gemini        : Nano Banana (gemini-2.5-flash-image), bitmap riche
   const [engineOverride, setEngineOverride] = useState<Mode | 'gemini' | null>(null);
+  // V39.3 — Disponibilité des moteurs (clé présente ?) lue depuis /api/engines.
+  const [engines, setEngines] = useState<Record<string, boolean> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/engines')
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setEngines(d.engines || null); })
+      .catch(() => { if (!cancelled) setEngines(null); });
+    return () => { cancelled = true; };
+  }, []);
   const mode = (engineOverride || TEMPLATES[template].mode) as Mode | 'gemini';
   const selected = variants.find(v => v.id === selectedId) || null;
 
@@ -224,18 +234,32 @@ export default function VisualGenerator({
             className="input text-xs h-8 w-auto py-0"
             title="Choisissez le moteur de génération d'image"
           >
-            <option value="claude-design">Claude Design · SVG</option>
-            <option value="openai">DALL-E 3 · bitmap</option>
-            <option value="gemini">Nano Banana · Gemini</option>
+            {/* V39.3 — Un moteur sans clé est grisé (disabled). engines=null
+                pendant le chargement : on n'empêche rien tant qu'on ne sait pas. */}
+            <option value="claude-design" disabled={engines !== null && !engines['claude-design']}>
+              Claude Design · SVG{engines && !engines['claude-design'] ? ' (clé requise)' : ''}
+            </option>
+            <option value="openai" disabled={engines !== null && !engines.openai}>
+              DALL-E 3 · bitmap{engines && !engines.openai ? ' (clé requise)' : ''}
+            </option>
+            <option value="gemini" disabled={engines !== null && !engines.gemini}>
+              Nano Banana · Gemini{engines && !engines.gemini ? ' (clé requise)' : ''}
+            </option>
           </select>
         </label>
       </div>
-      {/* V38.2 — Note honnête sur le moteur choisi (jamais de fake). */}
-      {mode === 'gemini' && (
-        <p className="text-2xs text-ink-400 italic leading-relaxed mb-3">
-          Nano Banana génère une vraie image bitmap riche. Nécessite une clé Gemini dans Settings → Connecteurs.
+      {/* V39.3 — Si le moteur sélectionné n'a pas de clé, message + lien Sources. */}
+      {engines && mode !== 'claude-design' && mode === 'gemini' && !engines.gemini && (
+        <p className="text-2xs text-amber-700 leading-relaxed mb-3">
+          Nano Banana nécessite une clé Gemini. <a href="/sources/ai" className="underline decoration-dotted underline-offset-2 hover:text-amber-900">Ajoutez-la dans Sources → Clés IA</a>.
         </p>
       )}
+      {engines && mode === 'openai' && !engines.openai && (
+        <p className="text-2xs text-amber-700 leading-relaxed mb-3">
+          DALL-E 3 nécessite une clé OpenAI. <a href="/sources/ai" className="underline decoration-dotted underline-offset-2 hover:text-amber-900">Ajoutez-la dans Sources → Clés IA</a>.
+        </p>
+      )}
+      {/* V38.2 — Note honnête : Midjourney sans API publique. */}
       <p className="text-2xs text-ink-400 italic leading-relaxed mb-3">
         Midjourney n&apos;a pas d&apos;API publique : exportez le visuel à la main puis ajoutez-le via l&apos;aperçu.
       </p>

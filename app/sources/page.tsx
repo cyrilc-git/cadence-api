@@ -25,8 +25,9 @@ type Source = {
 const SOURCES: Source[] = [
   { kind: 'linkedin',  label: 'LinkedIn',     description: 'Source de vérité des publications. Import ZIP officiel.',  category: 'publi',   oauth: '/api/auth/linkedin', configRoute: '/sources/linkedin', accent: '#0A66C2' },
   { kind: 'notion',    label: 'Notion',       description: 'Espace de travail éditorial : brouillons, planning, notes.', category: 'storage', configRoute: '/sources/notion',   accent: '#0F172A' },
-  { kind: 'anthropic', label: 'Claude',       description: 'Rédaction + visuels (Sonnet 4.6, Vision).',              category: 'ai',      configRoute: '/settings',         accent: '#C96342' },
-  { kind: 'openai',    label: 'OpenAI',       description: 'Embeddings éditoriaux + DALL-E 3 optionnel.',           category: 'ai',      configRoute: '/settings',         accent: '#000000' },
+  { kind: 'anthropic', label: 'Claude',       description: 'Rédaction + visuels (Sonnet 4.6, Vision).',              category: 'ai',      configRoute: '/sources/ai',       accent: '#C96342' },
+  { kind: 'openai',    label: 'OpenAI',       description: 'Embeddings éditoriaux + DALL-E 3 optionnel.',           category: 'ai',      configRoute: '/sources/ai',       accent: '#000000' },
+  { kind: 'gemini',    label: 'Gemini',       description: 'Illustrations bitmap riches (Nano Banana).',            category: 'ai',      configRoute: '/sources/ai',       accent: '#4285F4' },
   { kind: 'github',    label: 'GitHub',       description: 'Détecte commits, releases, signaux produit.',           category: 'signal',  configRoute: '/sources/github',   accent: '#181717' },
   { kind: 'gmail',     label: 'Gmail',        description: 'À venir : questions clients récurrentes.',              category: 'signal',  soon: true,                       accent: '#EA4335' },
   { kind: 'gdrive',    label: 'Google Drive', description: 'À venir : docs stratégiques.',                          category: 'signal',  soon: true,                       accent: '#1FA463' },
