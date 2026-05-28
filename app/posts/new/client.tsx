@@ -485,8 +485,10 @@ export default function NewPostClient({
                         </label>
                       )}
                       <div className="border-t border-ink-100 mt-1 pt-1">
+                        {/* V38.3 — Ouvre le modal unifié (aperçu + publier
+                            maintenant OU programmer). */}
                         <button onClick={() => { setMoreOpen(false); setPublishOpen(true); }} disabled={!canPublish} className="w-full text-left text-sm px-3 py-2 rounded-md hover:bg-brand-50 text-brand-700 disabled:opacity-40 disabled:cursor-not-allowed">
-                          Publier maintenant…
+                          Publier ou programmer…
                         </button>
                       </div>
                     </div>
@@ -536,7 +538,40 @@ export default function NewPostClient({
       </PreviewDrawer>
 
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} commands={commands} />
-      <PublishModal open={publishOpen} onClose={() => setPublishOpen(false)} text={text} notionPageId={initial?.id} />
+      {/* V38.3 — Modal unifié : aperçu (texte + illustration) puis publier
+          maintenant OU programmer. onSchedule réutilise handleSave(true). */}
+      <PublishModal
+        open={publishOpen}
+        onClose={() => setPublishOpen(false)}
+        text={text}
+        image={imageUrl}
+        notionPageId={initial?.id}
+        onSchedule={async (d, t) => {
+          setDate(d); setTime(t);
+          // handleSave lit date/time du state ; on attend le prochain tick
+          // via une sauvegarde directe avec les valeurs fournies.
+          if (!text.trim()) return false;
+          setSaveLoading(true); setSaveMsg(null);
+          try {
+            const body: any = {
+              title: title || text.split('\n')[0].slice(0, 80),
+              content: text, pilier, validated,
+              scheduled_date: d, scheduled_time: t, status: 'scheduled',
+            };
+            const r = await fetch(initial?.id ? `/api/notion/post/${initial.id}` : '/api/notion/posts', {
+              method: initial?.id ? 'PATCH' : 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            });
+            const dd = await r.json();
+            if (!r.ok) throw new Error(dd.error || `HTTP ${r.status}`);
+            return true;
+          } catch (e: any) {
+            setSaveMsg('Erreur : ' + e.message);
+            return false;
+          } finally { setSaveLoading(false); }
+        }}
+      />
     </div>
   );
 }
