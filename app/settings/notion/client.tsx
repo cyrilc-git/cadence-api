@@ -43,8 +43,7 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
         </div>
         {dbInfo ? (
           <p className="text-sm text-ink-700 leading-relaxed">
-            Database <a href={dbInfo.url} target="_blank" rel="noopener" className="text-brand-700 hover:text-brand-900 transition font-medium">{dbInfo.title}</a>.
-            {' '}Les brouillons générés par Cadence y atterrissent et restent visibles dans la <Link href="/posts" className="text-brand-700 hover:text-brand-900 transition">Bibliothèque</Link>.
+            Vos brouillons Cadence atterrissent dans <a href={dbInfo.url} target="_blank" rel="noopener" className="text-brand-700 hover:text-brand-900 transition font-medium">{dbInfo.title}</a> et restent visibles dans la <Link href="/posts" className="text-brand-700 hover:text-brand-900 transition">Bibliothèque</Link>.
             {' '}
             <button
               onClick={() => navigator.clipboard?.writeText(dbInfo.id)}
@@ -56,7 +55,7 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
           </p>
         ) : (
           <p className="text-sm text-danger-700 leading-relaxed">
-            Impossible d&apos;atteindre la database Notion. Vérifiez vos credentials dans <Link href="/settings" className="underline">Paramètres</Link>.
+            Connexion à Notion indisponible pour le moment.
           </p>
         )}
       </section>
@@ -85,7 +84,7 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
             </span>
           )}
         </div>
-        <p className="text-xs text-ink-500 mb-4">Vérification que votre database expose les bonnes propriétés. Si l'une manque, créez-la côté Notion avec exactement le bon nom et type.</p>
+        <p className="text-xs text-ink-500 mb-4">Vérification que votre espace Notion contient les bonnes colonnes. Si l'une manque, créez-la côté Notion avec exactement le bon nom et type.</p>
         <div className="space-y-1.5">
           {CADENCE_REQUIRED.map(req => {
             const found = dbInfo?.properties?.find((p: any) => p.name === req.name);
@@ -112,10 +111,10 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
             Cadence FAIT
           </h3>
           <ul className="mt-2 text-xs text-ink-700 space-y-1.5">
-            <li>• Crée des nouveaux drafts dans la DB</li>
-            <li>• Met à jour le contenu d'un draft généré par Cadence</li>
+            <li>• Crée de nouveaux brouillons dans votre espace Notion</li>
+            <li>• Met à jour le contenu d'un brouillon généré par Cadence</li>
             <li>• Marque un post comme « Publié » après publication LinkedIn</li>
-            <li>• Lit les drafts pour le calendrier et le radar</li>
+            <li>• Lit les brouillons pour alimenter le calendrier et la Bibliothèque</li>
           </ul>
         </div>
         <div className="card p-4 bg-danger-50/30 border-danger-100">
@@ -126,8 +125,8 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
           <ul className="mt-2 text-xs text-ink-700 space-y-1.5">
             <li>• Modifier un post historique non créé par Cadence</li>
             <li>• Supprimer une page Notion</li>
-            <li>• Publier sans la case « Validé pour cron » cochée</li>
-            <li>• Toucher à votre structure de DB (colonnes, vues, filtres)</li>
+            <li>• Publier sans votre validation explicite</li>
+            <li>• Toucher à la structure de votre espace Notion (colonnes, vues, filtres)</li>
           </ul>
         </div>
       </section>
@@ -135,7 +134,7 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
       {/* Recent actions log */}
       <section className="card p-5">
         <h2 className="font-semibold text-ink-900">Activité récente</h2>
-        <p className="text-xs text-ink-500 mt-0.5">Les 15 dernières actions Cadence sur votre database.</p>
+        <p className="text-xs text-ink-500 mt-0.5">Les 15 dernières actions Cadence dans votre espace Notion.</p>
         {actions.length === 0 ? (
           <div className="mt-4 text-center py-6 text-sm text-ink-500">Aucune activité enregistrée.</div>
         ) : (
@@ -323,16 +322,16 @@ function EditorialMemoryCard() {
 
   async function indexNow() {
     const ok = await confirmDialog({
-      title: 'Lancer l\'indexation ?',
-      body: 'Cadence va lire vos posts Notion non encore indexés et créer des embeddings via OpenAI. Coût indicatif : ~0,001 $ pour 100 posts.',
-      confirmLabel: 'Indexer',
+      title: 'Mettre à jour la mémoire ?',
+      body: 'Cadence va lire vos posts Notion non encore mémorisés et les ajouter à la mémoire éditoriale (via votre clé OpenAI). Coût indicatif : ~0,001 $ pour 100 posts.',
+      confirmLabel: 'Mettre à jour',
     });
     if (!ok) return;
     setIndexing(true); setLastResult(null);
     try {
       let total = 0, indexed = 0;
       for (let pass = 0; pass < 5; pass++) {
-        setProgress(`Pass ${pass + 1}/5 : indexation par lots de 30…`);
+        setProgress(`Mémorisation en cours… (étape ${pass + 1}/5)`);
         const r = await fetch('/api/embeddings/index', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limit: 30 }) });
         const d = await r.json();
         if (!r.ok) throw new Error(d.error);
@@ -340,7 +339,7 @@ function EditorialMemoryCard() {
         indexed += d.indexed || 0;
         if ((d.indexed || 0) === 0) break; // nothing more to do
       }
-      setLastResult(`${indexed} nouveaux posts indexés, ${total} au total dans la mémoire.`);
+      setLastResult(`${indexed} nouveaux posts ajoutés, ${total} au total dans la mémoire.`);
       if (indexed > 0) toast.success(`${indexed} post${indexed > 1 ? 's' : ''} ajouté${indexed > 1 ? 's' : ''} à la mémoire`);
       else toast.info('Tous les posts étaient déjà indexés');
       await refresh();
@@ -354,7 +353,7 @@ function EditorialMemoryCard() {
   return (
     <section className="border-l-2 border-brand-300 pl-4 py-1">
       <h2 className="text-sm font-semibold text-ink-900">Mémoire éditoriale</h2>
-      <p className="mt-1 text-xs text-ink-500 leading-relaxed">Cadence indexe vos posts en vecteurs sémantiques pour éviter les répétitions, repérer les sujets non couverts et scorer la nouveauté d&apos;une idée.</p>
+      <p className="mt-1 text-xs text-ink-500 leading-relaxed">Cadence mémorise vos posts pour éviter les répétitions, repérer les sujets non couverts et mesurer la nouveauté d&apos;une idée.</p>
       {loading ? (
         <div className="mt-3 skeleton h-4 w-32" />
       ) : stats ? (
@@ -362,20 +361,20 @@ function EditorialMemoryCard() {
           <div className="flex-1">
             <div className="flex items-baseline gap-2">
               <span className="text-xl font-semibold text-ink-900 tabular-nums">{stats.indexed_total}</span>
-              <span className="text-xs text-ink-500">/ {stats.notion_posts_total} posts indexés ({pct}%)</span>
+              <span className="text-xs text-ink-500">/ {stats.notion_posts_total} posts en mémoire ({pct}%)</span>
             </div>
             <div className="mt-1.5 h-1 bg-ink-100 rounded-full overflow-hidden">
               <div className="h-full bg-brand-500 transition-all duration-500" style={{ width: `${pct}%` }} />
             </div>
           </div>
           <button onClick={indexNow} disabled={indexing} className="text-xs px-3 py-1.5 rounded-lg bg-brand-500 text-white font-medium hover:bg-brand-600 disabled:opacity-50 transition">
-            {indexing ? (<><span className="dot bg-white animate-pulse-soft" /> Indexation…</>) : 'Indexer'}
+            {indexing ? (<><span className="dot bg-white animate-pulse-soft" /> Mémorisation…</>) : 'Mettre à jour'}
           </button>
         </div>
       ) : null}
       {progress && <div className="mt-2 text-2xs text-ink-500">{progress}</div>}
       {lastResult && <div className="mt-2 text-xs text-success-700">{lastResult}</div>}
-      <p className="mt-3 text-2xs text-ink-400 italic">Embeddings OpenAI (text-embedding-3-small, 1536 dims). Sans clé OpenAI configurée, la mémoire reste vide.</p>
+      <p className="mt-3 text-2xs text-ink-400 italic">La mémoire utilise votre clé OpenAI. Sans clé OpenAI connectée, elle reste vide.</p>
     </section>
   );
 }
