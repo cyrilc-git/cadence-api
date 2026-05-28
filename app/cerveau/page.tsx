@@ -192,13 +192,55 @@ export default async function BrainPage() {
     }
   }
 
+  // V43 — Mappe une catégorie de pilier vers son libellé Cadence complet
+  // (utilisé pour pré-remplir /posts/new?pilier=…).
+  const PILIER_BY_CAT: Record<string, string> = {
+    cas: 'Lundi · Cas client',
+    pedagogie: 'Mardi · Pédagogie sans jargon',
+    produit: 'Mercredi · Produit / démo / nouveauté / release note',
+    opinion: 'Jeudi · Opinion / hot take mesuré',
+    build: 'Vendredi · Build in public',
+  };
+  // V43 — Traduit un insight de rythme en action concrète (label + href).
+  function rhythmCta(r: { kind: string; data?: any }): { label: string; href: string } {
+    const cat = r.data?.cat as string | undefined;
+    const pilierParam = cat && PILIER_BY_CAT[cat] ? `?pilier=${encodeURIComponent(PILIER_BY_CAT[cat])}` : '';
+    switch (r.kind) {
+      case 'pilier_gap': {
+        const catLabels: Record<string, string> = { cas: 'un cas client', pedagogie: 'une pédagogie', produit: 'un post produit', opinion: 'une opinion', build: 'un build in public' };
+        return { label: `Écrire ${cat && catLabels[cat] ? catLabels[cat] : 'un post'}`, href: `/posts/new${pilierParam}` };
+      }
+      case 'no_concrete_scene':
+        return { label: 'Raconter une scène', href: `/posts/new?pilier=${encodeURIComponent('Lundi · Cas client')}` };
+      case 'no_proof':
+        return { label: 'Écrire un post chiffré', href: '/posts/new' };
+      case 'fatigue':
+      case 'overconcentration':
+        return { label: 'Varier le pilier', href: '/posts/new' };
+      case 'narrative_gap':
+        return { label: 'Varier l\'angle', href: '/posts/new' };
+      default:
+        return { label: 'Écrire maintenant', href: '/posts/new' };
+    }
+  }
+
   // Bloc 3 — 1 action recommandée (priorité Opportunité du moment, puis rhythm gap)
   const rhythmActionable = rhythm.find(r => r.severity === 'firm') || rhythm.find(r => r.kind === 'pilier_gap' || r.kind === 'no_concrete_scene' || r.kind === 'no_proof');
   const recommendation = brain.topInsight && brain.topInsight.kind !== 'low_data'
     ? { message: brain.topInsight.message, cta_label: brain.topInsight.cta_label, cta_href: brain.topInsight.cta_href }
     : rhythmActionable
-      ? { message: rhythmActionable.message, cta_label: 'Écrire maintenant', cta_href: '/posts/new' }
+      ? { message: rhythmActionable.message, ...(() => { const c = rhythmCta(rhythmActionable); return { cta_label: c.label, cta_href: c.href }; })() }
       : null;
+
+  // V43 — CTA contextuel pour le Bloc 1 (Ce que Cadence sait).
+  const knowsCta = brain.confirmedCount === 0
+    ? { label: 'Importer mes posts LinkedIn', href: '/sources/linkedin' }
+    : brain.totalIndexed > 0
+      ? { label: 'Voir dans le calendrier', href: '/calendar?source=linkedin' }
+      : { label: 'Importer mes posts LinkedIn', href: '/sources/linkedin' };
+
+  // V43 — CTA contextuel pour le Bloc 2 (style). Si peu alimenté → import.
+  const styleWeak = brain.confidenceScore.overall < 40;
 
   return (
     <div className="space-y-10 max-w-3xl mx-auto">
@@ -213,7 +255,7 @@ export default async function BrainPage() {
 
       {/* === V37.6 — TROIS BLOCS COURTS AU PREMIER ÉCRAN === */}
 
-      {/* Bloc 1 — Ce que Cadence sait */}
+      {/* Bloc 1 — Ce que Cadence sait + 1 action */}
       <section>
         <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Ce que Cadence sait</p>
         <p className="text-base text-ink-900 leading-relaxed">{knowsLine}</p>
@@ -223,12 +265,17 @@ export default async function BrainPage() {
             Confiance {brain.confidenceScore.overall} %{brain.confidenceScore.overall < 50 ? ' — s\'enrichit avec plus de posts importés.' : '.'}
           </p>
         )}
+        <div className="mt-3">
+          <Link href={knowsCta.href} className={brain.confirmedCount === 0 ? 'btn-primary text-sm' : 'text-sm text-brand-700 hover:text-brand-900 font-medium transition'}>
+            {knowsCta.label} →
+          </Link>
+        </div>
       </section>
 
-      {/* Bloc 2 — Ce que Cadence comprend de votre style */}
-      {styleObservations.length > 0 && (
-        <section>
-          <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Ce que Cadence comprend de votre style</p>
+      {/* Bloc 2 — Ce que Cadence comprend de votre style + 1 action */}
+      <section>
+        <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Ce que Cadence comprend de votre style</p>
+        {styleObservations.length > 0 ? (
           <ul className="space-y-2">
             {styleObservations.slice(0, 3).map((m, i) => (
               <li key={i} className="text-base text-ink-800 leading-relaxed flex items-start gap-3">
@@ -237,8 +284,21 @@ export default async function BrainPage() {
               </li>
             ))}
           </ul>
-        </section>
-      )}
+        ) : (
+          <p className="text-base text-ink-800 leading-relaxed">
+            {styleWeak
+              ? 'Votre style LinkedIn est encore peu alimenté. Plus vous importez de posts, plus Cadence écrit comme vous.'
+              : 'Cadence apprend votre voix à partir de vos posts publiés. Détails dans l\'analyse complète.'}
+          </p>
+        )}
+        <div className="mt-3">
+          {styleWeak ? (
+            <Link href="/sources/linkedin" className="btn-primary text-sm">Importer mes posts →</Link>
+          ) : (
+            <Link href="/posts/new" className="text-sm text-brand-700 hover:text-brand-900 font-medium transition">Écrire dans ma voix →</Link>
+          )}
+        </div>
+      </section>
 
       {/* Bloc 3 — Ce que Cadence recommande maintenant */}
       {recommendation && (
