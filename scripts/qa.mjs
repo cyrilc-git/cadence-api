@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 /**
- * Cadence QA — Playwright local runner (V8.1 enrichi).
+ * Cadence QA — Playwright runner (V51 §8 : recentré sur les 5 onglets réels).
  *
  * Usage :
- *   npm i playwright    (only first run)
- *   npx playwright install chromium
- *   node scripts/qa.mjs                   # tests prod
+ *   npx playwright install chromium       (1re fois uniquement)
+ *   node scripts/qa.mjs                    # teste la prod
  *   BASE_URL=http://localhost:3000 node scripts/qa.mjs
- *   VIEWPORT=mobile node scripts/qa.mjs   # iPhone 13 viewport
+ *   VIEWPORT=mobile node scripts/qa.mjs    # viewport iPhone 13
+ *
+ * Sur chaque page : mojibake, erreurs console, réponses HTTP >= 400, overflow
+ * horizontal, squelettes bloqués, noeuds texte nus + capture d'écran. Pour les
+ * routes repliées en §7, vérifie en plus que la redirection atterrit sur la
+ * surface vive attendue (expectRedirect).
  */
 import { chromium } from 'playwright';
 import fs from 'node:fs';
@@ -21,24 +25,41 @@ const VIEWPORT = VIEWPORT_NAME === 'mobile'
 const OUT_DIR = path.resolve(`qa-screens-${VIEWPORT_NAME}`);
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
-const PAGES = [
-  { name: 'dashboard',         path: '/' },
-  { name: 'radar',             path: '/suggestions' },
-  { name: 'calendrier',        path: '/calendar' },
-  { name: 'bibliotheque',      path: '/posts' },
-  { name: 'nouveau-post',      path: '/posts/new' },
-  { name: 'ligne-editoriale',  path: '/brand-dna' },
-  { name: 'inspirations',      path: '/inspirations' },
-  { name: 'sources',           path: '/sources' },
-  { name: 'sources-notion',    path: '/sources/notion' },
-  { name: 'sources-linkedin',  path: '/sources/linkedin' },
-  { name: 'design-visuel',     path: '/design-visuel' },
-  { name: 'analytics',         path: '/analytics' },
-  { name: 'parametres',        path: '/settings' }
+// V51 — Cadence fait 3 choses (écrire, programmer/publier, visuels) et expose
+// 5 onglets : Écrire, Calendrier, Bibliothèque, Sources, Mémoire. On teste ces
+// surfaces vives + les sous-pages Sources, puis on vérifie que chaque route
+// morte repliée en §7 redirige bien vers sa destination.
+const LIVE = [
+  { name: 'ecrire',           path: '/posts/new' },
+  { name: 'calendrier',       path: '/calendar' },
+  { name: 'bibliotheque',     path: '/posts' },
+  { name: 'sources',          path: '/sources' },
+  { name: 'memoire',          path: '/cerveau' },
+  { name: 'sources-linkedin', path: '/sources/linkedin' },
+  { name: 'sources-notion',   path: '/sources/notion' },
+  { name: 'sources-ai',       path: '/sources/ai' },
 ];
+
+const REDIRECTS = [
+  { name: 'redir-racine',          path: '/',                        expectRedirect: '/posts/new' },
+  { name: 'redir-analytics',       path: '/analytics',               expectRedirect: '/cerveau' },
+  { name: 'redir-brand-dna',       path: '/brand-dna',               expectRedirect: '/cerveau' },
+  { name: 'redir-inspirations',    path: '/inspirations',            expectRedirect: '/cerveau' },
+  { name: 'redir-design-visuel',   path: '/design-visuel',           expectRedirect: '/posts/new' },
+  { name: 'redir-suggestions',     path: '/suggestions',             expectRedirect: '/posts/new' },
+  { name: 'redir-settings',        path: '/settings',                expectRedirect: '/sources' },
+  { name: 'redir-settings-notion', path: '/settings/notion',         expectRedirect: '/sources/notion' },
+  { name: 'redir-settings-design', path: '/settings/design-system',  expectRedirect: '/posts/new' },
+  { name: 'redir-settings-import', path: '/settings/import-linkedin', expectRedirect: '/sources/linkedin' },
+  { name: 'redir-github',          path: '/sources/github',          expectRedirect: '/sources' },
+];
+
+const PAGES = [...LIVE, ...REDIRECTS];
 
 // Patterns de mojibake
 const MOJIBAKE_RE = /[Ã][\x80-\xff]|[Â][\x80-\xa6\xa8-\xff]|â€[\x80-\xff]?|ð[\x80-\xff]{1,3}|�/;
+
+const norm = (pth) => (pth || '/').replace(/\/$/, '') || '/';
 
 const REPORT = {
   base: BASE,
@@ -66,13 +87,21 @@ const REPORT = {
     page.on('pageerror', onPageError);
     page.on('response', onResponse);
 
-    process.stdout.write(`→ ${p.name.padEnd(20)} ${url} … `);
-    let title = '', mojibake = [], status = 'ok';
+    process.stdout.write(`→ ${p.name.padEnd(22)} ${url} … `);
+    let title = '', mojibake = [], status = 'ok', finalUrl = '', redirectMismatch = false;
     let overflow = false, brokenSkeletons = 0, bareTextNodes = 0;
 
     try {
       const resp = await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+
+      // V51 §8 — laisse la redirection (§7) se poser avant de lire l'URL finale.
+      if (p.expectRedirect) {
+        const want = norm(p.expectRedirect);
+        try { await page.waitForURL(u => norm(new URL(String(u)).pathname) === want, { timeout: 8000 }); } catch {}
+      }
+      finalUrl = page.url();
       title = await page.title();
+      if (p.expectRedirect) redirectMismatch = norm(new URL(finalUrl).pathname) !== norm(p.expectRedirect);
 
       const html = await page.content();
       const visible = html.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, '');
@@ -110,6 +139,7 @@ const REPORT = {
 
       await page.screenshot({ path: path.join(OUT_DIR, `${p.name}.png`), fullPage: true });
       const flags = [];
+      if (redirectMismatch) flags.push(`redirect→${norm(new URL(finalUrl).pathname)}≠${norm(p.expectRedirect)}`);
       if (mojibake.length) flags.push(`mojibake=${mojibake.length}`);
       if (consoleErrors.length) flags.push(`console=${consoleErrors.length}`);
       if (networkErrors.length) flags.push(`http=${networkErrors.length}`);
@@ -124,7 +154,8 @@ const REPORT = {
     }
 
     REPORT.pages.push({
-      name: p.name, url, status, title,
+      name: p.name, url, status, title, finalUrl,
+      expectRedirect: p.expectRedirect || null, redirectMismatch,
       consoleErrors, networkErrors, mojibake,
       overflow, brokenSkeletons, bareTextNodes
     });
@@ -138,7 +169,7 @@ const REPORT = {
   REPORT.finished = new Date().toISOString();
 
   const errs = REPORT.pages.filter(p =>
-    p.status !== 'ok' || p.consoleErrors.length || p.mojibake.length || p.overflow || p.brokenSkeletons > 0
+    p.status !== 'ok' || p.consoleErrors.length || p.mojibake.length || p.overflow || p.brokenSkeletons > 0 || p.redirectMismatch
   );
   console.log('\n' + '='.repeat(60));
   console.log(`QA ${VIEWPORT_NAME} : ${REPORT.pages.length} pages, ${errs.length} avec issues.`);
@@ -146,11 +177,12 @@ const REPORT = {
     for (const e of errs) {
       const flags = [];
       if (e.status !== 'ok') flags.push(`status=${e.status}`);
+      if (e.redirectMismatch) flags.push(`redirect≠${e.expectRedirect}`);
       if (e.mojibake.length) flags.push(`mojibake=${e.mojibake.length}`);
       if (e.consoleErrors.length) flags.push(`console=${e.consoleErrors.length}`);
       if (e.overflow) flags.push('overflow');
       if (e.brokenSkeletons > 0) flags.push(`skeletons=${e.brokenSkeletons}`);
-      console.log(`  ${e.name.padEnd(20)} ${flags.join(' ')}`);
+      console.log(`  ${e.name.padEnd(22)} ${flags.join(' ')}`);
     }
   }
   fs.writeFileSync(`qa-report-${VIEWPORT_NAME}.json`, JSON.stringify(REPORT, null, 2));

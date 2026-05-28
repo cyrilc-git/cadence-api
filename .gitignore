@@ -7,3 +7,7 @@ node_modules
 next-env.d.ts
 .env*.local
 .env*
+
+# Artefacts QA Playwright (scripts/qa.mjs) — rapports + captures, regénérés à la demande
+qa-report-*.json
+qa-screens-*/
