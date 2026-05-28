@@ -6,14 +6,37 @@ Ce fichier est lu automatiquement par Claude Code à chaque session. Il contient
 
 ## 1. Mission
 
-Cadence est un **OS éditorial AI-native pour LinkedIn**. Pas un outil social media — un assistant éditorial intelligent, calme, anticipateur, premium. Inspirations : Linear, Arc, Granola, Notion Calendar, Raycast, Perplexity, Superhuman, Apple éditorial.
+Cadence est un **OS éditorial AI-native pour LinkedIn**. Pas un outil social media — un assistant éditorial intelligent, calme, anticipateur, premium. Inspirations : Linear, Arc, Granola, Notion Calendar, Raycast, Perplexity, Superhuman, Lemlist, Apple éditorial.
 
 Sensation à viser : **« Cadence sait quoi faire »**, jamais « Cadence me demande quoi faire ».
 
-## 2. État actuel (V9.1.1)
+## 1bis. Cap produit permanent (NORD — ne jamais perdre de vue)
 
-- Score estimé : ~97.5 % premium UX.
-- 130+ commits depuis V7.7. Versions clés : V8.3 (refonte UX), V8.6 (CadenceEditor unifié), V8.9 (streaming SSE + radar intelligent), V9.0 (Cadence anticipe), V9.1 (import LinkedIn premium + calendrier vivant + analytics humains++), V9.1.1 (anti-patterns IA étendus).
+Ne pas raisonner feature par feature. Raisonner : **« comment rendre Cadence commercialisable, premium, simple, évident, différenciant »**.
+
+Cadence DOIT ressembler à : un assistant éditorial senior · un directeur artistique discret · un copilote LinkedIn pour dirigeants · une mémoire éditoriale vivante · un OS de publication ultra simple.
+
+Cadence ne doit JAMAIS ressembler à : un dashboard SaaS · un admin panel · un outil IA générique · un générateur de prompts · un CRM · un cockpit à 200 boutons.
+
+**Règles produit globales (appliquées à chaque écran, chaque commit) :**
+1. Réduire la charge cognitive : moins de boutons, cartes, textes, KPI, jargon, settings visibles.
+2. Chaque écran répond à 3 questions : Que se passe-t-il ? Pourquoi c'est utile ? Que puis-je faire maintenant ?
+3. Maximum **1 action principale, 2 secondaires**, le reste replié.
+4. L'IA est invisible : Cadence anticipe, ne demande pas, n'expose jamais de prompts/configs techniques.
+5. Zéro AI-slop : appliquer no_ai_slop_writing_rules + social-media-skills + anti-patterns FR (lib/brand-config).
+6. Tout doit être **dynamique, connecté, actionnable, compréhensible** — jamais hardcodé, jamais décoratif. Si une zone ne sert pas à agir ou comprendre : supprimer, replier ou transformer.
+7. Penser « CEO non technique », « pas de friction », « ça doit donner envie immédiatement ».
+
+**Supprimer systématiquement** : admin panel, KPI grid, CRUD nu, settings techniques en clair, cartes imbriquées, IA gadget, texte inutile, boutons redondants, interfaces « faites par des devs ».
+
+**Références éditoriales permanentes** : Yann Leonardi, post Fygr « Les outils indispensables pour un DAF en 2026 ». Reproduire la STRUCTURE (ultra lisible, 1 idée par bloc, scan instantané, tension implicite, mini-cours, framework visuel, « je comprends en 5 secondes »), jamais la DA / formulations / couleurs / hooks exacts / branding.
+
+**Intelligence de format (différenciateur clé)** : Cadence doit comprendre seule quand un sujet mérite un carrousel PDF, un mono-visuel, un schéma, une checklist, un framework, une timeline, une carte mentale, un avant/après, une capture produit, une pyramide, une comparaison, un « N éléments indispensables ». Cf `lib/format-intelligence.ts`.
+
+## 2. État actuel (V47)
+
+- 240+ commits. Jalons récents : V25 (anti-slop FR enrichi + signaux structurels), V30 (carrousels PDF premium, 6 slide kinds), V31 (fingerprints stylistiques + pondération sources LinkedIn), V34 (editorial rhythm engine), V36-V37 (imports LinkedIn actionnables + calendrier intelligent + cerveau 3 blocs), V38 (versions éditeur, publier/programmer, day-picker calendrier), V39-V40 (6 moteurs image key-gated : Claude Design, DALL-E, Gemini/Nano Banana, Flux/Replicate, Stability, Ideogram), V41-V47 (passe UX : tout dynamique/actionnable, Sources = hub unique, Analytics « ce qui fonctionne », inspirations câblées).
+- Garde-fou data : `lib/style-memory.ts` pondère linkedin_published (2) > linkedin_import_zip (1) > notion_archive (0). Inspirations actives → réellement passées à `generate-post`.
 - Prod : https://cadence-api-ruddy.vercel.app
 - Repo : https://github.com/cyrilc-git/cadence-api (public)
 - Vercel project ID : `prj_NzzzZT7X9LBtVBLwttNjrDw2Mx5B` · team : `team_F89GJ8tofAlmqYucO3HV8Lsh`
