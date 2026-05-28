@@ -1,6 +1,7 @@
 import NewPostClient from './client';
 import { getNotionPost, listNotionPosts } from '@/lib/notion';
 import { sanitizeForBrandVoice } from '@/lib/brand-config';
+import { suggestionsList } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,12 +17,9 @@ export default async function NewPostPage({ searchParams }: { searchParams: Reco
   let suggestBrief = searchParams.brief ? sanitizeForBrandVoice(searchParams.brief) : undefined;
   let suggestPilier = searchParams.pilier || undefined;
   let suggestHook = searchParams.hook ? sanitizeForBrandVoice(searchParams.hook) : undefined;
-  let suggestAngle: string | null = null;
   let suggestWhy: string | null = null;
-  let suggestVisualIdea: string | null = null;
   let suggestSource: string | null = null;
   let suggestId: string | null = null;
-  let suggestScore: number | null = null;
 
   // Source filter (V8): user can pick a specific source for auto-suggestion
   const filterSource = searchParams.source || null;
@@ -51,6 +49,29 @@ export default async function NewPostPage({ searchParams }: { searchParams: Reco
       .map(p => ({ id: p.id, title: p.title, pilier: p.pilier, impressions: p.impressions, published_at: p.scheduled_at! }));
   } catch {/* silent */}
 
+  // V51 §2 — Proposition proactive. Quand l'utilisateur arrive sur une page
+  // vierge (pas de recyclage, pas de brief), Cadence propose UNE idée en
+  // attente (la mieux notée) sous forme de bande discrète au-dessus de la zone
+  // d'écriture. Remplace l'ancien dashboard "Aujourd'hui" sans réintroduire de
+  // grille admin. ?skip=ID fait défiler vers la suivante.
+  let proposal: { id: string; title: string; hook: string | null; why: string | null; pilier: string | null } | null = null;
+  if (!initial && !suggestBrief) {
+    try {
+      const skip = searchParams.skip || null;
+      const pending = await suggestionsList('pending', skip ? 4 : 1);
+      const pick = pending.find(s => s.id !== skip) || null;
+      if (pick) {
+        proposal = {
+          id: pick.id,
+          title: sanitizeForBrandVoice(pick.title || ''),
+          hook: pick.hook ? sanitizeForBrandVoice(pick.hook) : null,
+          why: pick.why ? sanitizeForBrandVoice(pick.why) : null,
+          pilier: pick.pilier || null,
+        };
+      }
+    } catch {/* silent — pas de proposition, page vierge */}
+  }
+
   return (
     <NewPostClient
       initial={initial}
@@ -58,13 +79,11 @@ export default async function NewPostPage({ searchParams }: { searchParams: Reco
       prefillHook={suggestHook}
       suggestSource={suggestSource}
       suggestId={suggestId}
-      suggestScore={suggestScore}
       suggestPilier={suggestPilier || null}
-      suggestAngle={suggestAngle}
       suggestWhy={suggestWhy}
-      suggestVisualIdea={suggestVisualIdea}
       filterSource={filterSource}
       recyclables={recyclables}
+      proposal={proposal}
     />
   );
 }

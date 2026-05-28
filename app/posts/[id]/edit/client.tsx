@@ -10,6 +10,7 @@ import LinkedInPreview from '@/components/LinkedInPreview';
 import PublishModal from '@/components/PublishModal';
 import VisualGenerator from '@/components/VisualGenerator';
 import CadenceEditor, { useEditorMetrics } from '@/components/CadenceEditor';
+import { detectEditorialFormat, buildFormatBrief, formatToVisualTemplate, pilierFormatHint, type EditorialFormat } from '@/lib/format-intelligence';
 import CommandPalette, { Command } from '@/components/CommandPalette';
 import PreviewDrawer from '@/components/PreviewDrawer';
 import { SLASH_COMMANDS } from '@/components/SlashMenu';
@@ -166,6 +167,22 @@ export default function EditClient({ initial, validated: initialValidated }: { i
     setText(text.slice(0, start) + transform(text.slice(start, end)) + text.slice(end));
   }
 
+  // V51 §2 — « Générer un visuel » explicite. Cadence dérive le bon format
+  // éditorial à partir du post (pas de prompt technique à écrire), construit le
+  // brief Claude Design et lance la génération dans le drawer. Un seul bouton.
+  function generateVisual() {
+    const t = text.trim();
+    if (!t) return;
+    const detected = detectEditorialFormat(t);
+    let fmt: EditorialFormat = detected?.format ?? pilierFormatHint(summary.pilier)?.format ?? (t.length < 400 ? 'mono_visual' : 'schema');
+    // L'éditeur de post unique produit une couverture, pas un carrousel.
+    if (fmt === 'carousel') fmt = 'schema';
+    setSuggestedVisualFormat(formatToVisualTemplate(fmt));
+    setAutoVisualBrief(buildFormatBrief(fmt, t));
+    setAutoGenerateKey(k => k + 1);
+    setPreviewOpen(true);
+  }
+
   async function removeFromCadence(alsoArchive: boolean) {
     setRemoveDialog(false);
     setRemoving(true);
@@ -250,15 +267,6 @@ export default function EditClient({ initial, validated: initialValidated }: { i
           rows={20}
           placeholder="Commencez à écrire. Tapez / pour les commandes, @ pour mentionner."
           bare
-          onVisualSuggested={(format, opts) => {
-            setSuggestedVisualFormat(format);
-            setPreviewOpen(true);
-            // V50.2 — Génération immédiate si un brief format-aware est fourni.
-            if (opts?.autoBrief) {
-              setAutoVisualBrief(opts.autoBrief);
-              setAutoGenerateKey(k => k + 1);
-            }
-          }}
         />
       </div>
 
@@ -293,9 +301,10 @@ export default function EditClient({ initial, validated: initialValidated }: { i
           <span className="tabular-nums hidden lg:inline">{wordCount} mots · ~{readingMin} min</span>
           <span className={`tabular-nums ${charCount > 1300 ? 'text-danger-500 font-semibold' : 'text-ink-400'}`}>{charCount}/1300</span>
           <span className="ml-auto flex items-center gap-2">
-            <label className="flex items-center gap-1.5 cursor-pointer">
+            <button onClick={generateVisual} disabled={!text.trim()} className="btn-secondary text-xs">Visuel</button>
+            <label className="flex items-center gap-1.5 cursor-pointer" title="Coché : ce post programmé partira automatiquement à la date prévue. Décoché : il attend votre feu vert avant de partir.">
               <input type="checkbox" checked={validated} onChange={e => setValidated(e.target.checked)} className="w-3.5 h-3.5 rounded border-ink-300 text-brand-500" />
-              <span>Validé pour cron</span>
+              <span className="hidden sm:inline">Publication auto</span>
             </label>
             <button onClick={() => setPublishOpen(true)} disabled={!text.trim() || isDirty} className="btn-primary text-xs" title={isDirty ? 'Sauvegardez avant' : undefined}>
               Publier…

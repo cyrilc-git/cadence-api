@@ -1,14 +1,17 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { detectEditorialFormat, buildFormatBrief, type EditorialFormat } from '@/lib/format-intelligence';
 
 type Mode = 'claude-design' | 'openai' | 'gemini' | 'replicate' | 'stability' | 'ideogram';
 
-// V12.7 — Claude Design en mode principal. DALL-E reste utile pour les
-// illustrations métaphoriques mais ne doit plus être le réflexe.
-// Heelio direction artistique : fond clair, bleu Cadence, hiérarchie nette,
-// peu de texte, 1 idée centrale, grandes zones respirantes, style premium
-// SaaS/fintech, formats LinkedIn carrés ou 1200x630.
+// V12.7 / V51 §2 — Claude Design = moteur principal. Le flow n'est plus
+// « écrire un prompt technique » : Cadence dérive un brief intelligent à
+// partir du post (format détecté -> structure -> DA Heelio) et lance la
+// génération. Le moteur et le brief brut vivent dans « Avancé », repliés.
+// On retire toute la pile de murmures passifs (mémoire visuelle, reco
+// memory-check pendant la frappe, disclaimer Midjourney, signaux « trop
+// Canva ») : un panneau qui agit, pas un panneau qui commente.
 const TEMPLATES: Record<string, { label: string; mode: Mode; example: string }> = {
   feature:      { label: 'Carte KPI',                    mode: 'claude-design', example: 'Carte KPI "DSO" : valeur 32 jours en grand (typo Inter 56px, bleu #2563EB), libellé "vs objectif 30 jours" en sous-texte ink-500, fond #FAFAF9, 1200x630, beaucoup d\'air autour du chiffre, pas de gradient.' },
   schema:       { label: 'Schéma pédagogique',           mode: 'claude-design', example: 'Schéma 3 étapes du closing mensuel (Réconciliation > Provisions > Reporting). 3 cartes alignées horizontalement, fond clair #FAFAF9, accents bleu #2563EB sur les numéros, flèches fines ink-400, espace généreux. Style éditorial premium.' },
@@ -27,7 +30,8 @@ type Variant = {
   template: keyof typeof TEMPLATES;
   prompt: string;
   createdAt: number;
-  // V23.1 — Score premium calculé côté serveur sur le SVG
+  // V23.1 — Score premium calculé côté serveur sur le SVG (conservé pour le
+  // tracing serveur ; on n'affiche plus les signaux anxiogènes côté UI).
   visualScore?: { score: number; signals: VisualSignal[] };
 };
 
@@ -69,7 +73,7 @@ export default function VisualGenerator({
   useEffect(() => {
     if (!suggestedFormat) return;
     const tpl = HINT_TO_TEMPLATE[suggestedFormat];
-    if (tpl && tpl !== template) useTemplate(tpl);
+    if (tpl && tpl !== template) setTemplate(tpl);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [suggestedFormat]);
   const [prompt, setPrompt] = useState(defaultPrompt);
@@ -80,56 +84,9 @@ export default function VisualGenerator({
   const [dragOver, setDragOver] = useState(false);
   const [briefLoading, setBriefLoading] = useState(false);
 
-  // V12.2 — Mémoire visuelle : Cadence lit son historique au mount et affiche
-  // discrètement ce qui a marché. Aucun cliquable, juste une présence.
-  const [memorySnippet, setMemorySnippet] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/visual-memory?limit=1')
-      .then(r => r.json())
-      .then(d => {
-        if (cancelled) return;
-        const meaningful = (d?.patterns || []).filter((p: any) => p.kind !== 'low_data');
-        if (meaningful.length > 0) setMemorySnippet(meaningful[0].message);
-      })
-      .catch(() => { /* silent */ });
-    return () => { cancelled = true; };
-  }, []);
-
-  // V12.7 §3 — Recommandation de template basée sur le texte du post.
-  // Appelle memory-check, mappe visualHint.format -> template Cadence,
-  // pré-sélectionne et affiche une microcopy "Cadence recommande X".
-  const [recommendation, setRecommendation] = useState<{ template: keyof typeof TEMPLATES; message: string } | null>(null);
-  useEffect(() => {
-    if (!contextText || contextText.trim().length < 80) { setRecommendation(null); return; }
-    const ctl = new AbortController();
-    const timer = setTimeout(async () => {
-      try {
-        const r = await fetch('/api/memory-check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: contextText }),
-          signal: ctl.signal,
-        });
-        if (!r.ok) return;
-        const d = await r.json();
-        if (d?.visualHint?.format && HINT_TO_TEMPLATE[d.visualHint.format]) {
-          const tpl = HINT_TO_TEMPLATE[d.visualHint.format];
-          setRecommendation({ template: tpl, message: d.visualHint.message });
-        } else {
-          setRecommendation(null);
-        }
-      } catch { /* abort or net error */ }
-    }, 1200);
-    return () => { clearTimeout(timer); ctl.abort(); };
-  }, [contextText]);
-
-  // V38.2 — Sélecteur de moteur IA. Par défaut on suit le template
-  // (Claude Design pour les visuels structurés, DALL-E pour les
+  // V38.2 — Sélecteur de moteur IA (dans « Avancé »). Par défaut on suit le
+  // template (Claude Design pour les visuels structurés, DALL-E pour les
   // métaphores), mais l'utilisateur peut forcer un moteur.
-  // - claude-design : SVG éditorial (rapide, gratuit, premium)
-  // - openai        : DALL-E 3 (illustrations bitmap)
-  // - gemini        : Nano Banana (gemini-2.5-flash-image), bitmap riche
   const [engineOverride, setEngineOverride] = useState<Mode | null>(null);
   // V39.3 — Disponibilité des moteurs (clé présente ?) lue depuis /api/engines.
   const [engines, setEngines] = useState<Record<string, boolean> | null>(null);
@@ -151,11 +108,25 @@ export default function VisualGenerator({
     onPick(selected.svg || selected.url || null);
   }, [selected, onPick]);
 
+  // V51 §2 — Brief intelligent dérivé du post (zéro saisie technique requise).
+  // On détecte le format éditorial du texte, on construit un brief structuré
+  // prêt pour Claude Design. Aucune IA réseau, aucune latence : pur JS.
+  const deriveBrief = useCallback((): string => {
+    const t = (contextText || '').trim();
+    if (t.length < 40) return '';
+    const detected = detectEditorialFormat(t);
+    const fmt: EditorialFormat = detected?.format ?? (t.length < 400 ? 'mono_visual' : 'schema');
+    return buildFormatBrief(fmt, t);
+  }, [contextText]);
+
   const handleGenerate = useCallback(async (override?: unknown) => {
     // V50.2 — onClick passe un MouseEvent : on n'accepte un override que
     // si c'est une vraie chaîne (auto-génération depuis un format hint).
-    const usePrompt = typeof override === 'string' && override.trim() ? override : prompt;
-    if (!usePrompt.trim()) return;
+    const fromOverride = typeof override === 'string' && override.trim() ? override : '';
+    // V51 §2 — Priorité : override > brief saisi (Avancé) > brief dérivé du
+    // post > exemple du template. On a donc toujours un brief intelligent.
+    const usePrompt = (fromOverride || prompt.trim() || deriveBrief() || TEMPLATES[template].example).trim();
+    if (!usePrompt) return;
     setLoading(true); setError(null);
     try {
       // V12.2 — Transmet template + pilier pour tracing dans visual_items
@@ -184,10 +155,10 @@ export default function VisualGenerator({
     } finally {
       setLoading(false);
     }
-  }, [prompt, mode, notionPageId, template, pilierProp]);
+  }, [prompt, mode, notionPageId, template, pilierProp, deriveBrief]);
 
   // V50.2 — Auto-génération : quand l'éditeur déclenche un format hint
-  // (« Cadence agit »), on pré-remplit le brief ET on lance la génération
+  // (« Générer un visuel »), on pré-remplit le brief ET on lance la génération
   // immédiatement, une seule fois par clic. L'utilisateur voit un asset se
   // construire au lieu d'un panneau vide.
   const lastAutoKey = useRef<number | undefined>(undefined);
@@ -204,12 +175,14 @@ export default function VisualGenerator({
     if (briefLoading) return;
     setBriefLoading(true);
     try {
+      // V51 §2 — Point de départ = brief dérivé du post si le champ est vide.
+      const seed = prompt.trim() || deriveBrief();
       const r = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           notion_page_id: notionPageId || 'visual-brief',
-          draft: prompt || '(brief vide)',
+          draft: seed || '(brief vide)',
           instruction: 'Propose un brief visuel concis pour ce post (3-4 lignes max). Format de réponse : un paragraphe descriptif. Style sobre, design system Heelio bleu #2563EB, fond #F8FAFC. Pas d\'emoji.'
         })
       });
@@ -217,11 +190,6 @@ export default function VisualGenerator({
       if (r.ok && d.rewrite) setPrompt(d.rewrite);
     } catch {/* silent */}
     finally { setBriefLoading(false); }
-  }
-
-  function useTemplate(key: keyof typeof TEMPLATES) {
-    setTemplate(key);
-    if (!prompt || prompt === TEMPLATES[template].example) setPrompt(TEMPLATES[key].example);
   }
 
   function onDrop(e: React.DragEvent) {
@@ -248,81 +216,21 @@ export default function VisualGenerator({
 
   return (
     <div className="card p-5">
-      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+      <div className="mb-3">
         <h3 className="font-semibold text-ink-900 text-sm">Visuel</h3>
-        {/* V38.2 — Sélecteur de moteur IA. L'utilisateur choisit qui dessine. */}
-        <label className="inline-flex items-center gap-1.5 text-2xs text-ink-500">
-          <span className="uppercase tracking-wider font-semibold">Moteur</span>
-          <select
-            value={engineOverride || TEMPLATES[template].mode}
-            onChange={e => setEngineOverride(e.target.value as Mode)}
-            className="input text-xs h-8 w-auto py-0"
-            title="Choisissez le moteur de génération d'image"
-          >
-            {/* V39.3 — Un moteur sans clé est grisé (disabled). engines=null
-                pendant le chargement : on n'empêche rien tant qu'on ne sait pas. */}
-            <option value="claude-design" disabled={engines !== null && !engines['claude-design']}>
-              Claude Design · SVG{engines && !engines['claude-design'] ? ' (clé requise)' : ''}
-            </option>
-            <option value="openai" disabled={engines !== null && !engines.openai}>
-              DALL-E 3 · OpenAI{engines && !engines.openai ? ' (clé requise)' : ''}
-            </option>
-            <option value="gemini" disabled={engines !== null && !engines.gemini}>
-              Nano Banana · Gemini{engines && !engines.gemini ? ' (clé requise)' : ''}
-            </option>
-            <option value="replicate" disabled={engines !== null && !engines.replicate}>
-              Flux · Replicate{engines && !engines.replicate ? ' (clé requise)' : ''}
-            </option>
-            <option value="stability" disabled={engines !== null && !engines.stability}>
-              Stable Diffusion 3.5{engines && !engines.stability ? ' (clé requise)' : ''}
-            </option>
-            <option value="ideogram" disabled={engines !== null && !engines.ideogram}>
-              Ideogram v3 · texte{engines && !engines.ideogram ? ' (clé requise)' : ''}
-            </option>
-          </select>
-        </label>
+        <p className="text-2xs text-ink-500 leading-relaxed mt-0.5">
+          Claude Design compose un visuel éditorial à partir de votre post.
+        </p>
       </div>
-      {/* V39.3 — Si le moteur sélectionné n'a pas de clé : message + lien Sources. */}
-      {engines && engines[mode] === false && (
-        <p className="text-2xs text-amber-700 leading-relaxed mb-3">
-          Ce moteur nécessite une clé. <a href="/sources/ai" className="underline decoration-dotted underline-offset-2 hover:text-amber-900">Ajoutez-la dans Sources → Clés IA</a>.
-        </p>
-      )}
-      {/* V40 — Note honnête : Midjourney sans API publique. */}
-      <p className="text-2xs text-ink-400 italic leading-relaxed mb-3">
-        Midjourney n&apos;a pas d&apos;API publique. Pour une qualité équivalente, utilisez Flux (Replicate). Ou exportez votre visuel Midjourney à la main et ajoutez-le via l&apos;aperçu.
-      </p>
 
-      {/* V12.2 — Cadence se rappelle de ce qui a marché */}
-      {memorySnippet && (
-        <p className="text-2xs text-ink-500 italic leading-relaxed mb-3" aria-live="polite">
-          {memorySnippet}
-        </p>
-      )}
-
-      {/* V12.7 §3 — Recommandation de template basée sur la structure du post */}
-      {recommendation && template !== recommendation.template && (
-        <p className="text-2xs text-brand-700 leading-relaxed mb-3" aria-live="polite">
-          Cadence recommande {TEMPLATES[recommendation.template].label.toLowerCase()}.
-          {' '}
-          <button
-            type="button"
-            onClick={() => useTemplate(recommendation.template)}
-            className="underline decoration-dotted underline-offset-2 hover:text-brand-900 transition"
-          >
-            Adopter
-          </button>
-        </p>
-      )}
-
-      {/* V12.7 — Claude Design en premier (4 templates), DALL-E métaphore séparé */}
+      {/* V12.7 — Claude Design en premier (4 templates), illustration DALL-E à part */}
       <div className="grid grid-cols-2 gap-1.5 mb-2">
         {(Object.entries(TEMPLATES) as Array<[keyof typeof TEMPLATES, typeof TEMPLATES[keyof typeof TEMPLATES]]>)
           .filter(([, v]) => v.mode === 'claude-design')
           .map(([k, v]) => (
             <button
               key={k}
-              onClick={() => useTemplate(k)}
+              onClick={() => setTemplate(k)}
               className={`text-left text-xs px-3 py-2 rounded-lg border transition ${template === k ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-ink-200 hover:bg-ink-50 text-ink-700'}`}
             >
               {v.label}
@@ -335,7 +243,7 @@ export default function VisualGenerator({
           .map(([k, v]) => (
             <button
               key={k}
-              onClick={() => useTemplate(k)}
+              onClick={() => setTemplate(k)}
               className={`text-left text-2xs px-3 py-1.5 rounded-md transition ${template === k ? 'bg-ink-100 text-ink-900 font-medium' : 'text-ink-500 hover:text-ink-900'}`}
               title="Pour les métaphores narratives uniquement. Préférez Claude Design pour les visuels produit et pédagogiques."
             >
@@ -344,25 +252,16 @@ export default function VisualGenerator({
           ))}
       </div>
 
-      {/* Prompt + brief assist */}
-      <div className="flex items-center justify-between mb-1">
-        <label className="text-xs font-medium text-ink-700">Brief visuel</label>
-        <button onClick={suggestBrief} disabled={briefLoading} className="btn-ghost text-2xs">
-          {briefLoading ? 'Réflexion…' : 'Suggérer un brief'}
-        </button>
-      </div>
-      <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3} placeholder={TEMPLATES[template].example} className="input text-sm" />
-
-      {/* V12.7 — Bouton principal selon le moteur choisi */}
-      <div className="mt-3 grid grid-cols-[1fr_auto] gap-2">
-        <button onClick={handleGenerate} disabled={loading || !prompt.trim()} className="btn-primary">
+      {/* V51 §2 — Action principale : un seul bouton, brief dérivé du post. */}
+      <div className="grid grid-cols-[1fr_auto] gap-2">
+        <button onClick={handleGenerate} disabled={loading} className="btn-primary">
           {loading
             ? 'Cadence dessine… (10-30 sec)'
             : mode === 'claude-design'
               ? 'Créer avec Claude Design'
               : 'Créer (DALL-E)'}
         </button>
-        <label className="btn-secondary cursor-pointer" title="Upload manuel">
+        <label className="btn-secondary cursor-pointer" title="Importer une image">
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4 M17 8l-5-5-5 5 M12 3v12"/></svg>
           <input type="file" accept="image/*" hidden onChange={e => {
             const f = e.target.files?.[0]; if (!f) return;
@@ -384,6 +283,64 @@ export default function VisualGenerator({
         </div>
       )}
 
+      {/* V51 §2 — Avancé : moteur + brief brut, repliés. Le défaut suffit. */}
+      <details className="mt-3 group">
+        <summary className="text-2xs text-ink-500 hover:text-ink-900 cursor-pointer select-none list-none flex items-center gap-1">
+          <svg className="w-3 h-3 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 6l6 6-6 6"/></svg>
+          Avancé · moteur et brief
+        </summary>
+        <div className="mt-3 space-y-3">
+          {/* Sélecteur de moteur IA */}
+          <label className="block">
+            <span className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Moteur</span>
+            <select
+              value={engineOverride || TEMPLATES[template].mode}
+              onChange={e => setEngineOverride(e.target.value as Mode)}
+              className="input text-xs h-9 w-full mt-1"
+              title="Choisissez le moteur de génération d'image"
+            >
+              {/* V39.3 — Un moteur sans clé est grisé (disabled). engines=null
+                  pendant le chargement : on n'empêche rien tant qu'on ne sait pas. */}
+              <option value="claude-design" disabled={engines !== null && !engines['claude-design']}>
+                Claude Design · SVG{engines && !engines['claude-design'] ? ' (clé requise)' : ''}
+              </option>
+              <option value="openai" disabled={engines !== null && !engines.openai}>
+                DALL-E 3 · OpenAI{engines && !engines.openai ? ' (clé requise)' : ''}
+              </option>
+              <option value="gemini" disabled={engines !== null && !engines.gemini}>
+                Nano Banana · Gemini{engines && !engines.gemini ? ' (clé requise)' : ''}
+              </option>
+              <option value="replicate" disabled={engines !== null && !engines.replicate}>
+                Flux · Replicate{engines && !engines.replicate ? ' (clé requise)' : ''}
+              </option>
+              <option value="stability" disabled={engines !== null && !engines.stability}>
+                Stable Diffusion 3.5{engines && !engines.stability ? ' (clé requise)' : ''}
+              </option>
+              <option value="ideogram" disabled={engines !== null && !engines.ideogram}>
+                Ideogram v3 · texte{engines && !engines.ideogram ? ' (clé requise)' : ''}
+              </option>
+            </select>
+          </label>
+          {/* V39.3 — Si le moteur sélectionné n'a pas de clé : message + lien Sources. */}
+          {engines && engines[mode] === false && (
+            <p className="text-2xs text-amber-700 leading-relaxed">
+              Ce moteur nécessite une clé. <a href="/sources" className="underline decoration-dotted underline-offset-2 hover:text-amber-900">Connectez-le dans Sources</a>.
+            </p>
+          )}
+
+          {/* Brief brut, éditable. Vide = Cadence le dérive du post. */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium text-ink-700">Brief (optionnel)</label>
+              <button onClick={suggestBrief} disabled={briefLoading} className="btn-ghost text-2xs">
+                {briefLoading ? 'Réflexion…' : 'Suggérer un brief'}
+              </button>
+            </div>
+            <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3} placeholder={`Laissez vide : Cadence dérive un brief de votre post.\nEx. ${TEMPLATES[template].example}`} className="input text-sm" />
+          </div>
+        </div>
+      </details>
+
       {/* Drop zone (always visible when no variant yet) */}
       {variants.length === 0 && !loading && (
         <div
@@ -393,7 +350,7 @@ export default function VisualGenerator({
           className={`mt-3 rounded-xl border-2 border-dashed p-6 text-center transition ${dragOver ? 'border-brand-400 bg-brand-50' : 'border-ink-200 bg-ink-50/50'}`}
         >
           <svg className="w-8 h-8 mx-auto text-ink-400 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path strokeLinecap="round" d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4 M17 8l-5-5-5 5 M12 3v12"/></svg>
-          <p className="text-sm text-ink-600">Glissez une image ici, ou cliquez sur Générer.</p>
+          <p className="text-sm text-ink-600">Glissez une image ici, ou cliquez sur Créer.</p>
         </div>
       )}
 
@@ -425,18 +382,6 @@ export default function VisualGenerator({
               <button onClick={() => { setSelectedId(null); }} className="btn-ghost text-2xs text-danger-700">Retirer</button>
             </span>
           </div>
-          {/* V23.1 — Signaux visuels : "trop Canva", "trop chargé", "trop coloré".
-              Italic 2xs, ton calme. Affiché uniquement quand score < 0.85 et
-              signal non purement positif. */}
-          {selected.visualScore && selected.visualScore.score < 0.85 && (
-            <div className="mt-2 space-y-0.5">
-              {selected.visualScore.signals.filter(s => s.kind !== 'good').slice(0, 2).map((s, i) => (
-                <p key={i} className={`text-2xs italic leading-relaxed ${s.severity === 'firm' ? 'text-amber-700' : 'text-ink-500'}`}>
-                  {s.message}
-                </p>
-              ))}
-            </div>
-          )}
         </div>
       )}
 

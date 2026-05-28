@@ -1,14 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
+
+function tomorrowISO(): string {
+  const d = new Date(); d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 // V38.3 — Modal unifié "Publier ou programmer" avec aperçu illustration.
 // Deux chemins :
 //  - Publier maintenant : POST /api/publish (immédiat, confirmation requise).
 //  - Programmer : choisit date + heure, délègue à onSchedule (le parent gère
 //    la sauvegarde Notion en statut programmé). Après succès, lien calendrier.
-export default function PublishModal({ open, onClose, text, image, notionPageId, onPublished, onSchedule }: {
+// V51 §2 — initialMode/defaultDate/defaultTime : le parent ouvre la modale
+// directement sur le bon onglet (Programmer vs Publier) avec la date intelligente
+// dérivée du pilier.
+export default function PublishModal({ open, onClose, text, image, notionPageId, onPublished, onSchedule, initialMode, defaultDate, defaultTime }: {
   open: boolean;
   onClose: () => void;
   text: string;
@@ -17,18 +25,27 @@ export default function PublishModal({ open, onClose, text, image, notionPageId,
   onPublished?: (urn: string) => void;
   // V38.3 — Programmation : retourne true si la sauvegarde a réussi.
   onSchedule?: (date: string, time: string) => Promise<boolean>;
+  initialMode?: 'publish' | 'schedule';
+  defaultDate?: string;
+  defaultTime?: string;
 }) {
   const [mode, setMode] = useState<'now' | 'schedule'>('now');
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ kind: 'published'; urn: string; url: string } | { kind: 'scheduled'; date: string } | null>(null);
-  // Date par défaut : demain 07:30
-  const [date, setDate] = useState(() => {
-    const d = new Date(); d.setDate(d.getDate() + 1);
-    return d.toISOString().slice(0, 10);
-  });
-  const [time, setTime] = useState('07:30');
+  // Date par défaut : demain 07:30 (ou la date fournie par le parent)
+  const [date, setDate] = useState(defaultDate || tomorrowISO());
+  const [time, setTime] = useState(defaultTime || '07:30');
+
+  // V51 §2 — À l'ouverture, adopter le mode + la date/heure du parent.
+  useEffect(() => {
+    if (!open) return;
+    setMode(initialMode === 'schedule' ? 'schedule' : 'now');
+    if (defaultDate) setDate(defaultDate);
+    if (defaultTime) setTime(defaultTime);
+    setError(null);
+  }, [open, initialMode, defaultDate, defaultTime]);
 
   if (!open) return null;
 

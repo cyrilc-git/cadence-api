@@ -2,13 +2,18 @@
 
 // V8.6 — CadenceEditor : composant unique pour toutes les surfaces d'écriture LinkedIn dans Cadence.
 // V8.9 — vrai streaming SSE depuis /api/chat/stream (remplace pseudo-streaming), abort/cancel, undo une étape.
+// V51 §2 — Silence radical. On retire toute la pile de signaux « pendant la
+// frappe » (memory-check, narratif, répétition, similarité, carrousel,
+// format, visuel) qui empilait du micro-texte italique anxiogène. L'éditeur
+// redevient une page blanche : on écrit, on met en forme à la sélection, on
+// tape « / » pour les commandes IA. Les actions (améliorer, visuel,
+// programmer, publier) sont des boutons explicites, gérés par le parent.
 
 import { useEffect, useRef, useState } from 'react';
 import MentionTextarea, { caretCoords } from './MentionTextarea';
 import SlashMenu, { SlashCommand, detectSlashQuery } from './SlashMenu';
 import MentionSuggestions from './MentionSuggestions';
 import { toBold, toItalic, toBulletList, toQuote } from './LinkedInPreview';
-import { formatToVisualTemplate, buildFormatBrief, type EditorialFormat } from '@/lib/format-intelligence';
 
 export type CadenceEditorProps = {
   value: string;
@@ -25,15 +30,6 @@ export type CadenceEditorProps = {
   pilier?: string;
   /** V8.9 — afficher les suggestions de mentions IA sous l'éditeur */
   showMentionSuggestions?: boolean;
-  /** V12.8 §2 — Callback quand Cadence détecte qu'un visuel serait pertinent.
-   * Le parent ouvre alors son drawer / sélectionne le template approprié.
-   * V50.2 — `opts.autoBrief` : si fourni, le parent lance la génération
-   * immédiatement avec ce brief (« Cadence agit »), au lieu d'ouvrir un
-   * panneau vide. */
-  onVisualSuggested?: (format: string, opts?: { autoBrief?: string }) => void;
-  /** V50.1 — Callback quand l'utilisateur veut créer le carrousel.
-   * Le parent ouvre le studio carrousel (preview + édition + export). */
-  onCarouselSuggested?: () => void;
 };
 
 function strippedText(text: string): string {
@@ -83,8 +79,6 @@ export default function CadenceEditor({
   textareaRef, showAiIndicator = true,
   brief, pilier,
   showMentionSuggestions = true,
-  onVisualSuggested,
-  onCarouselSuggested,
 }: CadenceEditorProps) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const ref = textareaRef || localRef;
@@ -100,70 +94,6 @@ export default function CadenceEditor({
   // V8.9 — undo state (snapshot pré-IA) + abort controller
   const [preIaText, setPreIaText] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
-
-  // V11.2 — Memory check : Cadence se souvient pendant la frappe
-  // V11.5 — counterAngle proposé si saturation détectée
-  // V12.6 — visualHint : Cadence suggère un format graphique selon le texte
-  const [memorySignal, setMemorySignal] = useState<{ kind: 'saturation' | 'novelty' | 'familiar'; message: string; counterAngle?: string | null } | null>(null);
-  const [visualHint, setVisualHint] = useState<{ format: string; message: string } | null>(null);
-  // V16.5 — Narrative signal (tension absente, hook qui promet trop, etc.)
-  const [narrativeSignal, setNarrativeSignal] = useState<{ kind: string; message: string; severity: 'note' | 'soft' | 'firm' } | null>(null);
-  const [dismissedNarrativeKind, setDismissedNarrativeKind] = useState<string | null>(null);
-  // V18.5 — Signal de répétition stylistique (opening / closing répété)
-  const [styleRepetition, setStyleRepetition] = useState<{ kind: 'opening' | 'hook' | 'closing'; message: string } | null>(null);
-  const [dismissedStyleKind, setDismissedStyleKind] = useState<string | null>(null);
-  // V21.1 — Score de similarité stylistique : "très vous / éloigné de votre voix"
-  const [styleSimilarity, setStyleSimilarity] = useState<{ score: number; label: string; message: string; reasons: string[] } | null>(null);
-  const [dismissedSimilarity, setDismissedSimilarity] = useState(false);
-  // V18.9 — Carousel hint : "ce sujet fonctionnerait en carrousel"
-  const [carouselHint, setCarouselHint] = useState<{ format: string; message: string; slides: number } | null>(null);
-  const [dismissedCarousel, setDismissedCarousel] = useState(false);
-  const [generatingPdf, setGeneratingPdf] = useState(false);
-  // V49 — Format hint : "ce sujet mérite une checklist / framework / timeline…"
-  const [formatHint, setFormatHint] = useState<{ format: string; label: string; why: string; cta: string } | null>(null);
-  const [dismissedFormat, setDismissedFormat] = useState<string | null>(null);
-  // V12.8 §2 — l'utilisateur peut "ignorer" une suggestion visuelle pour
-  // qu'elle ne réapparaisse pas pendant cette session de frappe.
-  const [dismissedHintFormat, setDismissedHintFormat] = useState<string | null>(null);
-  const memoryAbortRef = useRef<AbortController | null>(null);
-  const memoryTimerRef = useRef<any>(null);
-
-  useEffect(() => {
-    if (value.trim().length < 80) { setMemorySignal(null); return; }
-    if (memoryTimerRef.current) clearTimeout(memoryTimerRef.current);
-    memoryTimerRef.current = setTimeout(async () => {
-      try {
-        if (memoryAbortRef.current) memoryAbortRef.current.abort();
-        const ctl = new AbortController();
-        memoryAbortRef.current = ctl;
-        const r = await fetch('/api/memory-check', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: value }),
-          signal: ctl.signal,
-        });
-        if (!r.ok) return;
-        const d = await r.json();
-        if (d && d.kind && d.kind !== 'none' && d.message) {
-          setMemorySignal({ kind: d.kind, message: d.message, counterAngle: d.counterAngle || null });
-        } else {
-          setMemorySignal(null);
-        }
-        setVisualHint(d?.visualHint || null);
-        // V16.5 — Narrative signal (1 max)
-        setNarrativeSignal(d?.narrative || null);
-        // V18.5 — Style repetition signal (opening / closing)
-        setStyleRepetition(d?.styleRepetition || null);
-        // V21.1 — Style similarity score
-        setStyleSimilarity(d?.styleSimilarity || null);
-        // V18.9 — Carousel hint
-        setCarouselHint(d?.carouselHint || null);
-        // V49 — Format hint
-        setFormatHint(d?.formatHint || null);
-      } catch { /* abort or network: silent */ }
-    }, 1500);
-    return () => { if (memoryTimerRef.current) clearTimeout(memoryTimerRef.current); };
-  }, [value]);
 
   function handleTextChange(next: string) {
     onChange(next);
@@ -500,194 +430,6 @@ export default function CadenceEditor({
         onSelect={applySlashCommand}
         onClose={() => setSlashOpen(false)}
       />
-
-      {/* V11.2 + V11.5 + V12.6 + V16.5 — Signaux éditoriaux discrets :
-          mémoire, contre-angle, visuel, narration. Tous en italic 2xs,
-          calmes, jamais bloquants. Le narrative signal vient AVANT le
-          visualHint quand il existe (priorité éditoriale > forme). */}
-      {(memorySignal || visualHint || (narrativeSignal && dismissedNarrativeKind !== narrativeSignal.kind) || (styleSimilarity && !dismissedSimilarity && (styleSimilarity.label === 'tres_vous' || styleSimilarity.label === 'eloigne')) || (carouselHint && !dismissedCarousel) || (formatHint && formatHint.format !== 'carousel' && dismissedFormat !== formatHint.format)) && !aiBusy && (
-        <div className="mt-2 space-y-0.5" aria-live="polite">
-          {memorySignal && (
-            <p
-              className={`text-2xs italic leading-relaxed ${
-                memorySignal.kind === 'novelty' ? 'text-emerald-700' :
-                memorySignal.kind === 'saturation' ? 'text-amber-700' :
-                'text-ink-500'
-              }`}
-            >
-              {memorySignal.message}
-            </p>
-          )}
-          {memorySignal?.counterAngle && (
-            <p className="text-2xs text-ink-500 leading-relaxed">
-              {memorySignal.counterAngle}
-            </p>
-          )}
-          {/* V16.5 — Signal narratif : "il manque une friction", "le hook
-              promet trop", "la leçon est assénée". Ton calme italic, color
-              selon severity (firm = amber, soft = ink-500). Avec un
-              "plus tard" pour dismiss. */}
-          {narrativeSignal && dismissedNarrativeKind !== narrativeSignal.kind && (
-            <p className={`text-2xs italic leading-relaxed ${narrativeSignal.severity === 'firm' ? 'text-amber-700' : 'text-ink-500'}`}>
-              {narrativeSignal.message}
-              {' '}
-              <button
-                type="button"
-                onClick={() => setDismissedNarrativeKind(narrativeSignal.kind)}
-                className="text-ink-400 hover:text-ink-700 transition not-italic"
-                title="Ignorer ce signal pour ce post"
-              >
-                plus tard
-              </button>
-            </p>
-          )}
-          {/* V18.5 — Signal de répétition stylistique : "vous commencez
-              souvent par X". Ton ink-500 italic, dismissable. */}
-          {styleRepetition && dismissedStyleKind !== styleRepetition.kind && (
-            <p className="text-2xs italic leading-relaxed text-ink-500">
-              {styleRepetition.message}
-              {' '}
-              <button
-                type="button"
-                onClick={() => setDismissedStyleKind(styleRepetition.kind)}
-                className="text-ink-400 hover:text-ink-700 transition not-italic"
-                title="Ignorer ce signal pour ce post"
-              >
-                plus tard
-              </button>
-            </p>
-          )}
-          {/* V21.1 — Similarity score : Cadence murmure "ce post sonne
-              très vous" ou "ce post s'éloigne de votre voix" avec
-              raisons concrètes. On n'affiche que les extrêmes (tres_vous
-              et eloigne), pas le milieu, pour rester calme. */}
-          {styleSimilarity && !dismissedSimilarity && (styleSimilarity.label === 'tres_vous' || styleSimilarity.label === 'eloigne') && (
-            <p className={`text-2xs italic leading-relaxed ${styleSimilarity.label === 'eloigne' ? 'text-amber-700' : 'text-emerald-700'}`}>
-              {styleSimilarity.message}
-              {styleSimilarity.reasons.length > 0 && (
-                <span className="text-ink-500"> {styleSimilarity.reasons.join(' · ')}.</span>
-              )}
-              {' '}
-              <button
-                type="button"
-                onClick={() => setDismissedSimilarity(true)}
-                className="text-ink-400 hover:text-ink-700 transition not-italic"
-                title="Ignorer ce signal pour ce post"
-              >
-                plus tard
-              </button>
-            </p>
-          )}
-          {/* V49 — Format hint : Cadence comprend seule quel format servirait
-              le sujet (checklist, framework, timeline, avant/après…). On
-              n'affiche pas pour 'carousel' (carouselHint gère déjà l'export PDF). */}
-          {formatHint && formatHint.format !== 'carousel' && dismissedFormat !== formatHint.format && (
-            <p className="text-2xs italic leading-relaxed text-ink-500">
-              {formatHint.why} <span className="text-ink-700 not-italic">Ce sujet ferait une bonne {formatHint.label}.</span>
-              {onVisualSuggested && formatToVisualTemplate(formatHint.format as EditorialFormat) && (
-                <>
-                  {' '}
-                  <button
-                    type="button"
-                    onClick={() => onVisualSuggested(
-                      formatToVisualTemplate(formatHint.format as EditorialFormat)!,
-                      // V50.2 — Brief format-aware : Cadence génère l'asset
-                      // tout de suite au lieu d'ouvrir un panneau vide.
-                      { autoBrief: buildFormatBrief(formatHint.format as EditorialFormat, value) },
-                    )}
-                    className="text-brand-700 hover:text-brand-900 transition not-italic underline decoration-dotted underline-offset-2"
-                    title={formatHint.cta}
-                  >
-                    {formatHint.cta}
-                  </button>
-                </>
-              )}
-              {' · '}
-              <button
-                type="button"
-                onClick={() => setDismissedFormat(formatHint.format)}
-                className="text-ink-400 hover:text-ink-700 transition not-italic"
-                title="Ignorer cette suggestion pour ce post"
-              >
-                plus tard
-              </button>
-            </p>
-          )}
-          {/* V18.9 — Carousel hint : si le texte structure un carrousel
-              naturellement, on propose l'export PDF inline. */}
-          {carouselHint && !dismissedCarousel && (
-            <p className="text-2xs italic leading-relaxed text-ink-500">
-              {carouselHint.message}
-              {' '}
-              <button
-                type="button"
-                onClick={async () => {
-                  // V50.1 — Si le parent gère le studio carrousel, on l'ouvre
-                  // (preview + édition + export). Sinon fallback export direct.
-                  if (onCarouselSuggested) { onCarouselSuggested(); return; }
-                  setGeneratingPdf(true);
-                  try {
-                    const r = await fetch('/api/carousel/export', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ text: value }),
-                    });
-                    if (!r.ok) throw new Error('Export PDF impossible');
-                    const blob = await r.blob();
-                    const url = URL.createObjectURL(blob);
-                    window.open(url, '_blank');
-                  } catch (e: any) {
-                    // silent : la suggestion reste affichée si erreur
-                  } finally {
-                    setGeneratingPdf(false);
-                  }
-                }}
-                disabled={generatingPdf}
-                className="text-brand-700 hover:text-brand-900 transition not-italic underline decoration-dotted underline-offset-2 disabled:opacity-50"
-                title="Ouvrir le studio carrousel"
-              >
-                {generatingPdf ? 'Génération…' : (onCarouselSuggested ? 'Créer le carrousel' : 'Exporter en PDF')}
-              </button>
-              {' · '}
-              <button
-                type="button"
-                onClick={() => setDismissedCarousel(true)}
-                className="text-ink-400 hover:text-ink-700 transition not-italic"
-                title="Ignorer cette suggestion pour ce post"
-              >
-                plus tard
-              </button>
-            </p>
-          )}
-          {visualHint && dismissedHintFormat !== visualHint.format && (
-            <p className="text-2xs text-ink-500 leading-relaxed">
-              {visualHint.message}
-              {onVisualSuggested && (
-                <>
-                  {' '}
-                  <button
-                    type="button"
-                    onClick={() => onVisualSuggested(visualHint.format)}
-                    className="text-brand-700 hover:text-brand-900 underline decoration-dotted underline-offset-2 transition"
-                    title="Ouvre le panneau de génération à droite (⌘P)"
-                  >
-                    Ouvrir le studio
-                  </button>
-                  {' · '}
-                  <button
-                    type="button"
-                    onClick={() => setDismissedHintFormat(visualHint.format)}
-                    className="text-ink-400 hover:text-ink-700 transition"
-                    title="Ignorer cette suggestion pour ce post"
-                  >
-                    plus tard
-                  </button>
-                </>
-              )}
-            </p>
-          )}
-        </div>
-      )}
 
       {/* V8.9 — suggestions de mentions IA discrètes */}
       {showMentionSuggestions && !aiBusy && (
