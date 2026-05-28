@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ProvenanceBadge from '@/components/ProvenanceBadge';
 import { inferFromNotion, type Provenance, type SourceType } from '@/lib/provenance';
+import { toast } from '@/components/Dialog';
 
 // V9.2 §2.4 — Bibliothèque alignée sur la provenance réelle.
 // Règle clé : un post Notion publié SANS URL LinkedIn est "Archive Notion", pas "Publié".
@@ -276,6 +277,36 @@ export default function PostsLibraryClient({ initial }: { initial: any[] }) {
 }
 
 function PostRow({ p }: { p: any }) {
+  // V41 — État de programmation local (optimistic) + ouverture du picker.
+  const [schedDate, setSchedDate] = useState<string | null>(p.scheduled_at ? p.scheduled_at.slice(0, 10) : null);
+  const [picking, setPicking] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // Un post "programmable" = brouillon ou à valider (pas publié, pas archive).
+  const isSchedulable = p.derivedStatuses.includes('draft') || p.derivedStatuses.includes('needs_validation') || p.derivedStatuses.includes('late');
+  const isPublished = p.derivedStatuses.includes('published');
+
+  async function schedule(dateStr: string) {
+    if (!dateStr) return;
+    setSaving(true);
+    try {
+      const r = await fetch(`/api/notion/post/${p.id}/move`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: dateStr, time: p.scheduled_time?.slice(0, 5) || '07:30' }),
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur'); }
+      setSchedDate(dateStr);
+      setPicking(false);
+      const lbl = new Date(dateStr + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'long' });
+      toast.success('Programmé le ' + lbl);
+    } catch (e: any) {
+      toast.error('Impossible : ' + e.message);
+    } finally { setSaving(false); }
+  }
+
+  const schedLabel = schedDate
+    ? new Date(schedDate + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
+    : null;
+
   return (
     <Link href={`/posts/${p.id}/edit`} className="card card-hover p-4 flex items-center gap-3 group">
       <span className={`chip ${STATUS_CHIP[p.primaryStatus as DerivedStatus]} shrink-0`}>
@@ -287,26 +318,61 @@ function PostRow({ p }: { p: any }) {
         <div className="font-medium text-ink-900 truncate group-hover:text-brand-700 transition">{p.title}</div>
         <div className="text-xs text-ink-500 flex items-center gap-2 mt-0.5 flex-wrap">
           {p.pilier && <span>{p.pilier.split('·')[1]?.trim() || p.pilier}</span>}
-          {p.scheduled_at && <span>· {new Date(p.scheduled_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })} {p.scheduled_time?.slice(0, 5) || ''}</span>}
           {p.impressions ? <span className="text-success-700">· {p.impressions.toLocaleString('fr-FR')} impressions</span> : null}
         </div>
       </div>
-      {p.derivedStatuses.includes('recyclable') && (
-        <span onClick={e => { e.stopPropagation(); e.preventDefault(); window.location.href = `/posts/new?from=${p.id}&recycle=1`; }} className="btn-secondary text-xs cursor-pointer">Recycler</span>
+
+      {/* V41 — Statut de programmation visible + action inline.
+          - Programmé : pastille bleue "Programmé le X" + clic calendrier.
+          - Brouillon non daté : bouton "Programmer" → date input inline.
+          - Publié : on n'affiche pas de programmation. */}
+      {!isPublished && (
+        <div className="shrink-0 flex items-center gap-2" onClick={e => { e.preventDefault(); e.stopPropagation(); }}>
+          {picking ? (
+            <input
+              type="date"
+              autoFocus
+              defaultValue={schedDate || new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}
+              disabled={saving}
+              onChange={e => schedule(e.target.value)}
+              onBlur={() => setPicking(false)}
+              className="input text-2xs h-8 py-0 w-[140px]"
+            />
+          ) : schedDate ? (
+            <button
+              onClick={() => setPicking(true)}
+              className="inline-flex items-center gap-1.5 text-2xs text-brand-700 hover:text-brand-900 transition"
+              title="Modifier la date de programmation"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-500" aria-hidden />
+              Programmé {schedLabel}
+            </button>
+          ) : isSchedulable ? (
+            <button
+              onClick={() => setPicking(true)}
+              className="text-2xs text-ink-500 hover:text-brand-700 transition underline decoration-dotted underline-offset-2"
+              title="Choisir une date de programmation"
+            >
+              Programmer
+            </button>
+          ) : null}
+        </div>
       )}
-      {/* V37.5 — "Voir dans calendrier" : jump direct au mois du post.
-          Discret, apparaît au hover sur desktop, toujours visible mobile. */}
-      {p.scheduled_at && (
+
+      {p.derivedStatuses.includes('recyclable') && (
+        <span onClick={e => { e.stopPropagation(); e.preventDefault(); window.location.href = `/posts/new?from=${p.id}&recycle=1`; }} className="btn-secondary text-xs cursor-pointer shrink-0">Recycler</span>
+      )}
+      {schedDate && (
         <a
-          href={`/calendar?d=${p.scheduled_at.slice(0, 10)}&source=linkedin`}
+          href={`/calendar?d=${schedDate}&source=linkedin`}
           onClick={e => e.stopPropagation()}
-          className="btn-ghost text-2xs whitespace-nowrap sm:opacity-0 sm:group-hover:opacity-100 transition"
+          className="btn-ghost text-2xs whitespace-nowrap sm:opacity-0 sm:group-hover:opacity-100 transition shrink-0"
           title="Ouvrir le calendrier sur ce mois"
         >
           Calendrier →
         </a>
       )}
-      {p.linkedin_url && <a href={p.linkedin_url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 btn-ghost text-2xs transition">↗</a>}
+      {p.linkedin_url && <a href={p.linkedin_url} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="opacity-0 group-hover:opacity-100 btn-ghost text-2xs transition shrink-0">↗</a>}
     </Link>
   );
 }
