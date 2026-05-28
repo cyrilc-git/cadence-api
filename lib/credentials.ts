@@ -11,6 +11,10 @@ const ENV_FALLBACK: Record<string, string[]> = {
   openai:                 ['OPENAI_API_KEY'],
   // V38.2 — Gemini (Nano Banana = gemini-2.5-flash-image) pour la génération d'images.
   gemini:                 ['GEMINI_API_KEY', 'GOOGLE_AI_API_KEY'],
+  // V40 — Moteurs d'image additionnels (clé utilisateur, vraies API REST).
+  replicate:              ['REPLICATE_API_TOKEN'],   // Flux, SDXL, Recraft… (méta-fournisseur)
+  stability:              ['STABILITY_API_KEY'],     // Stable Diffusion 3.5
+  ideogram:               ['IDEOGRAM_API_KEY'],      // Ideogram v3 (texte dans l'image)
   github:                 ['GITHUB_TOKEN'],
   github_repos:           ['GITHUB_REPOS'],
   cockpit_secret:         ['COCKPIT_SECRET'],

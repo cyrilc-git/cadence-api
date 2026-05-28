@@ -8,16 +8,22 @@ export const dynamic = 'force-dynamic';
 // (clé présente ou non) et l'utilisateur colle sa clé directement ici.
 export default async function AiSourcesPage() {
   // Source de vérité d'état : getCredential (DB chiffrée + fallback env).
-  const [anthropic, openai, gemini] = await Promise.all([
+  const [anthropic, openai, gemini, replicate, stability, ideogram] = await Promise.all([
     getCredential('anthropic').catch(() => ({ value: null, source: 'missing' as const })),
     getCredential('openai').catch(() => ({ value: null, source: 'missing' as const })),
     getCredential('gemini').catch(() => ({ value: null, source: 'missing' as const })),
+    getCredential('replicate').catch(() => ({ value: null, source: 'missing' as const })),
+    getCredential('stability').catch(() => ({ value: null, source: 'missing' as const })),
+    getCredential('ideogram').catch(() => ({ value: null, source: 'missing' as const })),
   ]);
 
   const initial = {
     anthropic: { present: !!anthropic.value, source: anthropic.source },
     openai: { present: !!openai.value, source: openai.source },
     gemini: { present: !!gemini.value, source: gemini.source },
+    replicate: { present: !!replicate.value, source: replicate.source },
+    stability: { present: !!stability.value, source: stability.source },
+    ideogram: { present: !!ideogram.value, source: ideogram.source },
   };
 
   return <AiKeysClient initial={initial} />;

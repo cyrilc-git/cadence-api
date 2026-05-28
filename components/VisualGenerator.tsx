@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 
-type Mode = 'claude-design' | 'openai';
+type Mode = 'claude-design' | 'openai' | 'gemini' | 'replicate' | 'stability' | 'ideogram';
 
 // V12.7 — Claude Design en mode principal. DALL-E reste utile pour les
 // illustrations métaphoriques mais ne doit plus être le réflexe.
@@ -122,7 +122,7 @@ export default function VisualGenerator({
   // - claude-design : SVG éditorial (rapide, gratuit, premium)
   // - openai        : DALL-E 3 (illustrations bitmap)
   // - gemini        : Nano Banana (gemini-2.5-flash-image), bitmap riche
-  const [engineOverride, setEngineOverride] = useState<Mode | 'gemini' | null>(null);
+  const [engineOverride, setEngineOverride] = useState<Mode | null>(null);
   // V39.3 — Disponibilité des moteurs (clé présente ?) lue depuis /api/engines.
   const [engines, setEngines] = useState<Record<string, boolean> | null>(null);
   useEffect(() => {
@@ -133,7 +133,7 @@ export default function VisualGenerator({
       .catch(() => { if (!cancelled) setEngines(null); });
     return () => { cancelled = true; };
   }, []);
-  const mode = (engineOverride || TEMPLATES[template].mode) as Mode | 'gemini';
+  const mode = (engineOverride || TEMPLATES[template].mode) as Mode;
   const selected = variants.find(v => v.id === selectedId) || null;
 
   // When selection changes, propagate to parent
@@ -230,7 +230,7 @@ export default function VisualGenerator({
           <span className="uppercase tracking-wider font-semibold">Moteur</span>
           <select
             value={engineOverride || TEMPLATES[template].mode}
-            onChange={e => setEngineOverride(e.target.value as Mode | 'gemini')}
+            onChange={e => setEngineOverride(e.target.value as Mode)}
             className="input text-xs h-8 w-auto py-0"
             title="Choisissez le moteur de génération d'image"
           >
@@ -240,28 +240,32 @@ export default function VisualGenerator({
               Claude Design · SVG{engines && !engines['claude-design'] ? ' (clé requise)' : ''}
             </option>
             <option value="openai" disabled={engines !== null && !engines.openai}>
-              DALL-E 3 · bitmap{engines && !engines.openai ? ' (clé requise)' : ''}
+              DALL-E 3 · OpenAI{engines && !engines.openai ? ' (clé requise)' : ''}
             </option>
             <option value="gemini" disabled={engines !== null && !engines.gemini}>
               Nano Banana · Gemini{engines && !engines.gemini ? ' (clé requise)' : ''}
             </option>
+            <option value="replicate" disabled={engines !== null && !engines.replicate}>
+              Flux · Replicate{engines && !engines.replicate ? ' (clé requise)' : ''}
+            </option>
+            <option value="stability" disabled={engines !== null && !engines.stability}>
+              Stable Diffusion 3.5{engines && !engines.stability ? ' (clé requise)' : ''}
+            </option>
+            <option value="ideogram" disabled={engines !== null && !engines.ideogram}>
+              Ideogram v3 · texte{engines && !engines.ideogram ? ' (clé requise)' : ''}
+            </option>
           </select>
         </label>
       </div>
-      {/* V39.3 — Si le moteur sélectionné n'a pas de clé, message + lien Sources. */}
-      {engines && mode !== 'claude-design' && mode === 'gemini' && !engines.gemini && (
+      {/* V39.3 — Si le moteur sélectionné n'a pas de clé : message + lien Sources. */}
+      {engines && engines[mode] === false && (
         <p className="text-2xs text-amber-700 leading-relaxed mb-3">
-          Nano Banana nécessite une clé Gemini. <a href="/sources/ai" className="underline decoration-dotted underline-offset-2 hover:text-amber-900">Ajoutez-la dans Sources → Clés IA</a>.
+          Ce moteur nécessite une clé. <a href="/sources/ai" className="underline decoration-dotted underline-offset-2 hover:text-amber-900">Ajoutez-la dans Sources → Clés IA</a>.
         </p>
       )}
-      {engines && mode === 'openai' && !engines.openai && (
-        <p className="text-2xs text-amber-700 leading-relaxed mb-3">
-          DALL-E 3 nécessite une clé OpenAI. <a href="/sources/ai" className="underline decoration-dotted underline-offset-2 hover:text-amber-900">Ajoutez-la dans Sources → Clés IA</a>.
-        </p>
-      )}
-      {/* V38.2 — Note honnête : Midjourney sans API publique. */}
+      {/* V40 — Note honnête : Midjourney sans API publique. */}
       <p className="text-2xs text-ink-400 italic leading-relaxed mb-3">
-        Midjourney n&apos;a pas d&apos;API publique : exportez le visuel à la main puis ajoutez-le via l&apos;aperçu.
+        Midjourney n&apos;a pas d&apos;API publique. Pour une qualité équivalente, utilisez Flux (Replicate). Ou exportez votre visuel Midjourney à la main et ajoutez-le via l&apos;aperçu.
       </p>
 
       {/* V12.2 — Cadence se rappelle de ce qui a marché */}

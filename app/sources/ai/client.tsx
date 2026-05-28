@@ -8,10 +8,11 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from '@/components/Dialog';
 
+type AiProvider = 'anthropic' | 'openai' | 'gemini' | 'replicate' | 'stability' | 'ideogram';
 type ProviderState = { present: boolean; source: string };
-type Initial = { anthropic: ProviderState; openai: ProviderState; gemini: ProviderState };
+type Initial = Record<AiProvider, ProviderState>;
 
-const PROVIDERS: { key: 'anthropic' | 'openai' | 'gemini'; label: string; accent: string; usage: string; help: string; helpUrl: string }[] = [
+const PROVIDERS: { key: AiProvider; label: string; accent: string; usage: string; help: string; helpUrl: string }[] = [
   {
     key: 'anthropic', label: 'Claude (Anthropic)', accent: '#C96342',
     usage: 'Rédaction des posts, réécriture, visuels Claude Design (SVG), analyse Vision.',
@@ -27,6 +28,21 @@ const PROVIDERS: { key: 'anthropic' | 'openai' | 'gemini'; label: string; accent
     usage: 'Illustrations bitmap riches via gemini-2.5-flash-image (Nano Banana).',
     help: 'aistudio.google.com', helpUrl: 'https://aistudio.google.com/app/apikey',
   },
+  {
+    key: 'replicate', label: 'Replicate (Flux & autres)', accent: '#1F2937',
+    usage: 'Une clé débloque Flux, SDXL, Recraft… La meilleure alternative à Midjourney.',
+    help: 'replicate.com', helpUrl: 'https://replicate.com/account/api-tokens',
+  },
+  {
+    key: 'stability', label: 'Stability AI', accent: '#7C3AED',
+    usage: 'Stable Diffusion 3.5 : illustrations bitmap haute qualité.',
+    help: 'platform.stability.ai', helpUrl: 'https://platform.stability.ai/account/keys',
+  },
+  {
+    key: 'ideogram', label: 'Ideogram', accent: '#EF4444',
+    usage: 'Le meilleur pour intégrer du texte net dans une image (titres, citations).',
+    help: 'ideogram.ai', helpUrl: 'https://ideogram.ai/manage-api',
+  },
 ];
 
 export default function AiKeysClient({ initial }: { initial: Initial }) {
@@ -34,7 +50,7 @@ export default function AiKeysClient({ initial }: { initial: Initial }) {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
-  async function saveKey(provider: 'anthropic' | 'openai' | 'gemini') {
+  async function saveKey(provider: AiProvider) {
     const secret = (drafts[provider] || '').trim();
     if (secret.length < 10) { toast.error('Clé trop courte.'); return; }
     setBusy(provider);
@@ -56,7 +72,7 @@ export default function AiKeysClient({ initial }: { initial: Initial }) {
     }
   }
 
-  async function removeKey(provider: 'anthropic' | 'openai' | 'gemini') {
+  async function removeKey(provider: AiProvider) {
     setBusy(provider);
     try {
       // On retrouve l'id via /api/credentials GET (masked list), puis DELETE.
