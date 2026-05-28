@@ -80,6 +80,36 @@ export default function NewPostClient({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // V38.1 — Suivi de versions. Chaque génération / réécriture / proposition
+  // appliquée pousse un snapshot. L'utilisateur peut revenir à n'importe quel
+  // état. Le revert lui-même est annulable (il pousse l'état courant avant).
+  type PostVersion = { id: string; text: string; label: string; ts: number };
+  const [versions, setVersions] = useState<PostVersion[]>([]);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const lastSnapshotRef = useRef<string>('');
+
+  const pushVersion = useCallback((snapshotText: string, label: string) => {
+    const t = (snapshotText || '').trim();
+    if (!t) return;
+    // Dédup : ne pas empiler deux fois le même texte consécutif
+    if (t === lastSnapshotRef.current) return;
+    lastSnapshotRef.current = t;
+    setVersions(prev => {
+      const next: PostVersion = { id: `v_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, text: t, label, ts: Date.now() };
+      // On garde les 20 dernières versions max
+      return [next, ...prev].slice(0, 20);
+    });
+  }, []);
+
+  const revertToVersion = useCallback((v: PostVersion) => {
+    // Avant de revenir, on snapshot l'état courant pour que le revert soit annulable
+    if (text.trim() && text.trim() !== v.text) {
+      pushVersion(text, 'Avant retour arrière');
+    }
+    setText(v.text);
+    setVersionsOpen(false);
+  }, [text, pushVersion]);
+
   const { wordCount, charCount, readingMin, hookLen, hookTone, rhythmTone, paragraphCount } = useEditorMetrics(text);
   const pilierIsCasClient = pilier?.includes('Cas client') || pilier?.includes('Cas dirigeant');
   const lint = useMemo(() => checkAntiPatterns(text), [text]);
@@ -102,6 +132,8 @@ export default function NewPostClient({
   const handleGenerate = useCallback(async (customBrief?: string) => {
     const b = customBrief ?? brief;
     if (!b.trim()) return;
+    // V38.1 — Snapshot du texte courant avant de le remplacer par une génération
+    if (text.trim()) pushVersion(text, 'Avant régénération');
     setGenLoading(true); setGenError(null); setProposals([]);
     try {
       const r = await fetch('/api/generate-post', {
@@ -112,10 +144,15 @@ export default function NewPostClient({
       if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
       const list = data.proposals || [];
       setProposals(list);
-      if (list.length) { setText(list[0]); setProposalIdx(0); }
+      if (list.length) {
+        setText(list[0]);
+        setProposalIdx(0);
+        // V38.1 — La proposition appliquée devient une version repérable
+        pushVersion(list[0], 'Proposition Cadence');
+      }
     } catch (e: any) { setGenError(e.message); }
     finally { setGenLoading(false); }
-  }, [brief, pilier, voiceMode]);
+  }, [brief, pilier, voiceMode, text, pushVersion]);
 
   const handleSave = useCallback(async (programmer: boolean) => {
     if (!text.trim()) return;
@@ -287,7 +324,14 @@ export default function NewPostClient({
               bare
               brief={brief || prefillBrief}
               pilier={pilier}
-              onResult={r => { setProposals([r]); setProposalIdx(0); }}
+              onResult={r => {
+                // V38.1 — Snapshot AVANT la réécriture (état précédent),
+                // puis snapshot du résultat. L'utilisateur peut revenir à
+                // l'avant-réécriture en un clic.
+                if (text.trim() && text.trim() !== r.trim()) pushVersion(text, 'Avant réécriture');
+                setProposals([r]); setProposalIdx(0);
+                pushVersion(r, 'Réécriture Cadence');
+              }}
               onVisualSuggested={(format) => {
                 setSuggestedVisualFormat(format);
                 setPreviewOpen(true);
@@ -374,6 +418,45 @@ export default function NewPostClient({
             <span className="tabular-nums hidden lg:inline text-ink-500">{wordCount} mots · {readingMin} min</span>
             <span className={`tabular-nums ml-auto sm:ml-0 ${charCount > 1300 ? 'text-danger-500 font-semibold' : 'text-ink-400'}`}>{charCount}/1300</span>
             <div className="ml-auto flex items-center gap-1.5">
+              {/* V38.1 — Historique de versions : revenir à un état antérieur
+                  (avant régénération, avant réécriture, propositions). */}
+              {versions.length > 0 && (
+                <div className="relative">
+                  <button
+                    onClick={() => setVersionsOpen(o => !o)}
+                    className="hidden sm:inline-flex items-center gap-1.5 text-xs text-ink-500 hover:text-ink-900 transition px-2 py-1 rounded-md hover:bg-ink-50"
+                    title="Revenir à une version précédente"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" strokeLinejoin="round" d="M3 3v5h5M3.05 13A9 9 0 106 5.3L3 8"/></svg>
+                    Versions
+                    <span className="text-ink-400 tabular-nums">{versions.length}</span>
+                  </button>
+                  {versionsOpen && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setVersionsOpen(false)} />
+                      <div className="absolute bottom-full mb-1 right-0 z-40 card p-1 min-w-[300px] max-h-[60vh] overflow-y-auto shadow-pop animate-fade-in">
+                        <div className="px-3 pt-2 pb-1 text-2xs uppercase tracking-wider font-semibold text-ink-400">Historique des versions</div>
+                        {versions.map(v => (
+                          <button
+                            key={v.id}
+                            onClick={() => revertToVersion(v)}
+                            className="w-full text-left px-3 py-2 rounded-md hover:bg-ink-50 transition group/v"
+                          >
+                            <div className="flex items-baseline justify-between gap-2">
+                              <span className="text-sm text-ink-800 font-medium">{v.label}</span>
+                              <span className="text-2xs text-ink-400 tabular-nums shrink-0">
+                                {new Date(v.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </div>
+                            <p className="mt-0.5 text-xs text-ink-500 line-clamp-2 leading-snug">{v.text.slice(0, 120)}</p>
+                            <span className="mt-1 inline-block text-2xs text-brand-700 opacity-0 group-hover/v:opacity-100 transition">Revenir à cette version →</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               <button onClick={() => handleSave(false)} disabled={saveLoading || !text.trim()} className="btn-primary text-xs">
                 {saveLoading ? '…' : (initial?.id ? 'Sauvegarder' : 'Enregistrer le brouillon')}
               </button>
