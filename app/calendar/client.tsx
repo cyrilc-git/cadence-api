@@ -216,7 +216,7 @@ export default function CalendarClient({
       m.get(k)!.push(p);
     }
     return m;
-  }, [posts]);
+  }, [postsForView]);
 
   async function refresh() {
     try {
@@ -402,26 +402,6 @@ export default function CalendarClient({
     return { months, max };
   }, [postsForView, fullRange.min, fullRange.max, fullRange.total]);
 
-  // V37.3 — Décompte par SOURCE sur la fenêtre courante (LinkedIn confirmé
-  // vs brouillon Notion vs archive Notion). Affiché sous le H1 pour donner
-  // la photo claire de ce que la période contient.
-  const sourceBreakdown = useMemo(() => {
-    const counts = { linkedin: 0, notion_draft: 0, notion_archive: 0 };
-    const start = grid[0]?.[0]; const end = grid[grid.length - 1]?.[6];
-    if (!start || !end) return counts;
-    for (const p of posts) {
-      if (!p.scheduled_at) continue;
-      const d = new Date(p.scheduled_at);
-      if (d < start || d > end) continue;
-      const cs = (p as any).provenance?.canonical_source;
-      const st = (p as any).provenance?.source_type;
-      if (cs === 'linkedin' || cs === 'cadence') counts.linkedin++;
-      else if (st === 'notion_archive') counts.notion_archive++;
-      else if (cs === 'notion') counts.notion_draft++;
-    }
-    return counts;
-  }, [posts, grid]);
-
   return (
     <div className="space-y-5">
       <header className="flex items-start justify-between gap-3 flex-wrap">
@@ -450,20 +430,6 @@ export default function CalendarClient({
               {MONTH_FR[cursor.getMonth()]} {cursor.getFullYear()}
             </p>
           )}
-          {/* V37.3 — Décompte par source sur la fenêtre courante :
-              "0 publication LinkedIn · 4 brouillons Notion". Si la fenêtre
-              est totalement vide ET qu'on ne montre pas le hint plus bas,
-              on dit explicitement "Aucun post sur cette période". */}
-          <p className="mt-1 text-sm text-ink-600 leading-relaxed">
-            {(() => {
-              const parts: string[] = [];
-              if (sourceBreakdown.linkedin > 0) parts.push(`${sourceBreakdown.linkedin} publication${sourceBreakdown.linkedin > 1 ? 's' : ''} LinkedIn`);
-              if (sourceBreakdown.notion_draft > 0) parts.push(`${sourceBreakdown.notion_draft} brouillon${sourceBreakdown.notion_draft > 1 ? 's' : ''} Notion`);
-              if (sourceBreakdown.notion_archive > 0) parts.push(`${sourceBreakdown.notion_archive} archive${sourceBreakdown.notion_archive > 1 ? 's' : ''} Notion`);
-              if (parts.length === 0) return 'Aucun post sur cette période.';
-              return parts.join(' · ');
-            })()}
-          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="inline-flex bg-ink-100 rounded-lg p-0.5 gap-0.5">
@@ -607,20 +573,16 @@ export default function CalendarClient({
             return parts.join(' · ');
           })()}
         </p>
-        <div className="inline-flex bg-ink-100 rounded-lg p-0.5 gap-0.5" role="group" aria-label="Filtre source">
-          {/* V18 §calendar-clean — bouton "Brouillons" caché par défaut.
-              Visible uniquement si l'utilisateur a explicitement activé
-              "Afficher Notion dans le calendrier" depuis /settings/notion.
-              Le bouton "Tout" est conservé même quand Notion est masqué,
-              mais en pratique il aura le même contenu que "Publié". */}
-          {showNotion && (
+        {/* V51 §3 — Filtre source affiché uniquement quand Notion est visible.
+            Par défaut (Notion masqué) il n'y a qu'une source possible :
+            inutile d'afficher un toggle à un seul bouton. */}
+        {showNotion && (
+          <div className="inline-flex bg-ink-100 rounded-lg p-0.5 gap-0.5" role="group" aria-label="Filtre source">
             <button onClick={() => setSourceFilter('all')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'all' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500 hover:text-ink-700'}`}>Tout</button>
-          )}
-          <button onClick={() => setSourceFilter('linkedin')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'linkedin' ? 'bg-white text-[#0A66C2] shadow-xs' : 'text-ink-500 hover:text-ink-700'}`} title="Posts publiés ou en route vers LinkedIn">LinkedIn{showNotion ? '' : ' & Cadence'}</button>
-          {showNotion && (
+            <button onClick={() => setSourceFilter('linkedin')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'linkedin' ? 'bg-white text-[#0A66C2] shadow-xs' : 'text-ink-500 hover:text-ink-700'}`} title="Posts publiés ou en route vers LinkedIn">LinkedIn</button>
             <button onClick={() => setSourceFilter('notion')} className={`px-2.5 py-1 rounded-md text-2xs font-medium transition ${sourceFilter === 'notion' ? 'bg-white text-ink-900 shadow-xs' : 'text-ink-500 hover:text-ink-700'}`} title="Brouillons et archives qui vivent uniquement dans Notion">Brouillons Notion</button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Generate result toast — V8.8 with 'Voir les drafts créés' CTA */}
@@ -673,19 +635,18 @@ export default function CalendarClient({
                   }}
                   className={`group relative rounded-xl p-2 min-h-[124px] border transition-all duration-200 ${isToday ? 'border-brand-400 bg-brand-50/30 shadow-elev' : isWeekend ? 'border-ink-100 bg-ink-50/40' : `border-ink-200 ${perfTint(d) || 'bg-white'} hover:border-ink-300 hover:shadow-xs`} ${isOtherMonth ? 'opacity-40' : ''} ${isPast && !isToday ? 'opacity-75' : ''} ${dragOverKey === k && draggingId ? 'ring-2 ring-brand-500 ring-offset-2 bg-brand-50/80' : ''}`}
                 >
-                  {/* V38.4 — Couche cliquable de fond : un clic n'importe où sur
-                      le jour (zone vide) ouvre le sélecteur de brouillons.
-                      z-0, sous le contenu (z-10) pour ne pas bloquer les posts.
-                      Désactivée sur les jours passés (pas de programmation). */}
-                  {!isPast && (
-                    <button
-                      type="button"
-                      onClick={() => setDayPicker({ key: k })}
-                      className="absolute inset-0 z-0 rounded-xl cursor-pointer"
-                      aria-label={`Programmer un post le ${d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}`}
-                      title="Cliquez pour programmer un brouillon ce jour"
-                    />
-                  )}
+                  {/* V51 §3 — Couche cliquable de fond : un clic n'importe où sur
+                      le jour (zone vide) ouvre la fiche du jour. z-0, sous le
+                      contenu (z-10) pour ne pas bloquer les posts. Active sur
+                      TOUS les jours, y compris passés : sur un jour passé la
+                      fiche montre les publications LinkedIn de ce jour. */}
+                  <button
+                    type="button"
+                    onClick={() => setDayPicker({ key: k })}
+                    className="absolute inset-0 z-0 rounded-xl cursor-pointer"
+                    aria-label={`Voir le ${d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}`}
+                    title={isPast ? 'Voir les posts de ce jour' : 'Cliquez pour programmer un post ce jour'}
+                  />
                   <div className="relative z-10 flex items-center justify-between mb-1.5 pointer-events-none">
                     <span className={`text-xs font-semibold ${isToday ? 'text-brand-700' : isWeekend ? 'text-ink-400' : 'text-ink-700'}`}>{d.getDate()}</span>
                     {!isPast && !isWeekend && (
@@ -762,71 +723,128 @@ export default function CalendarClient({
         ))}
       </div>
 
-      {/* V38.4 — Day picker : clic sur un jour → choisir un brouillon à
-          programmer, ou créer un nouveau post pour ce jour. */}
+      {/* V51 §3 — Fiche du jour : clic sur un jour → voir ce qui est posé ce
+          jour (publié LinkedIn, programmé, à valider, brouillon) ET, pour les
+          jours à venir, écrire un nouveau post ou programmer un brouillon. */}
       {dayPicker && (() => {
         const dayLabel = new Date(dayPicker.key + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-        // Brouillons programmables : non datés ou datés un autre jour, statut draft / à valider.
+        const isPastDay = dayPicker.key < ymd(new Date());
+        // Posts posés sur ce jour (cohérent avec la grille : postsForView).
+        const onThisDay = postsForView
+          .filter(p => p.scheduled_at?.slice(0, 10) === dayPicker.key)
+          .sort((a, b) => (a.scheduled_time || '').localeCompare(b.scheduled_time || ''));
+        // Brouillons programmables : datés ailleurs ou non datés, statut draft / à valider.
         const schedulable = posts.filter(p => {
           const st = statusOf(p);
           if (st !== 'draft' && st !== 'needs_validation') return false;
-          const cur = p.scheduled_at?.slice(0, 10);
-          return cur !== dayPicker.key;
+          return p.scheduled_at?.slice(0, 10) !== dayPicker.key;
         }).slice(0, 12);
-        // Posts déjà sur ce jour
-        const alreadyHere = posts.filter(p => p.scheduled_at?.slice(0, 10) === dayPicker.key);
+        const statusLabel = (st: string) =>
+          st === 'published' ? 'Publié sur LinkedIn'
+          : st === 'scheduled' ? 'Programmé'
+          : st === 'needs_validation' ? 'À valider'
+          : st === 'late' ? 'En retard'
+          : st === 'archive' ? 'Archive Notion'
+          : 'Brouillon';
+        const statusColor = (st: string) =>
+          st === 'published' ? 'text-success-700'
+          : st === 'scheduled' ? 'text-brand-700'
+          : st === 'needs_validation' ? 'text-warn-600'
+          : st === 'late' ? 'text-danger-600'
+          : st === 'archive' ? 'text-amber-600'
+          : 'text-ink-500';
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 bg-ink-900/40 backdrop-blur-sm animate-fade-in" onClick={() => setDayPicker(null)}>
             <div className="bg-white rounded-2xl shadow-pop w-full max-w-md max-h-[80vh] overflow-y-auto p-5 animate-slide-up" onClick={e => e.stopPropagation()}>
-              <div className="flex items-baseline justify-between mb-1">
+              <div className="flex items-baseline justify-between mb-3">
                 <h3 className="text-lg font-semibold text-ink-900 capitalize">{dayLabel}</h3>
                 <button onClick={() => setDayPicker(null)} className="text-ink-400 hover:text-ink-900 transition text-xl leading-none">×</button>
               </div>
 
-              {alreadyHere.length > 0 && (
-                <p className="text-xs text-ink-500 mb-3">
-                  {alreadyHere.length} post{alreadyHere.length > 1 ? 's' : ''} déjà programmé{alreadyHere.length > 1 ? 's' : ''} ce jour.
-                </p>
-              )}
-
-              {/* Action principale : nouveau post pour ce jour */}
-              <Link
-                href={`/posts/new?date=${dayPicker.key}`}
-                className="btn-primary text-sm w-full justify-center mb-4 inline-flex"
-              >
-                Écrire un nouveau post pour ce jour →
-              </Link>
-
-              {/* Brouillons existants à programmer ici */}
-              {schedulable.length > 0 ? (
-                <div>
-                  <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Programmer un brouillon ici</p>
-                  <ul className="space-y-1">
-                    {schedulable.map(p => (
-                      <li key={p.id}>
-                        <button
-                          onClick={() => scheduleDraftOnDay(p.id, dayPicker.key)}
-                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-ink-50 transition flex items-center gap-2.5 group/d"
-                        >
-                          <span className={`dot ${tone(p.pilier).dot} shrink-0`} />
-                          <span className="flex-1 min-w-0">
-                            <span className="block text-sm text-ink-800 truncate group-hover/d:text-ink-900">{p.title || 'Brouillon sans titre'}</span>
-                            <span className="block text-2xs text-ink-400">
-                              {p.pilier ? p.pilier.split('·')[1]?.trim() || p.pilier : 'Sans pilier'}
-                              {p.scheduled_at ? ` · actuellement ${new Date(p.scheduled_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}` : ' · non daté'}
+              {/* Ce qui est posé ce jour */}
+              {onThisDay.length > 0 && (
+                <div className="mb-4">
+                  <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">
+                    {onThisDay.length === 1 ? 'Ce jour' : `Ce jour · ${onThisDay.length} posts`}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {onThisDay.map(p => {
+                      const t = tone(p.pilier);
+                      const st = statusOf(p);
+                      return (
+                        <li key={p.id}>
+                          <Link
+                            href={`/posts/${p.id}/edit`}
+                            className="flex items-center gap-3 p-2 rounded-lg ring-1 ring-ink-100 hover:ring-ink-300 hover:bg-ink-50 transition group/r"
+                          >
+                            {/* Miniature : illustration ou pastille pilier */}
+                            {p.cover_url ? (
+                              <span className="relative w-12 h-12 rounded-lg bg-cover bg-center shrink-0 ring-1 ring-ink-100" style={{ backgroundImage: `url(${p.cover_url})` }}>
+                                {p.is_carousel && <span className="absolute bottom-0 right-0 rounded-tl bg-ink-900/75 px-1 text-[8px] font-semibold uppercase tracking-wider text-white">Carr.</span>}
+                              </span>
+                            ) : (
+                              <span className={`w-12 h-12 rounded-lg ${t.bg} ring-1 ${t.ring} flex items-center justify-center shrink-0`}>
+                                <span className={`dot ${t.dot}`} />
+                              </span>
+                            )}
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-sm font-medium text-ink-900 truncate">{p.title || 'Sans titre'}</span>
+                              <span className={`block text-2xs font-medium ${statusColor(st)}`}>
+                                {statusLabel(st)}{p.scheduled_time && (st === 'scheduled' || st === 'needs_validation') ? ` · ${p.scheduled_time.slice(0, 5)}` : ''}
+                              </span>
                             </span>
-                          </span>
-                          <span className="text-2xs text-brand-700 opacity-0 group-hover/d:opacity-100 transition shrink-0">Programmer →</span>
-                        </button>
-                      </li>
-                    ))}
+                            <span className="text-ink-300 group-hover/r:text-ink-500 transition shrink-0 text-lg leading-none">›</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
-              ) : (
-                <p className="text-xs text-ink-500 leading-relaxed">
-                  Aucun brouillon en attente. <Link href={`/posts/new?date=${dayPicker.key}`} className="text-brand-700 hover:text-brand-900 underline decoration-dotted underline-offset-2">Écrivez-en un</Link> pour ce jour.
-                </p>
               )}
+
+              {/* Actions de programmation : uniquement pour aujourd'hui / à venir */}
+              {!isPastDay ? (
+                <>
+                  <Link
+                    href={`/posts/new?date=${dayPicker.key}`}
+                    className="btn-primary text-sm w-full justify-center mb-4 inline-flex"
+                  >
+                    Écrire un nouveau post pour ce jour →
+                  </Link>
+
+                  {schedulable.length > 0 ? (
+                    <div>
+                      <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Programmer un brouillon ici</p>
+                      <ul className="space-y-1">
+                        {schedulable.map(p => (
+                          <li key={p.id}>
+                            <button
+                              onClick={() => scheduleDraftOnDay(p.id, dayPicker.key)}
+                              className="w-full text-left px-3 py-2 rounded-lg hover:bg-ink-50 transition flex items-center gap-2.5 group/d"
+                            >
+                              <span className={`dot ${tone(p.pilier).dot} shrink-0`} />
+                              <span className="flex-1 min-w-0">
+                                <span className="block text-sm text-ink-800 truncate group-hover/d:text-ink-900">{p.title || 'Brouillon sans titre'}</span>
+                                <span className="block text-2xs text-ink-400">
+                                  {p.pilier ? p.pilier.split('·')[1]?.trim() || p.pilier : 'Sans pilier'}
+                                  {p.scheduled_at ? ` · actuellement ${new Date(p.scheduled_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}` : ' · non daté'}
+                                </span>
+                              </span>
+                              <span className="text-2xs text-brand-700 opacity-0 group-hover/d:opacity-100 transition shrink-0">Programmer →</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : onThisDay.length === 0 ? (
+                    <p className="text-xs text-ink-500 leading-relaxed">
+                      Aucun brouillon en attente. <Link href={`/posts/new?date=${dayPicker.key}`} className="text-brand-700 hover:text-brand-900 underline decoration-dotted underline-offset-2">Écrivez-en un</Link> pour ce jour.
+                    </p>
+                  ) : null}
+                </>
+              ) : onThisDay.length === 0 ? (
+                <p className="text-xs text-ink-500 leading-relaxed">Aucun post ce jour.</p>
+              ) : null}
             </div>
           </div>
         );
@@ -858,19 +876,16 @@ export default function CalendarClient({
         </div>
       )}
 
-      {/* Legend — V13.2 : séparation explicite "Réalité LinkedIn" / "Workspace Notion" */}
+      {/* Légende — V51 §3 : une seule ligne compacte. Les repères Notion
+          n'apparaissent que si l'affichage Notion est activé. */}
       <div className="pt-3 border-t border-ink-100 space-y-2 text-xs text-ink-500">
         <div className="flex items-center gap-5 flex-wrap">
-          <span className="text-2xs uppercase tracking-wider font-semibold text-[#0A66C2]">Réalité LinkedIn</span>
           <span className="flex items-center gap-1.5"><span className="text-success-700">✓</span> publié</span>
           <span className="flex items-center gap-1.5"><span className="dot bg-brand-500" /> programmé validé</span>
           <span className="flex items-center gap-1.5"><span className="dot bg-warn-500" /> à valider</span>
           <span className="flex items-center gap-1.5"><span className="text-danger-500">⚠</span> en retard</span>
-        </div>
-        <div className="flex items-center gap-5 flex-wrap">
-          <span className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Workspace Notion</span>
-          <span className="flex items-center gap-1.5"><span className="dot bg-amber-500" /> archive non certifiée</span>
-          <span className="flex items-center gap-1.5"><span className="dot bg-ink-300" /> brouillon</span>
+          {showNotion && <span className="flex items-center gap-1.5"><span className="dot bg-amber-500" /> archive Notion</span>}
+          {showNotion && <span className="flex items-center gap-1.5"><span className="dot bg-ink-300" /> brouillon</span>}
           {weekdayPerf.max > 0 && (
             <span className="flex items-center gap-1.5 ml-auto">
               <span className="inline-block w-3 h-3 rounded bg-emerald-50/60 border border-emerald-100" />
