@@ -63,44 +63,14 @@ export default async function AnalyticsPage() {
     <div className="space-y-10 max-w-3xl mx-auto">
       <header>
         <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Performance LinkedIn</p>
-        <h1 className="mt-1 text-2xl font-semibold text-ink-900 tracking-tight">Vos patterns</h1>
+        <h1 className="mt-1 text-2xl font-semibold text-ink-900 tracking-tight">Ce qui fonctionne</h1>
         <p className="mt-2 text-sm text-ink-500 leading-relaxed">
+          Ce que vos vrais posts vous apprennent, pour refaire ce qui marche.
           {confirmedPosts.length > 0
-            ? `Lecture sur ${confirmedPosts.length} publication${confirmedPosts.length > 1 ? 's' : ''} LinkedIn vérifiée${confirmedPosts.length > 1 ? 's' : ''}${inferredPosts.length > 0 ? `, plus ${inferredPosts.length} archive${inferredPosts.length > 1 ? 's' : ''} Notion non certifiée${inferredPosts.length > 1 ? 's' : ''} pour comparer` : ''}.`
-            : 'Aucune publication LinkedIn vérifiée pour l\'instant. Les patterns ci-dessous sont déduits de vos brouillons Notion et restent indicatifs.'}
+            ? ` Lecture sur ${confirmedPosts.length} publication${confirmedPosts.length > 1 ? 's' : ''} LinkedIn vérifiée${confirmedPosts.length > 1 ? 's' : ''}.`
+            : ' Aucune publication vérifiée pour l\'instant — les observations restent indicatives.'}
         </p>
       </header>
-
-      {/* === V9.9 — Fiabilité des analytics === */}
-      <section>
-        <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Fiabilité des chiffres</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-          <ReliabilityStat
-            label="Publications confirmées"
-            value={confirmedPosts.length}
-            hint="URL LinkedIn vérifiée ou import ZIP"
-            tone="confirmed"
-          />
-          <ReliabilityStat
-            label="Archives Notion"
-            value={inferredPosts.length}
-            hint="Pas d'URL LinkedIn rattachée"
-            tone="inferred"
-          />
-          <ReliabilityStat
-            label="Avec impressions"
-            value={withMetrics.length}
-            hint={published.length > 0 ? `${Math.round(withMetrics.length / published.length * 100)}% des publiés` : '—'}
-            tone={withMetrics.length >= published.length * 0.5 ? 'confirmed' : 'muted'}
-          />
-        </div>
-        {inferredPosts.length > confirmedPosts.length && (
-          <p className="mt-3 text-xs text-amber-700 leading-relaxed">
-            Plus de la moitié des publiés n&apos;ont pas d&apos;URL LinkedIn vérifiée. Les patterns ci-dessous restent donc indicatifs.{' '}
-            <Link href="/sources/linkedin" className="underline hover:text-amber-900">Importer mon archive LinkedIn</Link> pour passer en certitude.
-          </p>
-        )}
-      </section>
 
       {/* === V10.6 — Rythme de publication === */}
       {rythmePhrase && (
@@ -160,10 +130,11 @@ export default async function AnalyticsPage() {
         </section>
       )}
 
-      {/* === TOP 5 === */}
+      {/* === TOP 5 — chaque post est actionnable (recycler ce qui marche) === */}
       {top.length > 0 && (
         <section>
-          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Vos 5 meilleurs posts</h2>
+          <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-1">Vos meilleurs posts</h2>
+          <p className="text-xs text-ink-500 mb-3">Recyclez-les sous un nouvel angle : ce qui a marché peut remarcher.</p>
           <ol className="space-y-2.5">
             {top.map((p, i) => (
               <li key={p.id} className="flex items-start gap-3 group">
@@ -175,11 +146,44 @@ export default async function AnalyticsPage() {
                   <ProvenanceBadge provenance={p.provenance} size="xs" className="mt-1" />
                 </div>
                 <span className="text-sm font-medium text-ink-900 tabular-nums shrink-0">{p.impressions?.toLocaleString('fr-FR')}</span>
+                <Link
+                  href={`/posts/new?from=${p.id}&recycle=1`}
+                  className="btn-ghost text-2xs shrink-0 sm:opacity-0 sm:group-hover:opacity-100 transition"
+                  title="Réécrire ce sujet sous un nouvel angle"
+                >
+                  Recycler →
+                </Link>
               </li>
             ))}
           </ol>
         </section>
       )}
+
+      {/* V47 — Fiabilité des chiffres : repliée, plus de KPI grid froide en tête. */}
+      <details className="group/rel">
+        <summary className="select-none cursor-pointer inline-flex items-center gap-2 text-sm text-ink-500 hover:text-ink-900 transition">
+          <span className="w-1.5 h-1.5 rounded-full bg-ink-300 group-open/rel:bg-brand-500" aria-hidden />
+          <span>Fiabilité des chiffres</span>
+        </summary>
+        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <ReliabilityStat label="Publications confirmées" value={confirmedPosts.length} hint="URL LinkedIn vérifiée ou import ZIP" tone="confirmed" />
+          <ReliabilityStat label="Archives Notion" value={inferredPosts.length} hint="Pas d'URL LinkedIn rattachée" tone="inferred" />
+          <ReliabilityStat label="Avec impressions" value={withMetrics.length} hint={published.length > 0 ? `${Math.round(withMetrics.length / published.length * 100)}% des publiés` : '—'} tone={withMetrics.length >= published.length * 0.5 ? 'confirmed' : 'muted'} />
+        </div>
+        {inferredPosts.length > confirmedPosts.length && (
+          <p className="mt-3 text-xs text-amber-700 leading-relaxed">
+            Plus de la moitié des publiés n&apos;ont pas d&apos;URL LinkedIn vérifiée.{' '}
+            <Link href="/sources/linkedin" className="underline hover:text-amber-900">Importer mon archive</Link> pour fiabiliser.
+          </p>
+        )}
+      </details>
+
+      {/* V47 — Action footer : agir sur ce qu'on vient de lire. */}
+      <div className="pt-4 border-t border-ink-100 flex items-center gap-4 flex-wrap text-sm">
+        <Link href="/posts/new" className="btn-primary text-sm">Écrire un post →</Link>
+        <Link href="/posts?status=recyclable" className="text-brand-700 hover:text-brand-900 transition">Voir les posts à recycler</Link>
+        <Link href="/calendar?source=linkedin" className="text-ink-500 hover:text-ink-900 transition">Planifier la semaine</Link>
+      </div>
 
       {!status.ok && (
         <p className="text-xs text-ink-500 italic">Notion workspace inaccessible, les chiffres déduits ne peuvent pas être calculés.</p>

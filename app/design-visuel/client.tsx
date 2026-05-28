@@ -164,7 +164,12 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
       <header>
         <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Direction</p>
         <h1 className="mt-1 text-3xl font-semibold text-ink-900 tracking-tight">Univers visuel</h1>
-        <p className="mt-2 text-sm text-ink-500 max-w-2xl leading-relaxed">Ambiance, rythme, références. Ce que Cadence garde en tête à chaque visuel.</p>
+        <p className="mt-2 text-sm text-ink-500 max-w-2xl leading-relaxed">Cadence crée des visuels cohérents avec votre direction artistique. Ici vous réglez l&apos;ambiance et les références.</p>
+        {/* V47 — Actions claires : créer / importer. */}
+        <div className="mt-4 flex items-center gap-3 flex-wrap">
+          <a href="/posts/new" className="btn-primary text-sm">Créer un visuel pour un post →</a>
+          <a href="#references" className="text-sm text-brand-700 hover:text-brand-900 transition">Importer une référence</a>
+        </div>
       </header>
 
       {/* V12.4 §2 — Ce que Cadence a compris de votre style (lit visual-memory) */}
@@ -218,7 +223,7 @@ export default function DesignVisuelClient({ initial }: { initial: any[] }) {
       </section>
 
       {/* V12.4 §4 — Références (ancien "Moodboard") */}
-      <section>
+      <section id="references" className="scroll-mt-20">
         <div className="flex items-baseline justify-between mb-3">
           <div>
             <h2 className="text-sm font-semibold text-ink-900">Références</h2>
