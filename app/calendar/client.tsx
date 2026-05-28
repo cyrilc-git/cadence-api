@@ -104,6 +104,37 @@ export default function CalendarClient({
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const [dragToast, setDragToast] = useState<{ kind: 'success' | 'error'; msg: string } | null>(null);
   const [justMovedId, setJustMovedId] = useState<string | null>(null);
+  // V38.4 — Day picker : clic sur un jour ouvre un sélecteur de brouillons
+  // à programmer sur ce jour (plus besoin de viser le petit "+").
+  const [dayPicker, setDayPicker] = useState<{ key: string } | null>(null);
+
+  // V38.4 — Programme un brouillon (non daté ou ailleurs) sur un jour précis.
+  // Réutilise l'endpoint move. Optimistic. Heure par défaut 07:30.
+  async function scheduleDraftOnDay(postId: string, dateKey: string) {
+    const before = posts;
+    const p = posts.find(x => x.id === postId);
+    if (!p) return;
+    const time = p.scheduled_time?.slice(0, 5) || '07:30';
+    setPosts(prev => prev.map(x => x.id === postId ? { ...x, scheduled_at: dateKey + 'T' + time + ':00.000Z' } : x));
+    setJustMovedId(postId);
+    setDayPicker(null);
+    setTimeout(() => setJustMovedId(prev => prev === postId ? null : prev), 1200);
+    try {
+      const r = await fetch(`/api/notion/post/${postId}/move`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: dateKey, time }),
+      });
+      if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Erreur programmation'); }
+      const dayLabel = new Date(dateKey + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'short' });
+      setDragToast({ kind: 'success', msg: 'Programmé le ' + dayLabel });
+      setTimeout(() => setDragToast(null), 2400);
+    } catch (e: any) {
+      setPosts(before);
+      setJustMovedId(null);
+      setDragToast({ kind: 'error', msg: 'Impossible : ' + e.message });
+      setTimeout(() => setDragToast(null), 3600);
+    }
+  }
 
   async function moveByDrag(postId: string, newDateKey: string) {
     const before = posts;
@@ -642,13 +673,31 @@ export default function CalendarClient({
                   }}
                   className={`group relative rounded-xl p-2 min-h-[124px] border transition-all duration-200 ${isToday ? 'border-brand-400 bg-brand-50/30 shadow-elev' : isWeekend ? 'border-ink-100 bg-ink-50/40' : `border-ink-200 ${perfTint(d) || 'bg-white'} hover:border-ink-300 hover:shadow-xs`} ${isOtherMonth ? 'opacity-40' : ''} ${isPast && !isToday ? 'opacity-75' : ''} ${dragOverKey === k && draggingId ? 'ring-2 ring-brand-500 ring-offset-2 bg-brand-50/80' : ''}`}
                 >
-                  <div className="flex items-center justify-between mb-1.5">
+                  {/* V38.4 — Couche cliquable de fond : un clic n'importe où sur
+                      le jour (zone vide) ouvre le sélecteur de brouillons.
+                      z-0, sous le contenu (z-10) pour ne pas bloquer les posts.
+                      Désactivée sur les jours passés (pas de programmation). */}
+                  {!isPast && (
+                    <button
+                      type="button"
+                      onClick={() => setDayPicker({ key: k })}
+                      className="absolute inset-0 z-0 rounded-xl cursor-pointer"
+                      aria-label={`Programmer un post le ${d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}`}
+                      title="Cliquez pour programmer un brouillon ce jour"
+                    />
+                  )}
+                  <div className="relative z-10 flex items-center justify-between mb-1.5 pointer-events-none">
                     <span className={`text-xs font-semibold ${isToday ? 'text-brand-700' : isWeekend ? 'text-ink-400' : 'text-ink-700'}`}>{d.getDate()}</span>
                     {!isPast && !isWeekend && (
-                      <Link href={`/posts/new?date=${k}`} className={`w-5 h-5 rounded-md flex items-center justify-center text-ink-300 hover:text-brand-600 hover:bg-brand-50 transition text-sm ${hasItems ? 'opacity-0 group-hover:opacity-100' : ''}`} title="Créer un post">+</Link>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setDayPicker({ key: k }); }}
+                        className={`pointer-events-auto w-5 h-5 rounded-md flex items-center justify-center text-ink-300 hover:text-brand-600 hover:bg-brand-50 transition text-sm ${hasItems ? 'opacity-0 group-hover:opacity-100' : ''}`}
+                        title="Programmer un post"
+                      >+</button>
                     )}
                   </div>
-                  <div className="space-y-1">
+                  <div className="relative z-10 space-y-1">
                     {items.slice(0, 3).map((p: any) => {
                       const t = tone(p.pilier);
                       const st = statusOf(p);
@@ -708,6 +757,76 @@ export default function CalendarClient({
           </div>
         ))}
       </div>
+
+      {/* V38.4 — Day picker : clic sur un jour → choisir un brouillon à
+          programmer, ou créer un nouveau post pour ce jour. */}
+      {dayPicker && (() => {
+        const dayLabel = new Date(dayPicker.key + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+        // Brouillons programmables : non datés ou datés un autre jour, statut draft / à valider.
+        const schedulable = posts.filter(p => {
+          const st = statusOf(p);
+          if (st !== 'draft' && st !== 'needs_validation') return false;
+          const cur = p.scheduled_at?.slice(0, 10);
+          return cur !== dayPicker.key;
+        }).slice(0, 12);
+        // Posts déjà sur ce jour
+        const alreadyHere = posts.filter(p => p.scheduled_at?.slice(0, 10) === dayPicker.key);
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 bg-ink-900/40 backdrop-blur-sm animate-fade-in" onClick={() => setDayPicker(null)}>
+            <div className="bg-white rounded-2xl shadow-pop w-full max-w-md max-h-[80vh] overflow-y-auto p-5 animate-slide-up" onClick={e => e.stopPropagation()}>
+              <div className="flex items-baseline justify-between mb-1">
+                <h3 className="text-lg font-semibold text-ink-900 capitalize">{dayLabel}</h3>
+                <button onClick={() => setDayPicker(null)} className="text-ink-400 hover:text-ink-900 transition text-xl leading-none">×</button>
+              </div>
+
+              {alreadyHere.length > 0 && (
+                <p className="text-xs text-ink-500 mb-3">
+                  {alreadyHere.length} post{alreadyHere.length > 1 ? 's' : ''} déjà programmé{alreadyHere.length > 1 ? 's' : ''} ce jour.
+                </p>
+              )}
+
+              {/* Action principale : nouveau post pour ce jour */}
+              <Link
+                href={`/posts/new?date=${dayPicker.key}`}
+                className="btn-primary text-sm w-full justify-center mb-4 inline-flex"
+              >
+                Écrire un nouveau post pour ce jour →
+              </Link>
+
+              {/* Brouillons existants à programmer ici */}
+              {schedulable.length > 0 ? (
+                <div>
+                  <p className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Programmer un brouillon ici</p>
+                  <ul className="space-y-1">
+                    {schedulable.map(p => (
+                      <li key={p.id}>
+                        <button
+                          onClick={() => scheduleDraftOnDay(p.id, dayPicker.key)}
+                          className="w-full text-left px-3 py-2 rounded-lg hover:bg-ink-50 transition flex items-center gap-2.5 group/d"
+                        >
+                          <span className={`dot ${tone(p.pilier).dot} shrink-0`} />
+                          <span className="flex-1 min-w-0">
+                            <span className="block text-sm text-ink-800 truncate group-hover/d:text-ink-900">{p.title || 'Brouillon sans titre'}</span>
+                            <span className="block text-2xs text-ink-400">
+                              {p.pilier ? p.pilier.split('·')[1]?.trim() || p.pilier : 'Sans pilier'}
+                              {p.scheduled_at ? ` · actuellement ${new Date(p.scheduled_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}` : ' · non daté'}
+                            </span>
+                          </span>
+                          <span className="text-2xs text-brand-700 opacity-0 group-hover/d:opacity-100 transition shrink-0">Programmer →</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-xs text-ink-500 leading-relaxed">
+                  Aucun brouillon en attente. <Link href={`/posts/new?date=${dayPicker.key}`} className="text-brand-700 hover:text-brand-900 underline decoration-dotted underline-offset-2">Écrivez-en un</Link> pour ce jour.
+                </p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Hover preview */}
       {hover && hover.items.length > 0 && (
