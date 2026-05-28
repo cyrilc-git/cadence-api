@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import MoveMenu from '@/components/MoveMenu';
-import ProvenanceBadge from '@/components/ProvenanceBadge';
+// V51 §7 — ProvenanceBadge retiré : la pastille « déduit/confirmé » faisait
+// doublon avec les icônes de statut ci-dessous (✓ publié, archive, programmé,
+// à valider). On garde la logique de provenance (statusOf, canonical_source),
+// on retire seulement l'indicateur visuel redondant.
 import { inferFromNotion, type Provenance } from '@/lib/provenance';
 import { confirmDialog, toast } from '@/components/Dialog';
 
@@ -698,7 +701,6 @@ export default function CalendarClient({
                               {st === 'late' && <span title="En retard" className="text-danger-500">⚠</span>}
                               {st === 'scheduled' && <span title="Programmé" className="dot bg-brand-500" />}
                               {st === 'needs_validation' && <span title="À valider" className="dot bg-warn-500" />}
-                              <ProvenanceBadge provenance={p.provenance} variant="dot" />
                               <span className="font-medium truncate">{p.scheduled_time?.slice(0,5) || ''}</span>
                               <span className="truncate flex-1 opacity-80">{p.title}</span>
                             </span>
