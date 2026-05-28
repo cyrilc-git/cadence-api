@@ -243,6 +243,24 @@ export function formatToVisualTemplate(format: EditorialFormat): string {
   }
 }
 
+// V50.5 — Conseil de format par pilier éditorial.
+//
+// Un assistant éditorial sait que certains piliers brillent dans certains
+// formats : un cas client se raconte en avant/après, une pédagogie en
+// checklist, un produit en capture annotée. C'est une anticipation d'angle,
+// pas une règle figée : la détection live dans l'éditeur confirme ou ajuste
+// au vu du texte réel. Renvoie un libellé court ou null (aucun fake).
+export function pilierFormatHint(pilier?: string | null): { format: EditorialFormat; label: string } | null {
+  if (!pilier) return null;
+  const p = pilier.toLowerCase();
+  if (p.includes('cas client')) return { format: 'before_after', label: 'avant / après' };
+  if (p.includes('pédagogie') || p.includes('pedagogie')) return { format: 'checklist', label: 'checklist' };
+  if (p.includes('produit')) return { format: 'product_capture', label: 'capture produit' };
+  if (p.includes('opinion')) return { format: 'mono_visual', label: 'mono-visuel' };
+  if (p.includes('build')) return { format: 'timeline', label: 'timeline' };
+  return null;
+}
+
 // V50.2 — Brief visuel prêt à générer, dérivé du format détecté + du texte.
 //
 // Idée centrale : quand Cadence détecte un format (checklist, framework,
