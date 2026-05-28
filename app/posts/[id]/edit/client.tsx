@@ -70,7 +70,9 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   // V50.2 — Brief format-aware + clé d'auto-génération (« Cadence agit »).
   const [autoVisualBrief, setAutoVisualBrief] = useState<string | null>(null);
   const [autoGenerateKey, setAutoGenerateKey] = useState(0);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  // V50.3 — Pré-charge le visuel déjà attaché au post (miniature générée par
+  // Cadence ou couverture Notion) pour que l'aperçu LinkedIn le montre d'emblée.
+  const [imageUrl, setImageUrl] = useState<string | null>(summary.cover_url || null);
   const [tick, setTick] = useState(0);
 
   const lastSavedTextRef = useRef(initial.content);
