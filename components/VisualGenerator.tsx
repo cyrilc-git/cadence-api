@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 type Mode = 'claude-design' | 'openai' | 'gemini' | 'replicate' | 'stability' | 'ideogram';
 
@@ -46,6 +46,8 @@ export default function VisualGenerator({
   pilier: pilierProp,
   text: contextText,
   suggestedFormat,
+  autoBrief,
+  autoGenerateKey,
 }: {
   defaultPrompt?: string;
   notionPageId?: string;
@@ -54,6 +56,12 @@ export default function VisualGenerator({
   text?: string;
   /** V12.8 §2 — Format pré-sélectionné quand le drawer s'ouvre depuis l'éditeur */
   suggestedFormat?: string | null;
+  /** V50.2 — Brief format-aware injecté quand on ouvre depuis un format hint.
+   * Pré-remplit le prompt ET lance la génération automatiquement. */
+  autoBrief?: string | null;
+  /** V50.2 — Clé qui change à chaque clic "générer immédiatement" depuis
+   * l'éditeur. Déclenche une seule auto-génération par clic (pas en boucle). */
+  autoGenerateKey?: number;
 }) {
   const [template, setTemplate] = useState<keyof typeof TEMPLATES>('feature');
 
@@ -143,15 +151,18 @@ export default function VisualGenerator({
     onPick(selected.svg || selected.url || null);
   }, [selected, onPick]);
 
-  const handleGenerate = useCallback(async () => {
-    if (!prompt.trim()) return;
+  const handleGenerate = useCallback(async (override?: unknown) => {
+    // V50.2 — onClick passe un MouseEvent : on n'accepte un override que
+    // si c'est une vraie chaîne (auto-génération depuis un format hint).
+    const usePrompt = typeof override === 'string' && override.trim() ? override : prompt;
+    if (!usePrompt.trim()) return;
     setLoading(true); setError(null);
     try {
       // V12.2 — Transmet template + pilier pour tracing dans visual_items
       const r = await fetch('/api/generate-visual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, mode, notion_page_id: notionPageId, template, pilier: pilierProp || null })
+        body: JSON.stringify({ prompt: usePrompt, mode, notion_page_id: notionPageId, template, pilier: pilierProp || null })
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || `Erreur ${r.status}`);
@@ -162,7 +173,7 @@ export default function VisualGenerator({
         url: data.url,
         model: data.model,
         template,
-        prompt,
+        prompt: usePrompt,
         createdAt: Date.now(),
         visualScore: data.visualScore || undefined,
       };
@@ -173,7 +184,21 @@ export default function VisualGenerator({
     } finally {
       setLoading(false);
     }
-  }, [prompt, mode, notionPageId, template]);
+  }, [prompt, mode, notionPageId, template, pilierProp]);
+
+  // V50.2 — Auto-génération : quand l'éditeur déclenche un format hint
+  // (« Cadence agit »), on pré-remplit le brief ET on lance la génération
+  // immédiatement, une seule fois par clic. L'utilisateur voit un asset se
+  // construire au lieu d'un panneau vide.
+  const lastAutoKey = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (autoGenerateKey == null) return;
+    if (lastAutoKey.current === autoGenerateKey) return;
+    if (!autoBrief || !autoBrief.trim()) return;
+    lastAutoKey.current = autoGenerateKey;
+    setPrompt(autoBrief);
+    handleGenerate(autoBrief);
+  }, [autoGenerateKey, autoBrief, handleGenerate]);
 
   async function suggestBrief() {
     if (briefLoading) return;

@@ -67,6 +67,9 @@ export default function EditClient({ initial, validated: initialValidated }: { i
   const [previewOpen, setPreviewOpen] = useState(false);
   // V12.8 §2 — format suggéré par memory-check, pré-sélectionné dans VisualGenerator
   const [suggestedVisualFormat, setSuggestedVisualFormat] = useState<string | null>(null);
+  // V50.2 — Brief format-aware + clé d'auto-génération (« Cadence agit »).
+  const [autoVisualBrief, setAutoVisualBrief] = useState<string | null>(null);
+  const [autoGenerateKey, setAutoGenerateKey] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
@@ -245,9 +248,14 @@ export default function EditClient({ initial, validated: initialValidated }: { i
           rows={20}
           placeholder="Commencez à écrire. Tapez / pour les commandes, @ pour mentionner."
           bare
-          onVisualSuggested={(format) => {
+          onVisualSuggested={(format, opts) => {
             setSuggestedVisualFormat(format);
             setPreviewOpen(true);
+            // V50.2 — Génération immédiate si un brief format-aware est fourni.
+            if (opts?.autoBrief) {
+              setAutoVisualBrief(opts.autoBrief);
+              setAutoGenerateKey(k => k + 1);
+            }
           }}
         />
       </div>
@@ -304,6 +312,8 @@ export default function EditClient({ initial, validated: initialValidated }: { i
               pilier={summary.pilier}
               text={text}
               suggestedFormat={suggestedVisualFormat}
+              autoBrief={autoVisualBrief}
+              autoGenerateKey={autoGenerateKey}
               onPick={setImageUrl}
             />
             <div className="mt-6 pt-6 border-t border-ink-100">

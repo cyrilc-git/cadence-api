@@ -211,3 +211,99 @@ export function formatToVisualTemplate(format: EditorialFormat): string | null {
       return null;
   }
 }
+
+// V50.2 — Brief visuel prêt à générer, dérivé du format détecté + du texte.
+//
+// Idée centrale : quand Cadence détecte un format (checklist, framework,
+// comparatif, timeline, avant/après, pyramide, mono-visuel…), un clic doit
+// produire un asset IMMÉDIATEMENT, pas ouvrir un panneau vide. Ce brief est
+// passé tel quel au moteur Claude Design (SVG éditorial). Il décrit la
+// structure exacte ET demande au moteur d'extraire le contenu réel du post.
+//
+// Référence DA : Linear, Stripe docs, Notion, Pitch, post Fygr. Sobre,
+// éditorial, premium. 1 idée par bloc. Jamais de chiffre inventé.
+
+// Direction artistique commune Heelio — appliquée à tous les formats.
+const HEELIO_DA = [
+  'Direction artistique Heelio : fond clair #FAFAF9, une seule couleur d\'accent (bleu #2563EB),',
+  'typographie Inter, hiérarchie nette, beaucoup d\'air, format carré 1080x1080.',
+  'Sobre et éditorial comme Linear, Stripe docs, Notion, Pitch. Une idée par bloc, texte court.',
+  'Pas d\'emoji, pas de gradient agressif, pas de style Canva, pas de décor inutile.',
+  'N\'invente aucun chiffre ni libellé absent du texte : reformule en plus court si besoin.',
+  'Signature discrète « Cadence · Heelio » en bas, petite, gris ink-400.',
+].join(' ');
+
+function clampSource(text: string): string {
+  const t = (text || '').trim().replace(/\s+\n/g, '\n');
+  return t.length > 1400 ? t.slice(0, 1400) + '…' : t;
+}
+
+export function buildFormatBrief(format: EditorialFormat, text: string): string {
+  const src = clampSource(text);
+  const intro = 'À partir du texte suivant, produis un visuel structuré (SVG éditorial).';
+  let structure = '';
+  switch (format) {
+    case 'checklist':
+      structure =
+        'Format : checklist visuelle. Un titre court en haut (max 6 mots). Puis 4 à 8 points, ' +
+        'chacun avec une case à cocher carrée à contour fin (bleu) suivie d\'un libellé court (max 60 caractères). ' +
+        'Alignement vertical régulier, interligne généreux. Aucun paragraphe : que des items scannables.';
+      break;
+    case 'numbered_list':
+      structure =
+        'Format : liste numérotée. Un titre court en haut reprenant le nombre d\'éléments (ex. « 6 indispensables »). ' +
+        'Puis N blocs numérotés 1, 2, 3… chaque numéro dans un petit cercle ou pastille bleue, ' +
+        'suivi d\'un libellé court (max 70 caractères). Une idée par ligne, scannable en 5 secondes.';
+      break;
+    case 'framework':
+      structure =
+        'Format : framework / méthode. Le nom de la méthode en titre. Puis 4 à 6 blocs hiérarchisés ' +
+        '(grille ou colonnes selon le nombre), chaque bloc avec un intitulé en gras et une ligne d\'explication courte. ' +
+        'La hiérarchie doit être lisible d\'un coup d\'œil. Style schéma premium, pas de surcharge.';
+      break;
+    case 'schema':
+      structure =
+        'Format : schéma en étapes. 3 à 6 étapes séquentielles, alignées et reliées par des flèches fines (ink-400). ' +
+        'Chaque étape : un numéro discret, un intitulé court. Le déroulé doit se lire de gauche à droite ou de haut en bas. ' +
+        'Aucun texte long.';
+      break;
+    case 'timeline':
+      structure =
+        'Format : frise chronologique (timeline). Une ligne directrice, et 3 à 6 jalons positionnés dessus avec ' +
+        'leur repère temporel (année, mois, étape) et un libellé court. La progression dans le temps doit être évidente.';
+      break;
+    case 'comparison':
+      structure =
+        'Format : comparatif deux colonnes. Deux zones côte à côte clairement séparées (gauche / droite), ' +
+        'chacune avec un en-tête et 2 à 5 points courts. Le contraste entre les deux options doit être immédiat. ' +
+        'Une couleur d\'accent réservée à la colonne recommandée.';
+      break;
+    case 'before_after':
+      structure =
+        'Format : avant / après. Deux zones contrastées (« Avant » à gauche, plus terne ; « Après » à droite, accent bleu), ' +
+        'reliées par une flèche. Chaque zone : un état décrit en quelques mots. La transformation doit sauter aux yeux.';
+      break;
+    case 'pyramid':
+      structure =
+        'Format : pyramide. 3 à 5 niveaux empilés, base large en bas, sommet étroit en haut, ' +
+        'chaque niveau avec un libellé court. La hiérarchie (fondations → sommet) doit être lisible immédiatement.';
+      break;
+    case 'mono_visual':
+      structure =
+        'Format : mono-visuel. UN seul élément central : le chiffre ou la phrase la plus forte du texte, ' +
+        'en très grand (typo serif ou Inter bold), centré, avec un sous-texte court en dessous. ' +
+        'Filet bleu fin sous l\'élément. Aucun autre contenu : maximum d\'impact, maximum d\'air.';
+      break;
+    case 'product_capture':
+      structure =
+        'Format : capture produit annotée. Une représentation stylisée et épurée d\'une interface (cadre, barre, ' +
+        'quelques blocs gris clair évoquant un dashboard), avec 2 à 3 annotations numérotées (cercles bleus 1, 2, 3) ' +
+        'pointant des éléments clés et de courts libellés. Style maquette sobre, pas de capture réelle.';
+      break;
+    default:
+      structure =
+        'Format : visuel éditorial structuré. Un titre, puis le contenu organisé en blocs courts et hiérarchisés, ' +
+        'scannable en quelques secondes.';
+  }
+  return `${intro}\n\n${structure}\n\n${HEELIO_DA}\n\nTexte source :\n"""${src}"""`;
+}

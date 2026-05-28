@@ -8,7 +8,7 @@ import MentionTextarea, { caretCoords } from './MentionTextarea';
 import SlashMenu, { SlashCommand, detectSlashQuery } from './SlashMenu';
 import MentionSuggestions from './MentionSuggestions';
 import { toBold, toItalic, toBulletList, toQuote } from './LinkedInPreview';
-import { formatToVisualTemplate, type EditorialFormat } from '@/lib/format-intelligence';
+import { formatToVisualTemplate, buildFormatBrief, type EditorialFormat } from '@/lib/format-intelligence';
 
 export type CadenceEditorProps = {
   value: string;
@@ -26,8 +26,11 @@ export type CadenceEditorProps = {
   /** V8.9 — afficher les suggestions de mentions IA sous l'éditeur */
   showMentionSuggestions?: boolean;
   /** V12.8 §2 — Callback quand Cadence détecte qu'un visuel serait pertinent.
-   * Le parent ouvre alors son drawer / sélectionne le template approprié. */
-  onVisualSuggested?: (format: string) => void;
+   * Le parent ouvre alors son drawer / sélectionne le template approprié.
+   * V50.2 — `opts.autoBrief` : si fourni, le parent lance la génération
+   * immédiatement avec ce brief (« Cadence agit »), au lieu d'ouvrir un
+   * panneau vide. */
+  onVisualSuggested?: (format: string, opts?: { autoBrief?: string }) => void;
   /** V50.1 — Callback quand l'utilisateur veut créer le carrousel.
    * Le parent ouvre le studio carrousel (preview + édition + export). */
   onCarouselSuggested?: () => void;
@@ -586,7 +589,12 @@ export default function CadenceEditor({
                   {' '}
                   <button
                     type="button"
-                    onClick={() => onVisualSuggested(formatToVisualTemplate(formatHint.format as EditorialFormat)!)}
+                    onClick={() => onVisualSuggested(
+                      formatToVisualTemplate(formatHint.format as EditorialFormat)!,
+                      // V50.2 — Brief format-aware : Cadence génère l'asset
+                      // tout de suite au lieu d'ouvrir un panneau vide.
+                      { autoBrief: buildFormatBrief(formatHint.format as EditorialFormat, value) },
+                    )}
                     className="text-brand-700 hover:text-brand-900 transition not-italic underline decoration-dotted underline-offset-2"
                     title={formatHint.cta}
                   >

@@ -76,6 +76,10 @@ export default function NewPostClient({
   const [previewOpen, setPreviewOpen] = useState(false);
   // V12.8 §2 — format suggéré par memory-check, pré-sélectionné dans VisualGenerator
   const [suggestedVisualFormat, setSuggestedVisualFormat] = useState<string | null>(null);
+  // V50.2 — Brief format-aware + clé d'auto-génération : un clic sur un format
+  // hint génère l'asset immédiatement (« Cadence agit »).
+  const [autoVisualBrief, setAutoVisualBrief] = useState<string | null>(null);
+  const [autoGenerateKey, setAutoGenerateKey] = useState(0);
   // V50.1 — Studio carrousel ouvert dans le drawer
   const [carouselMode, setCarouselMode] = useState(false);
   const [pilierOpen, setPilierOpen] = useState(false);
@@ -365,10 +369,16 @@ export default function NewPostClient({
                 setProposals([r]); setProposalIdx(0);
                 pushVersion(r, 'Réécriture Cadence');
               }}
-              onVisualSuggested={(format) => {
+              onVisualSuggested={(format, opts) => {
                 setSuggestedVisualFormat(format);
                 setCarouselMode(false);
                 setPreviewOpen(true);
+                // V50.2 — Si un brief format-aware est fourni, on lance la
+                // génération tout de suite (clé incrémentée à chaque clic).
+                if (opts?.autoBrief) {
+                  setAutoVisualBrief(opts.autoBrief);
+                  setAutoGenerateKey(k => k + 1);
+                }
               }}
               onCarouselSuggested={() => {
                 // V50.1 — Ouvre le studio carrousel dans le drawer.
@@ -557,6 +567,8 @@ export default function NewPostClient({
               pilier={pilier}
               text={text}
               suggestedFormat={suggestedVisualFormat}
+              autoBrief={autoVisualBrief}
+              autoGenerateKey={autoGenerateKey}
               onPick={setImageUrl}
             />
             <div className="mt-6 pt-6 border-t border-ink-100">
