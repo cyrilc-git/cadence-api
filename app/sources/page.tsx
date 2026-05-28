@@ -5,21 +5,21 @@ import { getActiveToken } from '@/lib/supabase';
 import { validateToken } from '@/lib/linkedin';
 import { getCredential } from '@/lib/credentials';
 
-// V9.1 §5 — Sources : OS éditorial, pas page de settings.
-// Suppression : progress card, trust card lourde, gradient bar, big brand tiles.
-// Style : liste sobre Notion-like, dots colorés, statut en mots, action discrète.
+// V51 §6 — Sources : hub de connexions au service des 3 flux (écrire,
+// programmer/publier, visuels). On retire les sources « signaux » (GitHub,
+// Gmail, Drive) qui ne servent pas ces flux, les placeholders « à venir »
+// et le jargon technique (OAuth, AES-256, credentials).
 
 export const dynamic = 'force-dynamic';
 
-type SourceState = 'connected' | 'needs_setup' | 'error' | 'disconnected' | 'soon';
+type SourceState = 'connected' | 'needs_setup' | 'error' | 'disconnected';
 type Source = {
   kind: string;
   label: string;
   description: string;
-  category: 'publi' | 'storage' | 'ai' | 'signal';
+  category: 'publi' | 'storage' | 'ai';
   oauth?: string;
   configRoute?: string;
-  soon?: boolean;
   accent: string; // hex couleur de marque
 };
 
@@ -32,17 +32,12 @@ const SOURCES: Source[] = [
   { kind: 'replicate', label: 'Replicate',    description: 'Flux, SDXL, Recraft… alternative à Midjourney.',        category: 'ai',      configRoute: '/sources/ai',       accent: '#1F2937' },
   { kind: 'stability', label: 'Stability AI', description: 'Stable Diffusion 3.5, illustrations bitmap.',           category: 'ai',      configRoute: '/sources/ai',       accent: '#7C3AED' },
   { kind: 'ideogram',  label: 'Ideogram',     description: 'Texte net dans l\'image (titres, citations).',          category: 'ai',      configRoute: '/sources/ai',       accent: '#EF4444' },
-  { kind: 'github',    label: 'GitHub',       description: 'Détecte commits, releases, signaux produit.',           category: 'signal',  configRoute: '/sources/github',   accent: '#181717' },
-  { kind: 'gmail',     label: 'Gmail',        description: 'À venir : questions clients récurrentes.',              category: 'signal',  soon: true,                       accent: '#EA4335' },
-  { kind: 'gdrive',    label: 'Google Drive', description: 'À venir : docs stratégiques.',                          category: 'signal',  soon: true,                       accent: '#1FA463' },
-  { kind: 'onedrive',  label: 'OneDrive',     description: 'À venir : fichiers produits.',                          category: 'signal',  soon: true,                       accent: '#0078D4' },
 ];
 
 const CATEGORIES: { key: Source['category']; label: string }[] = [
   { key: 'publi',   label: 'Publication' },
   { key: 'storage', label: 'Stockage' },
   { key: 'ai',      label: 'Intelligence' },
-  { key: 'signal',  label: 'Signaux' },
 ];
 
 async function fetchStatus(): Promise<Record<string, SourceState>> {
@@ -60,7 +55,7 @@ async function fetchStatus(): Promise<Record<string, SourceState>> {
   for (const c of connectors as any[]) {
     if (!out[c.kind]) out[c.kind] = (c.status as SourceState) || 'needs_setup';
   }
-  // V40 — État réel des moteurs IA : clé présente (DB ou env) → connecté.
+  // V40 — État réel des moteurs IA : clé présente (stockée ou serveur) → connecté.
   const aiProviders = ['anthropic', 'openai', 'gemini', 'replicate', 'stability', 'ideogram'];
   await Promise.all(aiProviders.map(async (p) => {
     try {
@@ -76,15 +71,14 @@ function dotForState(state: SourceState): { color: string; label: string } {
     case 'connected':   return { color: 'bg-success-500', label: 'Connecté' };
     case 'needs_setup': return { color: 'bg-warn-500',    label: 'À configurer' };
     case 'error':       return { color: 'bg-danger-500',  label: 'Erreur' };
-    case 'soon':        return { color: 'bg-ink-300',     label: 'Bientôt' };
     default:            return { color: 'bg-ink-300',     label: 'Non connecté' };
   }
 }
 
 export default async function SourcesPage() {
   const states = await fetchStatus();
-  const connectedCount = SOURCES.filter(s => !s.soon && states[s.kind] === 'connected').length;
-  const activeCount = SOURCES.filter(s => !s.soon).length;
+  const connectedCount = SOURCES.filter(s => states[s.kind] === 'connected').length;
+  const activeCount = SOURCES.length;
 
   return (
     <div className="space-y-10 max-w-3xl mx-auto">
@@ -92,7 +86,7 @@ export default async function SourcesPage() {
         <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Sources</p>
         <h1 className="mt-1 text-3xl font-semibold text-ink-900 tracking-tight">Vos connexions</h1>
         <p className="mt-2 text-sm text-ink-500">
-          {connectedCount}/{activeCount} sources connectées. OAuth d'abord, chiffrement AES-256 pour le reste. Aucune publication sans validation.
+          {connectedCount}/{activeCount} sources connectées. Vos clés restent chiffrées et privées. Aucune publication sans votre validation.
         </p>
       </header>
 
@@ -104,7 +98,7 @@ export default async function SourcesPage() {
             <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">{cat.label}</h2>
             <ul className="divide-y divide-ink-100 border-t border-b border-ink-100">
               {items.map(s => {
-                const state: SourceState = s.soon ? 'soon' : (states[s.kind] || 'needs_setup');
+                const state: SourceState = states[s.kind] || 'needs_setup';
                 const isConnected = state === 'connected';
                 const tone = dotForState(state);
                 return (
@@ -120,17 +114,15 @@ export default async function SourcesPage() {
                       </div>
                       <p className="mt-0.5 text-xs text-ink-500 truncate">{s.description}</p>
                     </div>
-                    {!s.soon && (
-                      <div className="flex items-center gap-2 shrink-0">
-                        {isConnected ? (
-                          <Link href={s.configRoute || '/settings'} className="text-xs text-ink-500 hover:text-ink-900 transition sm:opacity-0 sm:group-hover:opacity-100 inline-flex items-center px-2 py-2 min-h-[40px] sm:min-h-0 sm:py-0 sm:px-0">Gérer</Link>
-                        ) : s.oauth ? (
-                          <Link href={s.oauth} className="text-xs text-brand-700 hover:text-brand-900 font-medium transition inline-flex items-center px-2 py-2 min-h-[40px] sm:min-h-0 sm:py-0 sm:px-0">Connecter →</Link>
-                        ) : s.configRoute ? (
-                          <Link href={s.configRoute} className="text-xs text-brand-700 hover:text-brand-900 font-medium transition inline-flex items-center px-2 py-2 min-h-[40px] sm:min-h-0 sm:py-0 sm:px-0">Configurer →</Link>
-                        ) : null}
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isConnected ? (
+                        <Link href={s.configRoute || '/sources'} className="text-xs text-ink-500 hover:text-ink-900 transition sm:opacity-0 sm:group-hover:opacity-100 inline-flex items-center px-2 py-2 min-h-[40px] sm:min-h-0 sm:py-0 sm:px-0">Gérer</Link>
+                      ) : s.oauth ? (
+                        <Link href={s.oauth} className="text-xs text-brand-700 hover:text-brand-900 font-medium transition inline-flex items-center px-2 py-2 min-h-[40px] sm:min-h-0 sm:py-0 sm:px-0">Connecter →</Link>
+                      ) : s.configRoute ? (
+                        <Link href={s.configRoute} className="text-xs text-brand-700 hover:text-brand-900 font-medium transition inline-flex items-center px-2 py-2 min-h-[40px] sm:min-h-0 sm:py-0 sm:px-0">Configurer →</Link>
+                      ) : null}
+                    </div>
                   </li>
                 );
               })}
@@ -139,9 +131,9 @@ export default async function SourcesPage() {
         );
       })}
 
-      {/* Trust — discret, prose, pas de card */}
+      {/* Confiance — discret, prose, pas de card */}
       <section className="pt-4 border-t border-ink-100 text-xs text-ink-500 leading-relaxed">
-        OAuth-first partout où possible. Credentials avancés chiffrés AES-256-GCM côté serveur. Signaux (GitHub, Gmail, Drive) en lecture seule, Cadence n&apos;écrit jamais dans ces sources.
+        Vos clés et connexions sont chiffrées et stockées en sécurité. Cadence ne publie jamais à votre place sans validation.
       </section>
     </div>
   );

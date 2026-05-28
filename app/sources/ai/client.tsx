@@ -78,7 +78,7 @@ export default function AiKeysClient({ initial }: { initial: Initial }) {
       // On retrouve l'id via /api/credentials GET (masked list), puis DELETE.
       const list = await fetch('/api/credentials').then(r => r.json()).catch(() => ({ items: [] }));
       const match = (list.items || []).find((c: any) => c.provider === provider && c.status === 'active');
-      if (!match) { toast.error('Clé introuvable (peut-être en variable d\'environnement).'); setBusy(null); return; }
+      if (!match) { toast.error('Cette clé est gérée au niveau du serveur et ne peut pas être retirée ici.'); setBusy(null); return; }
       const r = await fetch(`/api/credentials/${match.id}`, { method: 'DELETE' });
       if (!r.ok) { const d = await r.json(); throw new Error(d.error || 'Suppression impossible'); }
       setState(s => ({ ...s, [provider]: { present: false, source: 'missing' } }));
@@ -98,7 +98,7 @@ export default function AiKeysClient({ initial }: { initial: Initial }) {
         </p>
         <h1 className="mt-1 text-3xl font-semibold text-ink-900 tracking-tight">Clés IA</h1>
         <p className="mt-2 text-sm text-ink-500 leading-relaxed">
-          Cadence utilise vos propres clés. Elles sont chiffrées (AES-256-GCM) côté serveur et ne quittent jamais votre espace. Un moteur sans clé reste grisé dans l&apos;éditeur.
+          Cadence utilise vos propres clés. Elles sont chiffrées et ne quittent jamais votre espace. Un moteur sans clé reste grisé dans l&apos;éditeur.
         </p>
       </header>
 
@@ -116,7 +116,7 @@ export default function AiKeysClient({ initial }: { initial: Initial }) {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-ink-900">{p.label}</span>
                     <span className={`w-1.5 h-1.5 rounded-full ${st.present ? 'bg-success-500' : 'bg-ink-300'}`} aria-hidden />
-                    <span className="text-2xs text-ink-500">{st.present ? (viaEnv ? 'Connecté (variable serveur)' : 'Connecté') : 'Pas de clé'}</span>
+                    <span className="text-2xs text-ink-500">{st.present ? 'Connecté' : 'Pas de clé'}</span>
                   </div>
                   <p className="mt-0.5 text-xs text-ink-500 leading-relaxed">{p.usage}</p>
                 </div>
@@ -134,7 +134,7 @@ export default function AiKeysClient({ initial }: { initial: Initial }) {
                       {busy === p.key ? '…' : 'Retirer la clé'}
                     </button>
                   )}
-                  {viaEnv && <span className="text-2xs text-ink-400 italic">Définie en variable d&apos;environnement serveur.</span>}
+                  {viaEnv && <span className="text-2xs text-ink-400 italic">Clé gérée au niveau du serveur.</span>}
                 </div>
               ) : (
                 <div className="mt-3 space-y-2">
