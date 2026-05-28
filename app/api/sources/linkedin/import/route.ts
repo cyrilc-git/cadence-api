@@ -50,9 +50,41 @@ async function withRetry429<T>(fn: () => Promise<T>, label: string): Promise<T> 
 // V10.4.3 — Auto-sync content_items après import si created > 0 (non bloquant pour la
 //           réponse, mais on attend pour avoir le résumé canonical à jour).
 
-type Incoming = { date: string; text: string; url?: string; sharedUrl?: string };
+type Incoming = { date: string; text: string; url?: string; sharedUrl?: string; media?: string };
 type ResultStatus = 'created' | 'duplicate' | 'error' | 'invalid';
 type ResultItem = { index: number; status: ResultStatus; title?: string; error?: string };
+
+// V51 §5 — On ne conserve une couverture que si le média est une URL https
+// vers le CDN LinkedIn (licdn). Évite d'injecter une URL douteuse dans la
+// couverture Notion (garde-fou « pas de faux état »).
+function safeMediaUrl(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const u = new URL(raw.trim());
+    if (u.protocol !== 'https:') return undefined;
+    const host = u.hostname.toLowerCase();
+    if (host !== 'licdn.com' && !host.endsWith('.licdn.com')) return undefined;
+    return u.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+// La propriété Notion « URL » attend une URL valide : on ne pousse que des
+// liens LinkedIn http(s) bien formés (host exactement linkedin.com ou un
+// sous-domaine, jamais un homographe type evil-linkedin.com).
+function safeShareUrl(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  try {
+    const u = new URL(raw.trim());
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return undefined;
+    const host = u.hostname.toLowerCase();
+    if (host !== 'linkedin.com' && !host.endsWith('.linkedin.com')) return undefined;
+    return u.toString();
+  } catch {
+    return undefined;
+  }
+}
 
 export async function POST(req: Request) {
   try {
@@ -93,6 +125,9 @@ export async function POST(req: Request) {
             date: dateOnly,
             time: '07:30',
             anonymisation_ok: true,
+            // V51 §5 — On conserve le lien d'origine (ShareLink) et le média.
+            url: safeShareUrl(p.url),
+            cover: safeMediaUrl(p.media),
           }),
           `upsertDraft ${i}`,
         );

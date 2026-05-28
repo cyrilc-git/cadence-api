@@ -15,7 +15,7 @@ import Link from 'next/link';
 import JSZip from 'jszip';
 import { confirmDialog, toast } from '@/components/Dialog';
 
-type ParsedPost = { date: string; text: string; url?: string; sharedUrl?: string };
+type ParsedPost = { date: string; text: string; url?: string; sharedUrl?: string; media?: string };
 
 // V19.1 §csv-fix — Parser CSV qui respecte les sauts de ligne dans les
 // cellules entre guillemets. L'ancien parser splittait le texte par \n
@@ -78,6 +78,10 @@ function parseSharesCsv(text: string): ParsedPost[] {
   const idxLink = idx('sharelink');
   const idxText = idx('sharecommentary');
   const idxShared = idx('sharedurl');
+  // V51 §5 — Colonne MediaUrl (média attaché au post) : conservée pour
+  // l'afficher en miniature après import. On la cherche après SharedUrl
+  // pour ne pas confondre les deux.
+  const idxMedia = header.findIndex(h => h.includes('mediaurl') || h === 'media');
   const out: ParsedPost[] = [];
   for (let i = 1; i < rows.length; i++) {
     const cells = rows[i];
@@ -91,6 +95,7 @@ function parseSharesCsv(text: string): ParsedPost[] {
       text: t,
       url: idxLink >= 0 ? ((cells[idxLink] || '').trim() || undefined) : undefined,
       sharedUrl: idxShared >= 0 ? ((cells[idxShared] || '').trim() || undefined) : undefined,
+      media: idxMedia >= 0 ? ((cells[idxMedia] || '').trim() || undefined) : undefined,
     });
   }
   return out;
@@ -343,9 +348,9 @@ export default function LinkedInImportClient() {
           <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500">Ce que Cadence voit</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <Stat label="Période" value={stats.first && stats.last ? `${stats.first.getFullYear()} → ${stats.last.getFullYear()}` : '...'} />
-            <Stat label="Posts" value={posts.length} />
+            <Stat label="Posts détectés" value={posts.length} />
             <Stat label="Longueur moy." value={`${stats.avgLen} car.`} />
-            <Stat label="Sera importé" value={Math.min(posts.length, 200)} />
+            <Stat label="Sélectionnés" value={selectedIdx.size} />
           </div>
           <div>
             <div className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-2">Piliers dominants</div>
@@ -437,21 +442,26 @@ export default function LinkedInImportClient() {
                     {importResult.duplicates > 0 && <span className="text-emerald-700"> {importResult.duplicates} doublon{importResult.duplicates > 1 ? 's' : ''} ignoré{importResult.duplicates > 1 ? 's' : ''}.</span>}
                   </p>
                 </div>
-                {targetDate && monthLabel && (
-                  <div className="flex items-center gap-3 flex-wrap pt-1">
+                <div className="flex items-center gap-2.5 flex-wrap pt-1">
+                  {targetDate && (
                     <Link
                       href={`/calendar?d=${targetDate}&source=linkedin`}
                       className="btn-primary text-sm"
                     >
-                      Voir les posts dans le calendrier →
+                      Voir dans le calendrier →
                     </Link>
-                    <span className="text-xs text-ink-500">
-                      Ouvre {monthLabel}, le mois du post le plus récent.
-                    </span>
-                  </div>
+                  )}
+                  <Link href="/posts?status=published" className="btn-secondary text-sm">
+                    Voir dans la bibliothèque →
+                  </Link>
+                </div>
+                {targetDate && monthLabel && (
+                  <p className="text-xs text-ink-500">
+                    Le calendrier ouvre {monthLabel}, le mois du post le plus récent.
+                  </p>
                 )}
                 <p className="text-2xs text-ink-500 leading-relaxed">
-                  Cadence a marqué chaque post comme import LinkedIn vérifié. Ils alimentent la mémoire stylistique.
+                  Cadence a marqué chaque post comme import LinkedIn vérifié, distinct de vos brouillons. Ils alimentent la mémoire stylistique.
                 </p>
               </div>
             );

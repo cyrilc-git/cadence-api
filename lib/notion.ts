@@ -238,6 +238,12 @@ export async function upsertDraft(input: {
   date?: string; // YYYY-MM-DD
   time?: string; // HH:MM
   anonymisation_ok?: boolean;
+  // V51 §5 — Import LinkedIn : on conserve le lien d'origine et le média.
+  // `url` → propriété Notion « URL » (= linkedin_url côté lecture), pour que
+  // le « LinkedIn ↗ » des imports pointe vers le vrai post. `cover` → image
+  // de couverture externe (média LinkedIn), affichée en miniature.
+  url?: string;
+  cover?: string;
 }): Promise<{ id: string }> {
   const properties: any = {
     Name: { title: [{ text: { content: input.title } }] }
@@ -247,14 +253,20 @@ export async function upsertDraft(input: {
   if (input.date)   properties['Date de publication'] = { date: { start: input.date } };
   if (input.time)   properties['Heure de publication'] = { rich_text: [{ text: { content: input.time } }] };
   if (typeof input.anonymisation_ok === 'boolean') properties['Anonymisation OK'] = { checkbox: input.anonymisation_ok };
+  if (input.url)    properties['URL'] = { url: input.url };
   // Always non-publié on create
   if (!input.id) properties['Tags'] = { select: { name: 'Non publié' } };
+
+  // Couverture externe (média LinkedIn). Notion valide seulement le format
+  // d'URL à la création, pas l'accessibilité : un lien expiré ne casse donc
+  // pas l'import et les miniatures (background-image CSS) dégradent en douceur.
+  const cover = input.cover ? { type: 'external', external: { url: input.cover } } : undefined;
 
   if (input.id) {
     const r = await fetch(`${NOTION_API}/pages/${input.id}`, {
       method: 'PATCH',
       headers: headers(),
-      body: JSON.stringify({ properties })
+      body: JSON.stringify(cover ? { properties, cover } : { properties })
     });
     if (!r.ok) throw new Error(`Notion update failed: ${r.status} ${await r.text()}`);
     await logNotionAction('page_updated', input.id, input.title);
@@ -265,7 +277,8 @@ export async function upsertDraft(input: {
     headers: headers(),
     body: JSON.stringify({
       parent: { database_id: getDsId() },
-      properties
+      properties,
+      ...(cover ? { cover } : {})
     })
   });
   if (!r.ok) throw new Error(`Notion create failed: ${r.status} ${await r.text()}`);

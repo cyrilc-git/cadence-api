@@ -21,27 +21,6 @@ export default function ImportLinkedInPage() {
 
       <LinkedInImportClient />
 
-      {/* Synchronisation API : transparent, pas de fausse promesse */}
-      <section className="pt-6 border-t border-ink-100">
-        <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-500 mb-3">Synchronisation API LinkedIn</h2>
-        <div className="border-l-2 border-ink-200 pl-4">
-          <p className="text-sm text-ink-700 leading-relaxed">
-            L&apos;API LinkedIn ne donne qu&apos;un accès limité à l&apos;historique : essentiellement les publications faites via Cadence et un sous-ensemble étroit des publications récentes. Pour récupérer un historique complet avec analytics, l&apos;archive ZIP reste la voie officielle.
-          </p>
-          <button
-            type="button"
-            disabled
-            aria-disabled="true"
-            title="Disponible en V9.3"
-            className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium bg-ink-100 text-ink-400 cursor-not-allowed"
-          >
-            Synchroniser via l&apos;API LinkedIn
-            <span className="text-2xs uppercase tracking-wider">bientôt</span>
-          </button>
-          <p className="mt-2 text-2xs text-ink-500">Disponible en V9.3 quand le scope API sera validé.</p>
-        </div>
-      </section>
-
       {/* Comment obtenir l'archive : discret, en bas */}
       <section className="pt-6 border-t border-ink-100 text-xs text-ink-500 leading-relaxed">
         <strong className="text-ink-700 font-medium">Comment obtenir l&apos;archive : </strong>
