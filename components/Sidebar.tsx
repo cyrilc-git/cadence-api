@@ -4,65 +4,40 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
-type NavItem = { href: string; label: string; icon: IconName; group?: 'cockpit' | 'content' | 'config' };
+type IconName = 'pen' | 'cal' | 'doc' | 'plug' | 'brain';
+type NavItem = { href: string; label: string; icon: IconName };
 
+// V51 — Navigation réduite à 5 destinations. Cadence fait 3 choses :
+// écrire, programmer/publier, générer un visuel. Tout le reste sert ces flux.
+// Plus de sections ni de groupes : 5 liens à plat, lisibles d'un coup d'oeil.
 const NAV: NavItem[] = [
-  // Cockpit : pilotage quotidien
-  { href: '/',                label: 'Dashboard',         icon: 'home',    group: 'cockpit' },
-  { href: '/suggestions',     label: 'Radar',             icon: 'spark',   group: 'cockpit' },
-  { href: '/calendar',        label: 'Calendrier',        icon: 'cal',     group: 'cockpit' },
-  { href: '/cerveau',         label: 'Mémoire',           icon: 'brain',   group: 'cockpit' },
-  // Contenu : production
-  { href: '/posts',           label: 'Bibliothèque',      icon: 'doc',     group: 'content' },
-  { href: '/posts/new',       label: 'Nouveau post',      icon: 'plus',    group: 'content' },
-  { href: '/inspirations',    label: 'Inspirations',      icon: 'eye',     group: 'content' },
-  // Configuration
-  { href: '/sources',         label: 'Sources',           icon: 'plug',    group: 'config' },
-  { href: '/brand-dna',       label: 'Ligne éditoriale',  icon: 'star',    group: 'config' },
-  { href: '/design-visuel',   label: 'Design visuel',     icon: 'palette', group: 'config' },
-  { href: '/analytics',       label: 'Analytics',         icon: 'chart',   group: 'config' },
-  { href: '/settings',        label: 'Paramètres',        icon: 'gear',    group: 'config' }
+  { href: '/posts/new', label: 'Écrire',       icon: 'pen' },
+  { href: '/calendar',  label: 'Calendrier',   icon: 'cal' },
+  { href: '/posts',     label: 'Bibliothèque', icon: 'doc' },
+  { href: '/sources',   label: 'Sources',      icon: 'plug' },
+  { href: '/cerveau',   label: 'Mémoire',      icon: 'brain' },
 ];
-
-type IconName = 'home'|'doc'|'plus'|'cal'|'star'|'eye'|'chart'|'spark'|'plug'|'gear'|'palette'|'brain';
 
 function Icon({ name }: { name: IconName }) {
   const cls = 'w-[18px] h-[18px] stroke-[1.6]';
   switch (name) {
-    case 'home':    return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3 11l9-8 9 8M5 10v10h14V10"/></svg>;
-    case 'doc':     return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z M14 3v6h6 M9 14h6 M9 17h4"/></svg>;
-    case 'plus':    return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14"/></svg>;
-    case 'cal':     return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path strokeLinecap="round" d="M3 9h18 M8 3v4 M16 3v4"/></svg>;
-    case 'star':    return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3l2.7 5.7 6.3.9-4.5 4.4 1.1 6.2L12 17.3l-5.6 2.9 1.1-6.2L3 9.6l6.3-.9z"/></svg>;
-    case 'eye':     return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>;
-    case 'chart':   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>;
-    case 'spark':   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8"/></svg>;
-    case 'plug':    return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 2v6 M15 2v6 M6 8h12v3a6 6 0 01-6 6 6 6 0 01-6-6V8z M12 17v5"/></svg>;
-    case 'gear':    return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33 1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9c.07.34.24.65.49.9.25.25.56.42.9.49H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>;
-    case 'palette': return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 22a10 10 0 110-20 10 10 0 014 19c-1 .5-2 0-2-1l1-2c.5-1-.5-2-1.5-1.5l-1 .5c-1 .5-2-.5-1.5-1.5l.5-1c.5-1-.5-2-1.5-1.5l-2 .5C5 14 4 13 4.5 12"/><circle cx="7.5" cy="9.5" r="1.5"/><circle cx="12" cy="6.5" r="1.5"/><circle cx="16.5" cy="9.5" r="1.5"/></svg>;
-    case 'brain':   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 4a3 3 0 00-3 3v1a3 3 0 00-2 2.83V13a3 3 0 002 2.83V17a3 3 0 003 3h1V4H9z M15 4a3 3 0 013 3v1a3 3 0 012 2.83V13a3 3 0 01-2 2.83V17a3 3 0 01-3 3h-1V4h1z M12 8v8 M9 10h1.5 M13.5 10H15 M9 14h1.5 M13.5 14H15"/></svg>;
+    case 'pen':   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 20h9 M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4z"/></svg>;
+    case 'cal':   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path strokeLinecap="round" d="M3 9h18 M8 3v4 M16 3v4"/></svg>;
+    case 'doc':   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z M14 3v6h6 M9 14h6 M9 17h4"/></svg>;
+    case 'plug':  return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 2v6 M15 2v6 M6 8h12v3a6 6 0 01-6 6 6 6 0 01-6-6V8z M12 17v5"/></svg>;
+    case 'brain': return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 4a3 3 0 00-3 3v1a3 3 0 00-2 2.83V13a3 3 0 002 2.83V17a3 3 0 003 3h1V4H9z M15 4a3 3 0 013 3v1a3 3 0 012 2.83V13a3 3 0 01-2 2.83V17a3 3 0 01-3 3h-1V4h1z M12 8v8 M9 10h1.5 M13.5 10H15 M9 14h1.5 M13.5 14H15"/></svg>;
   }
   return null;
 }
-
-const SECTIONS: { key: string; label: string; group: NavItem['group'] }[] = [
-  { key: 'cockpit', label: 'Pilotage',  group: 'cockpit' },
-  { key: 'content', label: 'Écriture',  group: 'content' },
-  { key: 'config',  label: 'Réglages',  group: 'config' }
-];
 
 export default function Sidebar({ compact = false }: { compact?: boolean } = {}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
-  // V12.9 §1 — Fix sidebar active state : le plus spécifique gagne.
-  // Avant : pathname.startsWith('/posts') matchait à la fois /posts (Bibliothèque)
-  // et /posts/new (Nouveau post) -> deux items actifs simultanément.
-  // Maintenant : on trie les hrefs par longueur décroissante et on prend le
-  // premier qui match. Un seul item actif à la fois.
+  // Un seul item actif à la fois : le href le plus spécifique gagne.
   const sortedByDepth = [...NAV].sort((a, b) => b.href.length - a.href.length);
   const activeHref = sortedByDepth.find(item =>
-    pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href + '/'))
+    pathname === item.href || (item.href !== '/' && (pathname || '').startsWith(item.href + '/'))
   )?.href;
 
   return (
@@ -89,25 +64,18 @@ export default function Sidebar({ compact = false }: { compact?: boolean } = {})
             <div className="text-2xs text-ink-500 leading-tight whitespace-nowrap">éditorial LinkedIn</div>
           </div>
         </div>
-        <nav className={`overflow-y-auto h-[calc(100vh-64px-72px)] pt-20 lg:pt-3 space-y-5 ${compact ? 'lg:px-1 lg:group-hover/sidebar:px-3 px-3 py-3 lg:py-4' : 'px-3 py-3 lg:py-4'}`}>
-          {SECTIONS.map(section => (
-            <div key={section.key}>
-              <div className={`px-3 pb-1.5 text-2xs font-medium text-ink-400 ${compact ? 'lg:hidden lg:group-hover/sidebar:block' : ''}`}>{section.label}</div>
-              <div className="space-y-0.5">
-                {NAV.filter(n => n.group === section.group).map(item => {
-                  const active = item.href === activeHref;
-                  return (
-                    <Link key={item.href} href={item.href} onClick={() => setOpen(false)} title={compact ? item.label : undefined}
-                      className={`flex items-center gap-3 rounded-lg text-sm font-medium transition-colors duration-150 ${active ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-ink-50 hover:text-ink-900'} ${compact ? 'lg:px-2.5 lg:py-2 lg:justify-center lg:group-hover/sidebar:justify-start lg:group-hover/sidebar:px-3 px-3 py-2' : 'px-3 py-2'}`}>
-                      <span className={active ? 'text-brand-600' : 'text-ink-400'}><Icon name={item.icon} /></span>
-                      <span className={`flex-1 truncate ${compact ? 'lg:hidden lg:group-hover/sidebar:inline' : ''}`}>{item.label}</span>
-                      {active && <span className={`w-1.5 h-1.5 rounded-full bg-brand-500 ${compact ? 'lg:hidden lg:group-hover/sidebar:block' : ''}`} />}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+        <nav className={`overflow-y-auto h-[calc(100vh-64px-72px)] pt-20 lg:pt-4 space-y-0.5 ${compact ? 'lg:px-1 lg:group-hover/sidebar:px-3 px-3 py-3 lg:py-4' : 'px-3 py-3 lg:py-4'}`}>
+          {NAV.map(item => {
+            const active = item.href === activeHref;
+            return (
+              <Link key={item.href} href={item.href} onClick={() => setOpen(false)} title={compact ? item.label : undefined}
+                className={`flex items-center gap-3 rounded-lg text-sm font-medium transition-colors duration-150 ${active ? 'bg-brand-50 text-brand-700' : 'text-ink-700 hover:bg-ink-50 hover:text-ink-900'} ${compact ? 'lg:px-2.5 lg:py-2 lg:justify-center lg:group-hover/sidebar:justify-start lg:group-hover/sidebar:px-3 px-3 py-2' : 'px-3 py-2'}`}>
+                <span className={active ? 'text-brand-600' : 'text-ink-400'}><Icon name={item.icon} /></span>
+                <span className={`flex-1 truncate ${compact ? 'lg:hidden lg:group-hover/sidebar:inline' : ''}`}>{item.label}</span>
+                {active && <span className={`w-1.5 h-1.5 rounded-full bg-brand-500 ${compact ? 'lg:hidden lg:group-hover/sidebar:block' : ''}`} />}
+              </Link>
+            );
+          })}
         </nav>
         <div className={`absolute bottom-0 left-0 right-0 border-t border-ink-100 bg-white ${compact ? 'lg:px-2 lg:py-2 lg:group-hover/sidebar:px-5 lg:group-hover/sidebar:py-3.5 px-5 py-3.5' : 'px-5 py-3.5'}`}>
           <div className={`flex items-center gap-3 ${compact ? 'lg:justify-center lg:group-hover/sidebar:justify-start' : ''}`} title={compact ? 'Cyril Coulange · cyril@heelio.io' : undefined}>
