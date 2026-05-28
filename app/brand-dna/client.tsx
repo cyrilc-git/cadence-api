@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { confirmDialog, toast } from '@/components/Dialog';
 
 const KIND_META: Record<string, { label: string; hint: string; icon: string; tone: 'brand'|'success'|'warn'|'danger'|'neutral' }> = {
@@ -96,13 +97,21 @@ export default function BrandDnaClient({ initial, initialPlan = [] }: { initial:
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">Ligne éditoriale</h1>
-          <p className="mt-1 text-sm text-ink-500 lead">Votre voix, vos règles, vos interdits, votre planning hebdo. Cadence respecte tout ce qui est ici lors de chaque génération.</p>
+          <p className="mt-1 text-sm text-ink-500 lead">Tout ce qui est ici guide chaque génération.</p>
         </div>
         <button onClick={restoreDefaults} disabled={restoring} className="btn-secondary">
           <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" d="M21 12a9 9 0 11-3-6.7L21 8 M21 3v5h-5"/></svg>
-          {restoring ? 'Restauration…' : 'Restaurer défauts Cadence'}
+          {restoring ? 'Restauration…' : 'Réinitialiser'}
         </button>
       </header>
+
+      {/* V45 — Hiérarchie en clair : 4 niveaux, en une phrase chacun. */}
+      <div className="border-l-2 border-brand-300 pl-4 py-1 space-y-1.5">
+        <p className="text-sm text-ink-800 leading-relaxed"><strong>Piliers</strong> : vos thèmes, un par jour de semaine.</p>
+        <p className="text-sm text-ink-800 leading-relaxed"><strong>Audiences</strong> : pour qui vous écrivez.</p>
+        <p className="text-sm text-ink-800 leading-relaxed"><strong>Règles &amp; interdictions</strong> : vos garde-fous de voix (toujours respectés).</p>
+        <p className="text-sm text-ink-800 leading-relaxed"><strong>Formats &amp; hooks</strong> : vos façons de raconter.</p>
+      </div>
 
       {/* Weekly planner */}
       <section className="card p-6 bg-gradient-to-br from-brand-50/30 to-white border-brand-100">
@@ -110,9 +119,9 @@ export default function BrandDnaClient({ initial, initialPlan = [] }: { initial:
           <div>
             <h2 className="font-semibold text-ink-900 flex items-center gap-2">
               <svg className="w-4 h-4 text-brand-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path strokeLinecap="round" d="M3 9h18 M8 3v4 M16 3v4"/></svg>
-              Planner hebdomadaire
+              Votre semaine
             </h2>
-            <p className="text-xs text-ink-500 mt-0.5">5 jours, 5 piliers. Cadence génère un draft équilibré pour chaque jour.</p>
+            <p className="text-xs text-ink-500 mt-0.5">Un thème par jour. Cliquez un jour pour écrire son post, ou générez la semaine entière.</p>
           </div>
           <div className="flex gap-2 flex-wrap">
             <button onClick={() => generate('day')}   disabled={!!generating} className="btn-secondary text-xs">{generating === 'day' ? 'Gén…' : 'Générer 1 jour'}</button>
@@ -126,13 +135,29 @@ export default function BrandDnaClient({ initial, initialPlan = [] }: { initial:
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
           {weekdayItems.map((slot: any) => {
             const t = DAY_TONES[slot.weekday] || DAY_TONES[1];
-            return (
-              <div key={slot.weekday} className={`rounded-xl p-4 border ${t.bg} ${t.ring} hover:shadow-elev transition relative overflow-hidden`}>
+            const theme = slot.pilier ? (slot.pilier.split('· ')[1] || slot.pilier) : null;
+            const inner = (
+              <>
                 <span className={`dot ${t.dot} absolute top-3 right-3`} />
                 <div className={`text-2xs uppercase font-bold tracking-wider ${t.text}`}>{DAY_LABELS[slot.weekday] || slot.label}</div>
                 <div className="mt-1.5 text-sm font-semibold text-ink-900 leading-tight min-h-[2.4em]">
-                  {slot.pilier ? (slot.pilier.split('· ')[1] || slot.pilier) : <span className="text-ink-400 italic font-normal">Non défini</span>}
+                  {theme || <span className="text-ink-400 italic font-normal">Non défini</span>}
                 </div>
+                {theme && <span className="text-2xs text-brand-700 opacity-0 group-hover/day:opacity-100 transition">Écrire →</span>}
+              </>
+            );
+            // V45 — Carte cliquable : écrire le post de ce jour avec son pilier.
+            return slot.pilier ? (
+              <Link
+                key={slot.weekday}
+                href={`/posts/new?pilier=${encodeURIComponent(slot.pilier)}`}
+                className={`group/day rounded-xl p-4 border ${t.bg} ${t.ring} hover:shadow-elev transition relative overflow-hidden block`}
+              >
+                {inner}
+              </Link>
+            ) : (
+              <div key={slot.weekday} className={`rounded-xl p-4 border ${t.bg} ${t.ring} transition relative overflow-hidden`}>
+                {inner}
               </div>
             );
           })}
