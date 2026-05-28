@@ -79,9 +79,18 @@ export default function SettingsClient({ li, notionOk, notionError, connectors, 
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">Paramètres</h1>
-        <p className="mt-1 text-sm text-ink-500 leading-relaxed">Vos sources branchées à Cadence. Les clés sont chiffrées côté serveur, jamais exposées au client.</p>
+        <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">Paramètres avancés</h1>
+        <p className="mt-1 text-sm text-ink-500 leading-relaxed">Réglages fins et clés brutes. Pour connecter vos outils au quotidien, passez par Sources.</p>
       </header>
+
+      {/* V46 — Renvoi clair : Sources est le point de connexion principal.
+          Paramètres ne garde que l'avancé (clés brutes, mapping, mémoire). */}
+      <Link href="/sources" className="border-l-2 border-brand-300 pl-4 py-2 block hover:bg-ink-50/40 rounded-r-lg transition">
+        <p className="text-sm text-ink-800 leading-relaxed">
+          <strong>Connexions &amp; clés IA</strong> : tout se gère dans <span className="text-brand-700">Sources →</span>
+        </p>
+        <p className="text-xs text-ink-500 mt-0.5">LinkedIn, Notion, Claude, OpenAI, Gemini, Replicate, Stability, Ideogram, GitHub.</p>
+      </Link>
 
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <Link href="/sources/notion" className="bg-white rounded-2xl p-4 shadow-card ring-1 ring-inset ring-ink-300/20 hover:shadow-pop transition block">
@@ -105,7 +114,16 @@ export default function SettingsClient({ li, notionOk, notionError, connectors, 
         </div>
       )}
 
-      <div className="grid sm:grid-cols-2 gap-3">
+      {/* V46 — Clés brutes repliées : doublon avec Sources, gardées pour
+          l'avancé (LinkedIn client id/secret, env vars). */}
+      <details className="group/keys">
+        <summary className="select-none cursor-pointer inline-flex items-center gap-2 text-sm text-ink-500 hover:text-ink-900 transition">
+          <span className="w-1.5 h-1.5 rounded-full bg-ink-300 group-open/keys:bg-brand-500" aria-hidden />
+          <span className="group-open/keys:hidden">Clés brutes &amp; OAuth (avancé)</span>
+          <span className="hidden group-open/keys:inline">Replier les clés brutes</span>
+        </summary>
+        <p className="mt-2 text-2xs text-ink-400 leading-relaxed">Réservé au dépannage. Les clés IA se gèrent plus simplement dans <Link href="/sources/ai" className="text-brand-700 hover:text-brand-900 underline decoration-dotted underline-offset-2">Sources → Clés IA</Link>.</p>
+      <div className="mt-3 grid sm:grid-cols-2 gap-3">
         {PROVIDERS.map(p => {
           // Source resolution: any active cred in DB for any of this provider's fields means "DB"; else fall back to env presence inferred from connectors[]
           const dbHas = p.secretFields.some(f => !!credFor(f.provider));
@@ -169,6 +187,7 @@ export default function SettingsClient({ li, notionOk, notionError, connectors, 
           );
         })}
       </div>
+      </details>
 
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-ink-900/40 backdrop-blur-sm" onClick={() => setEditing(null)}>
