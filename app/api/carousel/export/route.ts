@@ -20,13 +20,17 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
     const text = typeof body.text === 'string' ? body.text.trim() : '';
-    if (text.length < 80) {
+    // V50.1 — Plan édité : si le client envoie un plan (slides retouchées
+    // dans le studio carrousel), on l'utilise tel quel. Sinon on plane le
+    // texte. Permet d'exporter exactement ce que l'utilisateur a édité.
+    const planOverride = body.plan && Array.isArray(body.plan.slides) ? body.plan : null;
+    if (!planOverride && text.length < 80) {
       return new Response(JSON.stringify({ error: 'Texte trop court pour un carrousel (80 chars minimum).' }), {
         status: 400,
         headers: { 'Content-Type': 'application/json' },
       });
     }
-    const plan = planSlides(text, { withCta: body.withCta === true });
+    const plan = planOverride || planSlides(text, { withCta: body.withCta === true });
     const brand = typeof body.brand === 'string' ? body.brand : 'CADENCE · HEELIO';
     const doc = React.createElement(CarouselDocument, { plan, brand });
     const buf = await renderToBuffer(doc as any);
@@ -45,9 +49,9 @@ export async function POST(req: NextRequest) {
         // signaler un carrousel déséquilibré sans dénaturer le binaire PDF.
         'x-carousel-quality': typeof plan.qualityScore === 'number' ? plan.qualityScore.toFixed(2) : '',
         'x-carousel-signals': (plan.qualitySignals || [])
-          .filter(s => s.kind !== 'good')
+          .filter((s: any) => s.kind !== 'good')
           .slice(0, 3)
-          .map(s => s.kind)
+          .map((s: any) => s.kind)
           .join(','),
       },
     });

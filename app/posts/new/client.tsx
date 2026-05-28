@@ -15,6 +15,7 @@ import LinkedInPreview from '@/components/LinkedInPreview';
 import PublishModal from '@/components/PublishModal';
 import VisualGenerator from '@/components/VisualGenerator';
 import CadenceEditor, { useEditorMetrics } from '@/components/CadenceEditor';
+import CarouselStudio from '@/components/CarouselStudio';
 import CommandPalette, { Command } from '@/components/CommandPalette';
 import PreviewDrawer from '@/components/PreviewDrawer';
 import { SLASH_COMMANDS } from '@/components/SlashMenu';
@@ -75,6 +76,8 @@ export default function NewPostClient({
   const [previewOpen, setPreviewOpen] = useState(false);
   // V12.8 §2 — format suggéré par memory-check, pré-sélectionné dans VisualGenerator
   const [suggestedVisualFormat, setSuggestedVisualFormat] = useState<string | null>(null);
+  // V50.1 — Studio carrousel ouvert dans le drawer
+  const [carouselMode, setCarouselMode] = useState(false);
   const [pilierOpen, setPilierOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -364,6 +367,12 @@ export default function NewPostClient({
               }}
               onVisualSuggested={(format) => {
                 setSuggestedVisualFormat(format);
+                setCarouselMode(false);
+                setPreviewOpen(true);
+              }}
+              onCarouselSuggested={() => {
+                // V50.1 — Ouvre le studio carrousel dans le drawer.
+                setCarouselMode(true);
                 setPreviewOpen(true);
               }}
             />
@@ -530,11 +539,17 @@ export default function NewPostClient({
         </footer>
       )}
 
-      <PreviewDrawer open={previewOpen} onClose={() => setPreviewOpen(false)} title="Aperçu & visuel">
-        {/* V13.3 §3 — quand la drawer est ouverte via "Créer le visuel"
-            (suggestedVisualFormat défini), on met le VisualGenerator en
-            premier pour que l'utilisateur tombe sur ce qu'il a demandé. */}
-        {suggestedVisualFormat ? (
+      <PreviewDrawer open={previewOpen} onClose={() => setPreviewOpen(false)} title={carouselMode ? 'Studio carrousel' : 'Aperçu & visuel'}>
+        {/* V50.1 — Studio carrousel prioritaire quand demandé. */}
+        {carouselMode ? (
+          <>
+            <CarouselStudio text={text} onClose={() => setCarouselMode(false)} />
+            <div className="mt-6 pt-6 border-t border-ink-100">
+              <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400 mb-3">Aperçu post</p>
+              <LinkedInPreview text={text} image={imageUrl || undefined} />
+            </div>
+          </>
+        ) : suggestedVisualFormat ? (
           <>
             <VisualGenerator
               defaultPrompt={text ? `Visuel d'accompagnement : ${text.slice(0, 200)} (Style Heelio)` : ''}

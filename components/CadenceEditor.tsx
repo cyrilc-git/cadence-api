@@ -28,6 +28,9 @@ export type CadenceEditorProps = {
   /** V12.8 §2 — Callback quand Cadence détecte qu'un visuel serait pertinent.
    * Le parent ouvre alors son drawer / sélectionne le template approprié. */
   onVisualSuggested?: (format: string) => void;
+  /** V50.1 — Callback quand l'utilisateur veut créer le carrousel.
+   * Le parent ouvre le studio carrousel (preview + édition + export). */
+  onCarouselSuggested?: () => void;
 };
 
 function strippedText(text: string): string {
@@ -78,6 +81,7 @@ export default function CadenceEditor({
   brief, pilier,
   showMentionSuggestions = true,
   onVisualSuggested,
+  onCarouselSuggested,
 }: CadenceEditorProps) {
   const localRef = useRef<HTMLTextAreaElement | null>(null);
   const ref = textareaRef || localRef;
@@ -610,6 +614,9 @@ export default function CadenceEditor({
               <button
                 type="button"
                 onClick={async () => {
+                  // V50.1 — Si le parent gère le studio carrousel, on l'ouvre
+                  // (preview + édition + export). Sinon fallback export direct.
+                  if (onCarouselSuggested) { onCarouselSuggested(); return; }
                   setGeneratingPdf(true);
                   try {
                     const r = await fetch('/api/carousel/export', {
@@ -629,9 +636,9 @@ export default function CadenceEditor({
                 }}
                 disabled={generatingPdf}
                 className="text-brand-700 hover:text-brand-900 transition not-italic underline decoration-dotted underline-offset-2 disabled:opacity-50"
-                title="Générer le carrousel en PDF (s'ouvre dans un nouvel onglet)"
+                title="Ouvrir le studio carrousel"
               >
-                {generatingPdf ? 'Génération…' : 'Exporter en PDF'}
+                {generatingPdf ? 'Génération…' : (onCarouselSuggested ? 'Créer le carrousel' : 'Exporter en PDF')}
               </button>
               {' · '}
               <button
