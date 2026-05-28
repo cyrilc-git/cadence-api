@@ -110,6 +110,28 @@ export default function NewPostClient({
     setVersionsOpen(false);
   }, [text, pushVersion]);
 
+  // V42 — Transparence des inputs IA. On charge les vraies inspirations
+  // actives + l'état de la mémoire de voix, et on les PASSE réellement à
+  // la génération (avant : les inspirations étaient ignorées par /posts/new).
+  const [activeInspos, setActiveInspos] = useState<Array<{ id: string; name: string; style_notes?: string }>>([]);
+  const [styleConfidence, setStyleConfidence] = useState<number>(0);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/inspirations')
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return;
+        const act = (d.items || []).filter((i: any) => i.active && i.style_notes).slice(0, 5);
+        setActiveInspos(act);
+      })
+      .catch(() => {});
+    fetch('/api/style-memory')
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setStyleConfidence(d?.memory?.confidence_score || 0); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
   const { wordCount, charCount, readingMin, hookLen, hookTone, rhythmTone, paragraphCount } = useEditorMetrics(text);
   const pilierIsCasClient = pilier?.includes('Cas client') || pilier?.includes('Cas dirigeant');
   const lint = useMemo(() => checkAntiPatterns(text), [text]);
@@ -138,7 +160,12 @@ export default function NewPostClient({
     try {
       const r = await fetch('/api/generate-post', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pilier, brief: b, voiceMode })
+        // V42 — On envoie enfin les inspirations actives (notes de style)
+        // pour qu'elles influencent vraiment la génération.
+        body: JSON.stringify({
+          pilier, brief: b, voiceMode,
+          inspirations: activeInspos.map(i => i.style_notes).filter(Boolean),
+        })
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
@@ -152,7 +179,7 @@ export default function NewPostClient({
       }
     } catch (e: any) { setGenError(e.message); }
     finally { setGenLoading(false); }
-  }, [brief, pilier, voiceMode, text, pushVersion]);
+  }, [brief, pilier, voiceMode, text, pushVersion, activeInspos]);
 
   const handleSave = useCallback(async (programmer: boolean) => {
     if (!text.trim()) return;
@@ -303,6 +330,9 @@ export default function NewPostClient({
             // V25.3 — Quand l'utilisateur choisit un hook, on l'insère
             // tel quel comme ouverture du post. L'éditeur prend le relais.
             onPickHook={(hook) => setText(hook + '\n\n')}
+            // V42 — Transparence des inputs IA
+            activeInspos={activeInspos}
+            styleConfidence={styleConfidence}
           />
         )}
 
@@ -623,12 +653,15 @@ const HOOK_ANGLE_FR: { key: string; label: string }[] = [
 
 function StartHint({
   pilier, brief, onBrief, onGenerate, generating, error, recyclables,
-  voiceMode, onVoiceMode, onPickHook,
+  voiceMode, onVoiceMode, onPickHook, activeInspos, styleConfidence,
 }: {
   pilier: string; brief: string; onBrief: (s: string) => void;
   onGenerate: () => void; generating: boolean; error: string | null; recyclables: Recyclable[];
   voiceMode: VoiceMode; onVoiceMode: (m: VoiceMode) => void;
   onPickHook: (hook: string) => void;
+  // V42 — Transparence des inputs IA
+  activeInspos: Array<{ id: string; name: string; style_notes?: string }>;
+  styleConfidence: number;
 }) {
   // V25.3 — État du hook generator (replié par défaut)
   const [hookLoading, setHookLoading] = useState(false);
@@ -717,6 +750,51 @@ function StartHint({
           <p className="mt-2 text-2xs text-ink-400 italic">
             {VOICE_MODE_LABELS.find(m => m.key === voiceMode)?.hint}
           </p>
+        </details>
+
+        {/* V42 — Transparence : ce que l'IA prend en compte pour générer.
+            Répond à "je ne comprends pas ce qui est pris en compte". */}
+        <details className="mt-2 group/inputs text-2xs">
+          <summary className="select-none cursor-pointer inline-flex items-center gap-1.5 text-ink-500 hover:text-ink-900 transition">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden />
+            <span>Ce que Cadence prend en compte</span>
+            <span className="text-ink-300 group-open/inputs:hidden">voir</span>
+            <span className="text-ink-300 hidden group-open/inputs:inline">replier</span>
+          </summary>
+          <ul className="mt-2 space-y-1.5 text-ink-600">
+            <li className="flex items-start gap-2">
+              <span className="text-emerald-600 mt-0.5">✓</span>
+              <span><span className="text-ink-900">Pilier</span> : {pilier.split('·')[1]?.trim() || pilier} — oriente l&apos;angle du post.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-emerald-600 mt-0.5">✓</span>
+              <span><span className="text-ink-900">Voix</span> : {VOICE_MODE_LABELS.find(m => m.key === voiceMode)?.label || 'Ma voix'}.</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className="text-emerald-600 mt-0.5">✓</span>
+              <span><span className="text-ink-900">Règles anti-IA</span> : toujours actives (pas d&apos;em-dash, pas de « voici 3 leçons », pas de jargon creux…).</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className={styleConfidence >= 0.2 ? 'text-emerald-600 mt-0.5' : 'text-ink-300 mt-0.5'}>{styleConfidence >= 0.2 ? '✓' : '○'}</span>
+              <span>
+                <span className="text-ink-900">Votre style LinkedIn</span> :{' '}
+                {styleConfidence >= 0.2
+                  ? voiceMode === 'ma_voix'
+                    ? `pris en compte (confiance ${Math.round(styleConfidence * 100)} %, mode « Ma voix »).`
+                    : 'disponible, mais ignoré car vous avez choisi un autre mode de voix.'
+                  : <>pas encore appris. <Link href="/sources/linkedin" className="text-brand-700 hover:text-brand-900 underline decoration-dotted underline-offset-2">Importez vos posts</Link>.</>}
+              </span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span className={activeInspos.length > 0 ? 'text-emerald-600 mt-0.5' : 'text-ink-300 mt-0.5'}>{activeInspos.length > 0 ? '✓' : '○'}</span>
+              <span>
+                <span className="text-ink-900">Inspirations</span> :{' '}
+                {activeInspos.length > 0
+                  ? <>{activeInspos.length} active{activeInspos.length > 1 ? 's' : ''} ({activeInspos.map(i => i.name).join(', ')}) — leur <em>style</em> influence le rythme, jamais le contenu.</>
+                  : <>aucune active. <Link href="/inspirations" className="text-brand-700 hover:text-brand-900 underline decoration-dotted underline-offset-2">En activer</Link>.</>}
+              </span>
+            </li>
+          </ul>
         </details>
 
         {/* V25.3 — Hook generator : à partir du brief court, Cadence propose
