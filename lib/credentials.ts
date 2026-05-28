@@ -9,6 +9,8 @@ const ENV_FALLBACK: Record<string, string[]> = {
   notion_ds_id:           ['NOTION_LINKEDIN_DS_ID'],
   anthropic:              ['ANTHROPIC_API_KEY'],
   openai:                 ['OPENAI_API_KEY'],
+  // V38.2 — Gemini (Nano Banana = gemini-2.5-flash-image) pour la génération d'images.
+  gemini:                 ['GEMINI_API_KEY', 'GOOGLE_AI_API_KEY'],
   github:                 ['GITHUB_TOKEN'],
   github_repos:           ['GITHUB_REPOS'],
   cockpit_secret:         ['COCKPIT_SECRET'],

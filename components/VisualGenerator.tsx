@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import StatusBadge from './StatusBadge';
 
 type Mode = 'claude-design' | 'openai';
 
@@ -117,7 +116,14 @@ export default function VisualGenerator({
     return () => { clearTimeout(timer); ctl.abort(); };
   }, [contextText]);
 
-  const mode = TEMPLATES[template].mode;
+  // V38.2 — Sélecteur de moteur IA. Par défaut on suit le template
+  // (Claude Design pour les visuels structurés, DALL-E pour les
+  // métaphores), mais l'utilisateur peut forcer un moteur.
+  // - claude-design : SVG éditorial (rapide, gratuit, premium)
+  // - openai        : DALL-E 3 (illustrations bitmap)
+  // - gemini        : Nano Banana (gemini-2.5-flash-image), bitmap riche
+  const [engineOverride, setEngineOverride] = useState<Mode | 'gemini' | null>(null);
+  const mode = (engineOverride || TEMPLATES[template].mode) as Mode | 'gemini';
   const selected = variants.find(v => v.id === selectedId) || null;
 
   // When selection changes, propagate to parent
@@ -207,12 +213,32 @@ export default function VisualGenerator({
 
   return (
     <div className="card p-5">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
         <h3 className="font-semibold text-ink-900 text-sm">Visuel</h3>
-        <StatusBadge variant={mode === 'claude-design' ? 'brand' : 'neutral'}>
-          {mode === 'claude-design' ? 'Claude Design' : 'DALL-E (métaphore)'}
-        </StatusBadge>
+        {/* V38.2 — Sélecteur de moteur IA. L'utilisateur choisit qui dessine. */}
+        <label className="inline-flex items-center gap-1.5 text-2xs text-ink-500">
+          <span className="uppercase tracking-wider font-semibold">Moteur</span>
+          <select
+            value={engineOverride || TEMPLATES[template].mode}
+            onChange={e => setEngineOverride(e.target.value as Mode | 'gemini')}
+            className="input text-xs h-8 w-auto py-0"
+            title="Choisissez le moteur de génération d'image"
+          >
+            <option value="claude-design">Claude Design · SVG</option>
+            <option value="openai">DALL-E 3 · bitmap</option>
+            <option value="gemini">Nano Banana · Gemini</option>
+          </select>
+        </label>
       </div>
+      {/* V38.2 — Note honnête sur le moteur choisi (jamais de fake). */}
+      {mode === 'gemini' && (
+        <p className="text-2xs text-ink-400 italic leading-relaxed mb-3">
+          Nano Banana génère une vraie image bitmap riche. Nécessite une clé Gemini dans Settings → Connecteurs.
+        </p>
+      )}
+      <p className="text-2xs text-ink-400 italic leading-relaxed mb-3">
+        Midjourney n&apos;a pas d&apos;API publique : exportez le visuel à la main puis ajoutez-le via l&apos;aperçu.
+      </p>
 
       {/* V12.2 — Cadence se rappelle de ce qui a marché */}
       {memorySnippet && (
