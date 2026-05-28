@@ -11,7 +11,6 @@ function safeExternal(url: string | undefined | null): string | null {
 }
 
 import { useState } from 'react';
-import StatusBadge from '@/components/StatusBadge';
 import { confirmDialog, toast } from '@/components/Dialog';
 
 export default function InspirationsClient({ initial }: { initial: any[] }) {
@@ -72,23 +71,53 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
     }
   }
 
+  // V44 — Toggle actif/inactif : c'est CE qui décide si l'inspiration
+  // nourrit la prochaine génération (cf. /posts/new V42). Optimistic.
+  const [busyId, setBusyId] = useState<string | null>(null);
+  async function toggleActive(item: any) {
+    const next = !item.active;
+    setBusyId(item.id);
+    setItems(items.map(i => i.id === item.id ? { ...i, active: next } : i));
+    try {
+      const r = await fetch(`/api/inspirations/${item.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...item, active: next }),
+      });
+      if (!r.ok) throw new Error();
+      toast.success(next ? 'Activée pour la prochaine génération' : 'Désactivée');
+    } catch {
+      setItems(items.map(i => i.id === item.id ? { ...i, active: item.active } : i));
+      toast.error('Action impossible');
+    } finally { setBusyId(null); }
+  }
+  // V44 — Menu d'actions secondaires (modifier / supprimer), discret.
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const activeCount = items.filter(i => i.active && i.style_notes).length;
+
   return (
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-semibold text-ink-900 tracking-tight">Inspirations</h1>
-          <p className="mt-1 text-sm text-ink-500 leading-relaxed">Comptes LinkedIn qui inspirent. Jamais à copier.</p>
+          <p className="mt-1 text-sm text-ink-500 leading-relaxed">
+            {activeCount > 0
+              ? <>{activeCount} inspiration{activeCount > 1 ? 's' : ''} active{activeCount > 1 ? 's' : ''} nourri{activeCount > 1 ? 'ssent' : 't'} vos générations. <a href="/posts/new" className="text-brand-700 hover:text-brand-900">Écrire un post →</a></>
+              : 'Activez une inspiration pour influencer le style de vos prochains posts.'}
+          </p>
         </div>
         <div className="flex gap-2">
-          <button onClick={restoreDefaults} disabled={restoring} className="px-4 py-2 rounded-lg ring-1 ring-ink-300 text-sm font-medium hover:bg-ink-50 disabled:opacity-50">
-            {restoring ? 'Restauration…' : '↺ Restaurer défauts Cadence'}
-          </button>
-          <button onClick={() => setEditing({ name: '', score: 3, category: '' })} className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600">+ Ajouter</button>
+          <button onClick={() => setEditing({ name: '', score: 3, category: '', active: true })} className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600">+ Ajouter</button>
         </div>
       </header>
 
-      <div className="bg-warn-50 ring-1 ring-inset ring-warn-500/20 rounded-2xl p-4 text-sm text-warn-700">
-        <strong className="font-semibold">Règle anti-plagiat.</strong> Les inspirations servent à comprendre rythme, densité, structure, angle. Cadence n&apos;enverra jamais le nom ou le contenu d&apos;une inspiration à l&apos;IA, seulement les «&nbsp;notes de style&nbsp;». Toute génération suspecte sera bloquée.
+      {/* V44 — Comment ça marche, en clair. */}
+      <div className="border-l-2 border-brand-300 pl-4 py-1 space-y-2">
+        <p className="text-sm text-ink-800 leading-relaxed">
+          Une inspiration <strong>active</strong> transmet ses <em>notes de style</em> à Cadence quand vous générez un post. Elle influence le <strong>rythme</strong>, le type de <strong>hook</strong>, le niveau de <strong>pédagogie</strong> et la <strong>narration</strong> — jamais le contenu.
+        </p>
+        <p className="text-xs text-ink-500 leading-relaxed">
+          <strong className="text-ink-700">Inspiration ≠ copie.</strong> Cadence n&apos;envoie jamais le nom ni le texte d&apos;une inspiration à l&apos;IA, seulement vos notes de style. Aucun post généré ne doit permettre de deviner la source.
+        </p>
       </div>
 
       {items.length === 0 ? (
@@ -103,26 +132,62 @@ export default function InspirationsClient({ initial }: { initial: any[] }) {
         </div>
       ) : (
       <div className="grid sm:grid-cols-2 gap-3">
-        {items.map(i => (
-          <div key={i.id} className="bg-white rounded-2xl p-5 shadow-card ring-1 ring-inset ring-ink-300/20">
+        {items.map(i => {
+          const usable = !!i.style_notes;
+          const isActive = !!i.active && usable;
+          return (
+          <div key={i.id} className={`bg-white rounded-2xl p-5 ring-1 ring-inset transition ${isActive ? 'ring-brand-300 shadow-card' : 'ring-ink-300/20'}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="font-semibold text-ink-900 truncate">{i.name}</div>
-                {i.url && <a href={i.url} target="_blank" rel="noopener" className="text-xs text-brand-700 hover:text-brand-600">Profil LinkedIn ↗</a>}
+                <div className="flex items-center gap-2">
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${isActive ? 'bg-brand-500' : 'bg-ink-300'}`} aria-hidden />
+                  <span className="font-semibold text-ink-900 truncate">{i.name}</span>
+                </div>
+                {i.url && <a href={i.url} target="_blank" rel="noopener" className="text-xs text-brand-700 hover:text-brand-600 ml-3.5">Profil LinkedIn ↗</a>}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <StatusBadge variant="neutral">{i.category || 'Sans catégorie'}</StatusBadge>
-                <span className="text-xs text-ink-500">★ {i.score}/5</span>
+              {/* V44 — Menu discret (modifier / supprimer), pas toujours visible */}
+              <div className="relative shrink-0">
+                <button onClick={() => setMenuId(menuId === i.id ? null : i.id)} className="w-8 h-8 inline-flex items-center justify-center rounded-md text-ink-400 hover:text-ink-900 hover:bg-ink-50 transition" aria-label="Actions">⋯</button>
+                {menuId === i.id && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setMenuId(null)} />
+                    <div className="absolute right-0 top-full mt-1 z-40 bg-white rounded-lg shadow-pop ring-1 ring-ink-200 p-1 min-w-[150px]">
+                      <button onClick={() => { setMenuId(null); setEditing(i); }} className="w-full text-left text-sm px-3 py-2 rounded-md hover:bg-ink-50">Modifier</button>
+                      <button onClick={() => { setMenuId(null); remove(i.id); }} className="w-full text-left text-sm px-3 py-2 rounded-md text-danger-700 hover:bg-danger-50">Supprimer</button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
-            {i.style_notes && <p className="mt-3 text-sm text-ink-700"><span className="text-ink-500 text-xs">À retenir : </span>{i.style_notes}</p>}
-            {i.do_not_copy && <p className="mt-2 text-sm text-danger-700"><span className="text-xs text-danger-700/70">Ne pas copier : </span>{i.do_not_copy}</p>}
-            <div className="mt-3 flex gap-2 justify-end">
-              <button onClick={() => setEditing(i)} className="text-xs px-3 py-1 rounded-lg ring-1 ring-ink-300 hover:bg-ink-50">Modifier</button>
-              <button onClick={() => remove(i.id)} className="text-xs px-3 py-1 rounded-lg text-danger-700 hover:bg-danger-50">Supprimer</button>
+
+            {/* V44 — Impact concret : ce que cette inspiration pousse Cadence à faire */}
+            {i.style_notes ? (
+              <p className="mt-3 text-sm text-ink-700 leading-relaxed">
+                <span className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Influence</span><br />
+                {i.style_notes}
+              </p>
+            ) : (
+              <p className="mt-3 text-sm text-ink-400 italic leading-relaxed">
+                Pas encore de notes de style. <button onClick={() => setEditing(i)} className="text-brand-700 hover:text-brand-900 not-italic underline decoration-dotted underline-offset-2">En ajouter</button> pour qu&apos;elle puisse influencer vos posts.
+              </p>
+            )}
+            {i.do_not_copy && <p className="mt-2 text-xs text-danger-700"><span className="text-danger-700/70">Interdit à la copie : </span>{i.do_not_copy}</p>}
+
+            {/* V44 — Action principale : activer / désactiver */}
+            <div className="mt-4 flex items-center gap-3">
+              <button
+                onClick={() => toggleActive(i)}
+                disabled={busyId === i.id || !usable}
+                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition disabled:opacity-50 ${isActive ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-300' : 'bg-brand-500 text-white hover:bg-brand-600'}`}
+                title={usable ? '' : 'Ajoutez des notes de style pour pouvoir activer'}
+              >
+                {busyId === i.id ? '…' : isActive ? 'Active · désactiver' : 'Utiliser dans la prochaine génération'}
+              </button>
+              {i.category && <span className="text-2xs text-ink-400">{i.category}</span>}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       )}
 
