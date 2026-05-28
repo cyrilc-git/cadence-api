@@ -7,6 +7,7 @@ import { noveltyScore } from '@/lib/embeddings';
 import { analyzeNarrative } from '@/lib/narrative-check';
 import { readStyleMemory, scoreStyleSimilarity } from '@/lib/style-memory';
 import { planSlides } from '@/lib/carousel';
+import { detectEditorialFormat } from '@/lib/format-intelligence';
 
 export const runtime = 'nodejs';
 export const maxDuration = 15;
@@ -176,6 +177,17 @@ export async function POST(req: Request) {
       } catch { /* silent */ }
     }
 
+    // V49 — Intelligence de format : Cadence comprend seule quel format
+    // (checklist, framework, timeline, avant/après, « N indispensables »…)
+    // servirait le sujet. Une seule reco calme, la plus pertinente.
+    let formatHint: { format: string; label: string; why: string; cta: string } | null = null;
+    try {
+      const fs = detectEditorialFormat(text);
+      if (fs && fs.confidence >= 0.6) {
+        formatHint = { format: fs.format, label: fs.label, why: fs.why, cta: fs.cta };
+      }
+    } catch { /* silent */ }
+
     return NextResponse.json({
       kind,
       message,
@@ -185,6 +197,7 @@ export async function POST(req: Request) {
       styleRepetition,
       styleSimilarity,
       carouselHint,
+      formatHint,
       novelty: Math.round(novelty * 100),
       saturation,
       nearest: nearestInfo,

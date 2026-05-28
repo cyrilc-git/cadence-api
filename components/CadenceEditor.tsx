@@ -8,6 +8,7 @@ import MentionTextarea, { caretCoords } from './MentionTextarea';
 import SlashMenu, { SlashCommand, detectSlashQuery } from './SlashMenu';
 import MentionSuggestions from './MentionSuggestions';
 import { toBold, toItalic, toBulletList, toQuote } from './LinkedInPreview';
+import { formatToVisualTemplate, type EditorialFormat } from '@/lib/format-intelligence';
 
 export type CadenceEditorProps = {
   value: string;
@@ -111,6 +112,9 @@ export default function CadenceEditor({
   const [carouselHint, setCarouselHint] = useState<{ format: string; message: string; slides: number } | null>(null);
   const [dismissedCarousel, setDismissedCarousel] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  // V49 — Format hint : "ce sujet mérite une checklist / framework / timeline…"
+  const [formatHint, setFormatHint] = useState<{ format: string; label: string; why: string; cta: string } | null>(null);
+  const [dismissedFormat, setDismissedFormat] = useState<string | null>(null);
   // V12.8 §2 — l'utilisateur peut "ignorer" une suggestion visuelle pour
   // qu'elle ne réapparaisse pas pendant cette session de frappe.
   const [dismissedHintFormat, setDismissedHintFormat] = useState<string | null>(null);
@@ -147,6 +151,8 @@ export default function CadenceEditor({
         setStyleSimilarity(d?.styleSimilarity || null);
         // V18.9 — Carousel hint
         setCarouselHint(d?.carouselHint || null);
+        // V49 — Format hint
+        setFormatHint(d?.formatHint || null);
       } catch { /* abort or network: silent */ }
     }, 1500);
     return () => { if (memoryTimerRef.current) clearTimeout(memoryTimerRef.current); };
@@ -492,7 +498,7 @@ export default function CadenceEditor({
           mémoire, contre-angle, visuel, narration. Tous en italic 2xs,
           calmes, jamais bloquants. Le narrative signal vient AVANT le
           visualHint quand il existe (priorité éditoriale > forme). */}
-      {(memorySignal || visualHint || (narrativeSignal && dismissedNarrativeKind !== narrativeSignal.kind) || (styleSimilarity && !dismissedSimilarity && (styleSimilarity.label === 'tres_vous' || styleSimilarity.label === 'eloigne'))) && !aiBusy && (
+      {(memorySignal || visualHint || (narrativeSignal && dismissedNarrativeKind !== narrativeSignal.kind) || (styleSimilarity && !dismissedSimilarity && (styleSimilarity.label === 'tres_vous' || styleSimilarity.label === 'eloigne')) || (carouselHint && !dismissedCarousel) || (formatHint && formatHint.format !== 'carousel' && dismissedFormat !== formatHint.format)) && !aiBusy && (
         <div className="mt-2 space-y-0.5" aria-live="polite">
           {memorySignal && (
             <p
@@ -560,6 +566,36 @@ export default function CadenceEditor({
                 onClick={() => setDismissedSimilarity(true)}
                 className="text-ink-400 hover:text-ink-700 transition not-italic"
                 title="Ignorer ce signal pour ce post"
+              >
+                plus tard
+              </button>
+            </p>
+          )}
+          {/* V49 — Format hint : Cadence comprend seule quel format servirait
+              le sujet (checklist, framework, timeline, avant/après…). On
+              n'affiche pas pour 'carousel' (carouselHint gère déjà l'export PDF). */}
+          {formatHint && formatHint.format !== 'carousel' && dismissedFormat !== formatHint.format && (
+            <p className="text-2xs italic leading-relaxed text-ink-500">
+              {formatHint.why} <span className="text-ink-700 not-italic">Ce sujet ferait une bonne {formatHint.label}.</span>
+              {onVisualSuggested && formatToVisualTemplate(formatHint.format as EditorialFormat) && (
+                <>
+                  {' '}
+                  <button
+                    type="button"
+                    onClick={() => onVisualSuggested(formatToVisualTemplate(formatHint.format as EditorialFormat)!)}
+                    className="text-brand-700 hover:text-brand-900 transition not-italic underline decoration-dotted underline-offset-2"
+                    title={formatHint.cta}
+                  >
+                    {formatHint.cta}
+                  </button>
+                </>
+              )}
+              {' · '}
+              <button
+                type="button"
+                onClick={() => setDismissedFormat(formatHint.format)}
+                className="text-ink-400 hover:text-ink-700 transition not-italic"
+                title="Ignorer cette suggestion pour ce post"
               >
                 plus tard
               </button>
