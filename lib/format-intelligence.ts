@@ -18,6 +18,7 @@ export type EditorialFormat =
   | 'comparison'         // X vs Y, deux entités
   | 'pyramid'            // niveaux hiérarchiques
   | 'mindmap'            // concept central + branches
+  | 'decision_map'       // carte de décision : si… alors, arbre
   | 'product_capture'    // capture / démo produit
   | 'schema'             // process en étapes
   | 'carousel'           // long et structuré
@@ -120,14 +121,37 @@ export function detectEditorialFormat(text: string): FormatSuggestion | null {
     };
   }
 
-  // 6. Framework — méthode/système/modèle nommé, structuré.
-  if (/\b(framework|m[ée]thode|syst[èe]me|mod[èe]le|matrice|cadre|process(?:us)?|formule)\b/i.test(lower) && (numberedItems >= 2 || stepMarkers >= 2)) {
+  // 6. Framework — méthode/système/modèle/architecture nommé, structuré.
+  if (/\b(framework|m[ée]thode|syst[èe]me|mod[èe]le|matrice|cadre|process(?:us)?|formule|architecture|stack|[ée]cosyst[èe]me|pile|infrastructure)\b/i.test(lower) && (numberedItems >= 2 || stepMarkers >= 2 || bulletItems >= 2)) {
     return {
       format: 'framework',
       label: 'framework',
-      why: 'Vous décrivez une méthode structurée.',
+      why: 'Vous décrivez une méthode ou une architecture structurée.',
       cta: 'En faire un carrousel framework, une étape par slide',
       confidence: 0.78,
+    };
+  }
+
+  // 6bis. Carte de décision — si… alors, selon que, arbre de choix.
+  const decisionVocab = countMatches(t, /\b(si\s+.+?\s+alors|sinon|selon que|dans ce cas|s['i]l\s|d[èe]s lors que|en fonction de|cela d[ée]pend|deux options|trois options|arbre de d[ée]cision|quand .+? choisir)\b/gi);
+  if (decisionVocab >= 2 && /\b(alors|sinon|d[ée]cision|choisir|option|cas)\b/i.test(lower)) {
+    return {
+      format: 'decision_map',
+      label: 'carte de décision',
+      why: 'Vous décrivez des conditions « si… alors » : une carte de décision clarifie le choix.',
+      cta: 'En faire une carte de décision',
+      confidence: 0.7,
+    };
+  }
+
+  // 6ter. Carte mentale — concept central qui se décline en axes / dimensions.
+  if (/\b(carte mentale|mind\s?map|concept central|se d[ée]cline en|tourne autour de|plusieurs (?:axes|dimensions|piliers|branches|facettes)|au c[oœ]ur de tout|rayonne)\b/i.test(lower) && (bulletItems >= 3 || numberedItems >= 3)) {
+    return {
+      format: 'mindmap',
+      label: 'carte mentale',
+      why: 'Un concept central avec plusieurs branches : une carte mentale relie le tout.',
+      cta: 'En faire une carte mentale',
+      confidence: 0.66,
     };
   }
 
@@ -191,7 +215,10 @@ export function detectEditorialFormat(text: string): FormatSuggestion | null {
 
 // V49 — Mappe un format éditorial vers le template du studio visuel
 // (VisualGenerator) quand pertinent, pour pré-sélectionner le bon rendu.
-export function formatToVisualTemplate(format: EditorialFormat): string | null {
+// V50.4 — Total : chaque format détecté mappe vers un template du studio.
+// Aucun format ne renvoie null, pour que le CTA format hint (qui utilise
+// l'assertion non-null) reste sûr quel que soit le format.
+export function formatToVisualTemplate(format: EditorialFormat): string {
   switch (format) {
     case 'numbered_list':
     case 'checklist':
@@ -199,6 +226,8 @@ export function formatToVisualTemplate(format: EditorialFormat): string | null {
     case 'schema':
     case 'timeline':
     case 'pyramid':
+    case 'mindmap':
+    case 'decision_map':
       return 'schema';
     case 'product_capture':
       return 'capture';
@@ -207,8 +236,10 @@ export function formatToVisualTemplate(format: EditorialFormat): string | null {
       return 'feature';
     case 'mono_visual':
       return 'opinion';
+    case 'carousel':
+      return 'schema';
     default:
-      return null;
+      return 'schema';
   }
 }
 
@@ -299,6 +330,24 @@ export function buildFormatBrief(format: EditorialFormat, text: string): string 
         'Format : capture produit annotée. Une représentation stylisée et épurée d\'une interface (cadre, barre, ' +
         'quelques blocs gris clair évoquant un dashboard), avec 2 à 3 annotations numérotées (cercles bleus 1, 2, 3) ' +
         'pointant des éléments clés et de courts libellés. Style maquette sobre, pas de capture réelle.';
+      break;
+    case 'mindmap':
+      structure =
+        'Format : carte mentale. Un concept central dans un nœud au centre (libellé court, accent bleu), ' +
+        'd\'où rayonnent 3 à 6 branches fines vers des nœuds secondaires, chacun avec un libellé court (max 40 caractères). ' +
+        'La relation centre → branches doit être évidente. Disposition équilibrée, beaucoup d\'air, pas d\'enchevêtrement.';
+      break;
+    case 'decision_map':
+      structure =
+        'Format : carte de décision. Un point de départ en haut (la question ou situation), puis des embranchements ' +
+        '« si… alors » : 2 à 4 conditions menant chacune à une issue, reliées par des flèches fines (ink-400). ' +
+        'Les conditions et les issues sont des libellés courts. La logique de choix doit se lire d\'un coup d\'œil, de haut en bas.';
+      break;
+    case 'carousel':
+      structure =
+        'Format : slide de couverture de carrousel. UNE slide carrée d\'ouverture : un grand titre accrocheur ' +
+        '(l\'idée maîtresse du texte, max 8 mots), un sous-titre court d\'une ligne, et un indice visuel discret ' +
+        'de progression (ex. « 1 / N » en bas). Beaucoup d\'air, une seule idée, pas de paragraphe. Donne envie de faire défiler.';
       break;
     default:
       structure =
