@@ -1,31 +1,10 @@
-import NotionSettingsClient from './client';
-import { recentNotionActions } from '@/lib/db';
-import { notionStatus } from '@/lib/notion';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
+// V51 §7 — Route morte. Cette page faisait doublon avec /sources/notion (même
+// composant NotionSettingsClient). On garde /sources/notion comme surface
+// unique et on redirige l'ancienne pour ne pas casser les signets.
+export const dynamic = 'force-static';
 
-async function fetchDbInfo() {
-  const token = process.env.NOTION_API_TOKEN;
-  const dsId = process.env.NOTION_LINKEDIN_DS_ID;
-  if (!token || !dsId) return null;
-  try {
-    const r = await fetch(`https://api.notion.com/v1/databases/${dsId}`, { headers: { Authorization: `Bearer ${token}`, 'Notion-Version': '2022-06-28' } });
-    if (!r.ok) return null;
-    const d = await r.json();
-    return {
-      id: d.id,
-      title: (d.title?.[0]?.plain_text) || 'Untitled',
-      url: d.url,
-      properties: Object.entries(d.properties || {}).map(([name, p]: [string, any]) => ({ name, type: p.type, options: p.select?.options?.map((o: any) => o.name) || (p.multi_select?.options?.map((o: any) => o.name)) || null }))
-    };
-  } catch { return null; }
-}
-
-export default async function NotionSettingsPage() {
-  const [status, dbInfo, actions] = await Promise.all([
-    notionStatus(),
-    fetchDbInfo(),
-    recentNotionActions(15).catch(() => [])
-  ]);
-  return <NotionSettingsClient status={status} dbInfo={dbInfo} actions={actions} />;
+export default function NotionSettingsRedirect() {
+  redirect('/sources/notion');
 }

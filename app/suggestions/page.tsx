@@ -1,9 +1,10 @@
-import SuggestionsClient from './client';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// V51 §7 — Route morte. Les suggestions de sujets servent l'écriture : on
+// les rabat sur Écrire (/posts/new) plutôt que de garder une page orpheline.
+// Le lien interne (Mémoire → « voir suggestions ») pointe maintenant vers Écrire.
+export const dynamic = 'force-static';
 
-// Client fetches data itself to avoid any SSR cache and to allow live refresh after radar runs.
-export default function SuggestionsPage() {
-  return <SuggestionsClient />;
+export default function SuggestionsRedirect() {
+  redirect('/posts/new');
 }

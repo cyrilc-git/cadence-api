@@ -1,13 +1,11 @@
-import BrandDnaClient from './client';
-import { brandDnaList } from '@/lib/db';
-import { getWeeklyPlan } from '@/lib/weekly';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
+// V51 §7 — Route morte. La « ligne éditoriale » n'est pas une surface des 3
+// flux cœur et n'est plus dans la nav. L'identité éditoriale (votre style,
+// vos mots) vit dans Mémoire (/cerveau). On redirige pour éviter une page
+// orpheline accessible uniquement à l'URL.
+export const dynamic = 'force-static';
 
-export default async function BrandDnaPage() {
-  let items: any[] = [];
-  let plan: any[] = [];
-  try { items = await brandDnaList(); } catch {}
-  try { plan = await getWeeklyPlan(); } catch {}
-  return <BrandDnaClient initial={items} initialPlan={plan} />;
+export default function BrandDnaRedirect() {
+  redirect('/cerveau');
 }

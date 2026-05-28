@@ -554,7 +554,7 @@ export default async function BrainPage() {
           {brain.topicsNeverPublished.length > 0 && (
             <p className="mt-4 text-sm text-ink-600 leading-relaxed">
               Jamais publié : <span className="text-ink-800">{brain.topicsNeverPublished.join(', ')}</span>.{' '}
-              <Link href="/suggestions" className="text-brand-700 hover:text-brand-900 transition">Voir suggestions →</Link>
+              <Link href={`/posts/new?brief=${encodeURIComponent('Reprendre un sujet jamais publié : ' + brain.topicsNeverPublished.join(', '))}`} className="text-brand-700 hover:text-brand-900 transition">Écrire →</Link>
             </p>
           )}
         </section>
