@@ -35,7 +35,7 @@ const STATUS_META: Record<Status, { label: string; cls: string; dot: string }> =
 
 function formatDateTime(iso?: string | null): string {
   if (!iso) return 'date à définir';
-  try { return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+  try { return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' }); }
   catch { return iso; }
 }
 

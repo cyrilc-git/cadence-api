@@ -30,8 +30,8 @@ export default function PostCard({ post }: { post: Post }) {
             {post.pillar && <span className="text-xs text-ink-500">· {post.pillar}</span>}
             {post.scheduled_at && (
               <span className="text-xs text-ink-500">
-                · {new Date(post.scheduled_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-                {' '}à {new Date(post.scheduled_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                · {new Date(post.scheduled_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', timeZone: 'Europe/Paris' })}
+                {' '}à {new Date(post.scheduled_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}
               </span>
             )}
           </div>

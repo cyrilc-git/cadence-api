@@ -472,7 +472,7 @@ export default function NewPostClient({
                             <div className="flex items-baseline justify-between gap-2">
                               <span className="text-sm text-ink-800 font-medium">{v.label}</span>
                               <span className="text-2xs text-ink-400 tabular-nums shrink-0">
-                                {new Date(v.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                                {new Date(v.ts).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })}
                               </span>
                             </div>
                             <p className="mt-0.5 text-xs text-ink-500 line-clamp-2 leading-snug">{v.text.slice(0, 120)}</p>

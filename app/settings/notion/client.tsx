@@ -147,7 +147,7 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
                   <div className="flex-1 min-w-0">
                     <div className="text-sm text-ink-800 truncate">{a.detail || 'Action'}</div>
                     <div className="text-2xs text-ink-500 mt-0.5">
-                      {new Date(a.created_at).toLocaleString('fr-FR')}
+                      {new Date(a.created_at).toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}
                     </div>
                   </div>
                   {a.url && <a href={a.url} target="_blank" rel="noopener" className="text-xs text-brand-700 hover:text-brand-800 font-medium whitespace-nowrap">Voir ↗</a>}
