@@ -33,6 +33,27 @@ Cadence ne doit JAMAIS ressembler à : un dashboard SaaS · un admin panel · un
 
 **Intelligence de format (différenciateur clé)** : Cadence doit comprendre seule quand un sujet mérite un carrousel PDF, un mono-visuel, un schéma, une checklist, un framework, une timeline, une carte mentale, un avant/après, une capture produit, une pyramide, une comparaison, un « N éléments indispensables ». Cf `lib/format-intelligence.ts`.
 
+## 1ter. Cadence apprend Cyril, pas LinkedIn (règle permanente, ne jamais déroger)
+
+**Cadence n'apprend pas LinkedIn. Cadence apprend Cyril.** LinkedIn n'est qu'une source parmi d'autres. Le véritable objectif est de construire un **second cerveau éditorial** capable de produire du contenu comme si Cyril l'avait écrit lui-même.
+
+**Sources prioritaires (par ordre) :**
+1. LinkedIn (posts publiés)
+2. Commentaires LinkedIn (voix spontanée, opinions)
+3. Livres blancs Heelio
+4. Landing pages Heelio
+5. Pitch decks
+6. Propositions commerciales
+7. Objections prospects
+8. Comptes-rendus de rendez-vous
+9. Emails
+10. Vidéos
+11. Notes vocales
+12. Contenu Decode
+13. Documentation produit
+
+**Corollaire (avec §1bis « IA invisible ») : ce second cerveau reste INVISIBLE.** Aucun écran « Mémoire ». L'utilisateur ne voit jamais le moteur (embeddings, similarité, score, fingerprint), seulement ses bénéfices : une meilleure recommandation du jour, un texte qui sonne comme lui, une preuve de résultat. La matière privée (clients, chiffres internes, échanges) reste privée et anonymisée dans les posts publiés. Le moat de Cadence, c'est cette matière que personne d'autre n'a, pas la rédaction (commoditisée).
+
 ## 2. État actuel (V47)
 
 - 240+ commits. Jalons récents : V25 (anti-slop FR enrichi + signaux structurels), V30 (carrousels PDF premium, 6 slide kinds), V31 (fingerprints stylistiques + pondération sources LinkedIn), V34 (editorial rhythm engine), V36-V37 (imports LinkedIn actionnables + calendrier intelligent + cerveau 3 blocs), V38 (versions éditeur, publier/programmer, day-picker calendrier), V39-V40 (6 moteurs image key-gated : Claude Design, DALL-E, Gemini/Nano Banana, Flux/Replicate, Stability, Ideogram), V41-V47 (passe UX : tout dynamique/actionnable, Sources = hub unique, Analytics « ce qui fonctionne », inspirations câblées).
