@@ -595,7 +595,10 @@ function SuggestionBand({
       <div className="text-2xs uppercase tracking-wider font-semibold text-brand-700">Cadence vous propose</div>
       <h2 className="mt-1 text-lg font-semibold text-ink-900 leading-snug">{brief}</h2>
       {hook && <p className="mt-1.5 text-sm text-ink-600 italic">« {hook} »</p>}
-      {why && <p className="mt-2 text-2xs text-ink-500">{why}</p>}
+      {why && (() => {
+        const segs = Array.from(new Set(why.split(/\s*·\s*/).map(s => s.trim()).filter(Boolean)));
+        return <p className="mt-2 text-2xs text-ink-500">{segs.join(' · ')}</p>;
+      })()}
       <div className="mt-3 flex items-center gap-3 text-xs">
         <button onClick={onAccept} disabled={generating} className="btn-primary text-xs">
           {generating ? 'Cadence rédige…' : 'Écrire ce post →'}
