@@ -259,13 +259,11 @@ export default async function BrainPage() {
               : 'Cadence apprend votre voix à partir de vos posts publiés. Détails dans l\'analyse complète.'}
           </p>
         )}
-        <div className="mt-3">
-          {styleWeak ? (
-            <Link href="/sources/linkedin" className="btn-primary text-sm">Importer mes posts →</Link>
-          ) : (
+        {!styleWeak && (
+          <div className="mt-3">
             <Link href="/posts/new" className="text-sm text-brand-700 hover:text-brand-900 font-medium transition">Écrire dans ma voix →</Link>
-          )}
-        </div>
+          </div>
+        )}
       </section>
 
       {/* Bloc 3 — Ce que Cadence recommande maintenant */}
