@@ -5,9 +5,12 @@ import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-// V18 §calendar-clean — Lit le toggle "calendar.show_notion" depuis design_system.
-// Par défaut FALSE : on n'affiche que les posts dont la provenance est LinkedIn
-// ou Cadence (les brouillons Notion sont masqués de la vue).
+// V52 P0 — Le calendrier est la source de vérité : il affiche TOUS les posts
+// par défaut (publiés, importés, programmés), quelle que soit leur provenance.
+// Auparavant le défaut était FALSE, ce qui forçait le filtre source sur
+// « linkedin » et vidait le calendrier alors que des dizaines de posts réels
+// existaient. Le toggle design_system « calendar.show_notion » ne sert plus
+// qu'à MASQUER explicitement (valeur « false ») si l'utilisateur le décide.
 async function calendarShowNotion(): Promise<boolean> {
   try {
     const { data } = await supabase
@@ -15,11 +18,11 @@ async function calendarShowNotion(): Promise<boolean> {
       .select('value')
       .eq('key', 'calendar.show_notion')
       .maybeSingle();
-    if (!data) return false;
+    if (!data) return true;
     const v = String(data.value || '').toLowerCase().trim();
-    return v === 'true' || v === '1' || v === 'on' || v === 'yes';
+    return !(v === 'false' || v === '0' || v === 'off' || v === 'no');
   } catch {
-    return false;
+    return true;
   }
 }
 
