@@ -9,6 +9,8 @@
 // de sécurité (jamais atteints : redirects() passe avant le routage).
 const redirects = async () => ([
   { source: '/',                         destination: '/posts/new',        permanent: false },
+  // V52 P0 — La Bibliothèque disparaît : le calendrier est l'unique source de vérité des posts.
+  { source: '/posts',                    destination: '/calendar',         permanent: false },
   { source: '/analytics',                destination: '/cerveau',          permanent: false },
   { source: '/brand-dna',                destination: '/cerveau',          permanent: false },
   { source: '/inspirations',             destination: '/cerveau',          permanent: false },

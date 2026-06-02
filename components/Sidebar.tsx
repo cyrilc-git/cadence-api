@@ -7,13 +7,12 @@ import { useState } from 'react';
 type IconName = 'pen' | 'cal' | 'doc' | 'plug' | 'brain';
 type NavItem = { href: string; label: string; icon: IconName };
 
-// V51 — Navigation réduite à 5 destinations. Cadence fait 3 choses :
+// V52 — Navigation réduite à 4 destinations. La Bibliothèque disparaît : le
+// calendrier est l'unique source de vérité des posts. Cadence fait 3 choses :
 // écrire, programmer/publier, générer un visuel. Tout le reste sert ces flux.
-// Plus de sections ni de groupes : 5 liens à plat, lisibles d'un coup d'oeil.
 const NAV: NavItem[] = [
   { href: '/posts/new', label: 'Écrire',       icon: 'pen' },
   { href: '/calendar',  label: 'Calendrier',   icon: 'cal' },
-  { href: '/posts',     label: 'Bibliothèque', icon: 'doc' },
   { href: '/sources',   label: 'Sources',      icon: 'plug' },
   { href: '/cerveau',   label: 'Mémoire',      icon: 'brain' },
 ];
