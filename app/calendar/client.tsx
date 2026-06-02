@@ -35,8 +35,10 @@ function ymd(d: Date): string {
 function statusOf(p: any): 'published' | 'archive' | 'scheduled' | 'needs_validation' | 'late' | 'draft' {
   const prov: Provenance | undefined = p.provenance;
   if (prov?.source_type === 'linkedin_published' || prov?.source_type === 'linkedin_import_zip') return 'published';
-  if (prov?.source_type === 'notion_archive') return 'archive';
-  if (p.late) return 'late';
+  // V52 P0 — Les imports/archives et tout post daté dans le passé sont de
+  // l'historique PUBLIÉ, jamais des tâches « en retard ». Le calendrier ne crie plus.
+  if (prov?.source_type === 'notion_archive') return 'published';
+  if (p.scheduled_at && new Date(p.scheduled_at).getTime() < Date.now()) return 'published';
   if (p.scheduled_at) return p.validated ? 'scheduled' : 'needs_validation';
   return 'draft';
 }
@@ -885,8 +887,7 @@ export default function CalendarClient({
           <span className="flex items-center gap-1.5"><span className="text-success-700">✓</span> publié</span>
           <span className="flex items-center gap-1.5"><span className="dot bg-brand-500" /> programmé validé</span>
           <span className="flex items-center gap-1.5"><span className="dot bg-warn-500" /> à valider</span>
-          <span className="flex items-center gap-1.5"><span className="text-danger-500">⚠</span> en retard</span>
-          {showNotion && <span className="flex items-center gap-1.5"><span className="dot bg-amber-500" /> archive Notion</span>}
+          {showNotion && <span className="flex items-center gap-1.5"><span className="dot bg-amber-500" /> archive</span>}
           {showNotion && <span className="flex items-center gap-1.5"><span className="dot bg-ink-300" /> brouillon</span>}
           {weekdayPerf.max > 0 && (
             <span className="flex items-center gap-1.5 ml-auto">

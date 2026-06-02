@@ -325,7 +325,8 @@ export function contentItemToPostSummary(item: ContentItem): NotionPostSummary {
   if (sourceType === 'linkedin_published' || sourceType === 'linkedin_import_zip' || sourceType === 'notion_archive') {
     status = 'published';
   } else if (item.scheduled_at) {
-    status = 'scheduled';
+    // V52 P0 — un post daté dans le passé est de l'historique publié, pas une tâche en attente.
+    status = new Date(item.scheduled_at).getTime() < Date.now() ? 'published' : 'scheduled';
   }
 
   const scheduledIso = item.scheduled_at || item.published_at || null;
@@ -342,7 +343,7 @@ export function contentItemToPostSummary(item: ContentItem): NotionPostSummary {
     sourceType === 'linkedin_import_zip' ? 'linkedin_archive' :
     null;
 
-  const isLate = scheduledIso ? (status === 'scheduled' && new Date(scheduledIso).getTime() < Date.now()) : false;
+  const isLate = false; // V52 P0 — le statut « en retard » est supprimé de Cadence (un passé = publié).
 
   return {
     id: item.provenance.notion_page_id || item.id,
