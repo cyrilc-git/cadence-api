@@ -54,6 +54,11 @@ Cadence ne doit JAMAIS ressembler à : un dashboard SaaS · un admin panel · un
 
 **Corollaire (avec §1bis « IA invisible ») : ce second cerveau reste INVISIBLE.** Aucun écran « Mémoire ». L'utilisateur ne voit jamais le moteur (embeddings, similarité, score, fingerprint), seulement ses bénéfices : une meilleure recommandation du jour, un texte qui sonne comme lui, une preuve de résultat. La matière privée (clients, chiffres internes, échanges) reste privée et anonymisée dans les posts publiés. Le moat de Cadence, c'est cette matière que personne d'autre n'a, pas la rédaction (commoditisée).
 
+**Trois invariants V2 (permanents, ne jamais déroger) :**
+1. **Claude Design = le moteur visuel officiel de Cadence.** Par défaut, clé gérée côté serveur, zéro configuration utilisateur. Les autres moteurs (Nano Banana, Flux, Stability, Ideogram) sont « avancés » et facultatifs : invisibles tant qu'aucune clé n'est posée dans Réglages. Midjourney n'a pas d'API publique : export manuel uniquement.
+2. **Le calendrier est l'unique source de vérité des posts.** Un post = { contenu, visuel, date, statut }. Bibliothèque, Brouillons, Programmés, Publiés, Imports ne sont que des filtres du calendrier, jamais des écrans séparés.
+3. **Le second cerveau apprend Cyril avant d'apprendre LinkedIn** (cf. §1ter). LinkedIn n'est qu'une source parmi d'autres. Objectif : écrire comme si Cyril l'avait écrit lui-même.
+
 ## 2. État actuel (V47)
 
 - 240+ commits. Jalons récents : V25 (anti-slop FR enrichi + signaux structurels), V30 (carrousels PDF premium, 6 slide kinds), V31 (fingerprints stylistiques + pondération sources LinkedIn), V34 (editorial rhythm engine), V36-V37 (imports LinkedIn actionnables + calendrier intelligent + cerveau 3 blocs), V38 (versions éditeur, publier/programmer, day-picker calendrier), V39-V40 (6 moteurs image key-gated : Claude Design, DALL-E, Gemini/Nano Banana, Flux/Replicate, Stability, Ideogram), V41-V47 (passe UX : tout dynamique/actionnable, Sources = hub unique, Analytics « ce qui fonctionne », inspirations câblées).
