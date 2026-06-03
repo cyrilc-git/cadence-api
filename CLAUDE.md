@@ -14,6 +14,8 @@ Sensation à viser : **« Cadence sait quoi faire »**, jamais « Cadence me dem
 
 Ne pas raisonner feature par feature. Raisonner : **« comment rendre Cadence commercialisable, premium, simple, évident, différenciant »**.
 
+**Ordre d'apprentissage du second cerveau (NORD) : Cadence apprend d'abord Heelio et Decode, puis LinkedIn.** La matière produit (livres blancs, landing pages, pitch decks, propositions, objections, calls, doc Heelio et Decode) est le moat : expertise, chiffres, cas, vocabulaire. LinkedIn vient ensuite pour la voix et la performance. Un concurrent générique n'a pas cette matière ; c'est ce qui rend les posts impossibles à confondre avec du contenu IA.
+
 Cadence DOIT ressembler à : un assistant éditorial senior · un directeur artistique discret · un copilote LinkedIn pour dirigeants · une mémoire éditoriale vivante · un OS de publication ultra simple.
 
 Cadence ne doit JAMAIS ressembler à : un dashboard SaaS · un admin panel · un outil IA générique · un générateur de prompts · un CRM · un cockpit à 200 boutons.
