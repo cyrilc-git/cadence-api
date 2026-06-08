@@ -260,6 +260,7 @@ export default function NewPostClient({
     { id: 'pilier', label: 'Changer de pilier', group: 'Vue', perform: () => setPilierOpen(true) },
     { id: 'gen', label: 'Rédiger avec Cadence', hint: 'Trois versions à partir du brief', group: 'Écrire', perform: () => handleGenerate() },
     { id: 'improve', label: 'Améliorer le texte', hint: 'Resserre, garde la voix', group: 'Écrire', perform: improveText },
+    { id: 'visual', label: 'Générer un visuel', hint: 'Visuel ou carrousel via Claude Design', group: 'Écrire', perform: generateVisual },
     { id: 'visual', label: 'Générer un visuel', hint: 'Claude Design', group: 'Écrire', perform: generateVisual },
     { id: 'save', label: 'Enregistrer le brouillon', group: 'Sauvegarder', shortcut: '⌘S', perform: () => handleSave(false) },
     { id: 'sched', label: `Programmer pour le ${new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`, group: 'Sauvegarder', perform: () => { setPublishMode('schedule'); setPublishOpen(true); } },
@@ -419,15 +420,15 @@ export default function NewPostClient({
             )}
 
             <div className="ml-auto flex items-center gap-1.5 flex-wrap">
-              <button onClick={improveText} disabled={improving || !text.trim()} className="btn-ghost text-xs" title="Resserre le texte en gardant votre voix">
+              <button onClick={improveText} disabled={improving || !text.trim()} className="btn-ghost text-xs hidden sm:inline-flex" title="Resserre le texte en gardant votre voix">
                 {improving ? 'Cadence relit…' : 'Améliorer'}
               </button>
-              <button onClick={generateVisual} disabled={!text.trim()} className="btn-ghost text-xs" title="Visuel ou carrousel via Claude Design">
+              <button onClick={generateVisual} disabled={!text.trim()} className="btn-ghost text-xs hidden sm:inline-flex" title="Visuel ou carrousel via Claude Design">
                 Visuel
               </button>
 
               {versions.length > 0 && (
-                <div className="relative">
+                <div className="relative hidden sm:block">
                   <button
                     onClick={() => setVersionsOpen(o => !o)}
                     className="btn-ghost text-xs inline-flex items-center gap-1.5"
@@ -472,9 +473,13 @@ export default function NewPostClient({
               <button onClick={() => { setPublishMode('schedule'); setPublishOpen(true); }} disabled={!text.trim()} className="btn-secondary text-xs" title="Choisir une date et programmer">
                 Programmer
               </button>
-              <button onClick={() => { setPublishMode('publish'); setPublishOpen(true); }} disabled={!canPublish} className="btn-primary text-xs" title={canPublish ? 'Publier sur LinkedIn (validation requise)' : pilierIsCasClient && !anonOk ? 'Cochez « Anonymisé » pour publier ce cas client' : criticalLint.length ? 'Corrigez les alertes avant de publier' : 'Publier'}>
+              <button onClick={() => { setPublishMode('publish'); setPublishOpen(true); }} disabled={!canPublish} className="btn-primary text-xs hidden sm:inline-flex" title={canPublish ? 'Publier sur LinkedIn (validation requise)' : pilierIsCasClient && !anonOk ? 'Cochez « Anonymisé » pour publier ce cas client' : criticalLint.length ? 'Corrigez les alertes avant de publier' : 'Publier'}>
                 Publier
               </button>
+              {/* V52 — Mobile : une barre compacte. Les actions secondaires
+                  (Améliorer, Visuel, Versions, Publier) passent derrière « … »
+                  qui ouvre la palette de commandes. Desktop : footer complet. */}
+              <button onClick={() => setCmdOpen(true)} className="btn-ghost text-base leading-none px-2 sm:hidden" title="Plus d'actions" aria-label="Plus d'actions">…</button>
             </div>
           </div>
         </footer>
