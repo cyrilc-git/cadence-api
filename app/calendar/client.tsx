@@ -603,13 +603,13 @@ export default function CalendarClient({
         </div>
       )}
 
-      {/* Header row */}
-      <div className="grid grid-cols-7 gap-2 text-2xs font-semibold text-ink-500 uppercase tracking-wider px-2">
+      {/* Header row — desktop uniquement (la vue agenda mobile a ses propres en-têtes de jour) */}
+      <div className="hidden sm:grid grid-cols-7 gap-2 text-2xs font-semibold text-ink-500 uppercase tracking-wider px-2">
         {['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(d => <div key={d} className="text-center">{d}</div>)}
       </div>
 
-      {/* Grid */}
-      <div className="space-y-2">
+      {/* Grille mensuelle — desktop (≥ 640px). Masquée sur mobile au profit de la vue agenda. */}
+      <div className="hidden sm:block space-y-2">
         {grid.map((week, wi) => (
           <div key={wi} className="grid grid-cols-7 gap-2">
             {week.map(d => {
@@ -725,6 +725,75 @@ export default function CalendarClient({
             })}
           </div>
         ))}
+      </div>
+
+      {/* V52 — Vue agenda mobile (< 640px). La grille 7 colonnes est masquée sur
+          mobile (inutilisable au doigt). Ici : liste verticale de jours, chaque
+          jour tapable en plein, posts visibles, statut lisible, miniature si
+          visuel, actions au tap. Aucun drag/drop mobile. Desktop inchangé. */}
+      <div className="sm:hidden space-y-3">
+        {(() => {
+          const today0 = ymd(new Date());
+          const days = grid.flat().filter(d => view === 'week' || d.getMonth() === cursor.getMonth());
+          const agendaDays = days.filter(d => { const k = ymd(d); return (byDate.get(k)?.length || 0) > 0 || k >= today0; });
+          if (agendaDays.length === 0) {
+            return <p className="text-sm text-ink-500 px-1">Rien sur cette période. Choisissez un autre mois.</p>;
+          }
+          return agendaDays.map(d => {
+            const k = ymd(d);
+            const items = byDate.get(k) || [];
+            const isToday = k === today0;
+            const isPast = k < today0;
+            const label = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+            return (
+              <section key={k} className={`rounded-2xl border overflow-hidden ${isToday ? 'border-brand-300' : 'border-ink-100'}`}>
+                <button type="button" onClick={() => setDayPicker({ key: k })} className="w-full text-left px-4 py-3 flex items-center justify-between bg-white active:bg-ink-50 transition">
+                  <span className="min-w-0">
+                    {isToday && <span className="block text-2xs uppercase tracking-wider font-semibold text-brand-700">Aujourd&apos;hui</span>}
+                    <span className="block text-sm font-semibold text-ink-900 capitalize">{label}</span>
+                  </span>
+                  <span className="text-ink-300 text-lg shrink-0 ml-3" aria-hidden>›</span>
+                </button>
+                {items.length === 0 ? (
+                  <div className="px-4 pb-4 pt-3 border-t border-ink-100">
+                    <p className="text-xs text-ink-400">Aucun contenu prévu.</p>
+                    {!isPast && (
+                      <Link href={`/posts/new?date=${k}`} className="mt-2 inline-block btn-primary text-xs">Écrire pour ce jour →</Link>
+                    )}
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-ink-100 border-t border-ink-100">
+                    {items.map((p: any) => {
+                      const st = statusOf(p);
+                      const t = tone(p.pilier);
+                      const published = st === 'published';
+                      return (
+                        <li key={p.id} className="flex items-center gap-3 px-4 py-3">
+                          {p.cover_url ? (
+                            <span className="w-12 h-12 rounded-lg bg-cover bg-center shrink-0" style={{ backgroundImage: `url(${p.cover_url})` }} aria-hidden />
+                          ) : (
+                            <span className={`w-12 h-12 rounded-lg ${t.bg} flex items-center justify-center shrink-0`} aria-hidden><span className={`dot ${t.dot}`} /></span>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 text-2xs">
+                              {published && <span className="text-success-700 font-medium">✓ Publié</span>}
+                              {st === 'scheduled' && <span className="text-brand-700 font-medium">● Programmé{p.scheduled_time ? ` ${p.scheduled_time.slice(0, 5)}` : ''}</span>}
+                              {st === 'needs_validation' && <span className="text-warn-600 font-medium">● À valider</span>}
+                              {st === 'draft' && <span className="text-ink-500 font-medium">○ Brouillon</span>}
+                              {p.is_carousel && <span className="text-ink-400">· carrousel</span>}
+                            </div>
+                            <p className="text-sm text-ink-900 truncate">{p.title}</p>
+                          </div>
+                          <Link href={`/posts/${p.id}/edit`} className="text-sm text-brand-700 font-medium shrink-0">{published ? 'Ouvrir' : 'Modifier'}</Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+            );
+          });
+        })()}
       </div>
 
       {/* V51 §3 — Fiche du jour : clic sur un jour → voir ce qui est posé ce
