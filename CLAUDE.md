@@ -63,6 +63,14 @@ Cadence ne doit JAMAIS ressembler à : un dashboard SaaS · un admin panel · un
 4. **Cadence crée du contenu, pas des posts.** Le post LinkedIn n'est qu'un format ; carrousel, commentaire, newsletter en sont d'autres. L'objet central est un contenu { idée, voix, preuve } rendu dans un format.
 5. **Cadence ne montre jamais une analyse, elle montre une décision.** L'analyse (mémoire, embeddings, scores, signaux) peut exister dans le moteur ; jamais dans l'interface. Chaque écran propose une action, pas un tableau de bord.
 
+## 1quater. Radar externe (veille marché → opportunités, jamais un nouvel écran)
+
+Cadence peut activer une veille externe sur des cibles choisies : personnes précises, créateurs LinkedIn, concurrents, un secteur, un marché, une thématique. Exemple : « Surveille les fractional CFO aux US et trouve les infographies LinkedIn qui cartonnent. »
+
+Cadence y repère : sujets qui montent, formats qui fonctionnent, infographies et carrousels performants, hooks récurrents, angles marché, posts à fort engagement. Puis il transforme ces signaux en **opportunités éditoriales adaptées à Cyril / Heelio**. Inspiration, jamais copie.
+
+Ces opportunités nourrissent **Aujourd'hui → « J'ai aussi repéré pour vous »** (types : Opportunité marché, Inspiration sectorielle, Format qui performe, Sujet chaud, Angle concurrentiel). Le radar externe ne crée **jamais** un nouvel écran : le moteur se complexifie, l'interface reste à quatre écrans. MVP attendu : config minimale (personnes/secteurs surveillés) → génération d'opportunités → affichage dans Aujourd'hui. Aucun publish auto, aucune copie.
+
 ## 2. État actuel (V47)
 
 - 240+ commits. Jalons récents : V25 (anti-slop FR enrichi + signaux structurels), V30 (carrousels PDF premium, 6 slide kinds), V31 (fingerprints stylistiques + pondération sources LinkedIn), V34 (editorial rhythm engine), V36-V37 (imports LinkedIn actionnables + calendrier intelligent + cerveau 3 blocs), V38 (versions éditeur, publier/programmer, day-picker calendrier), V39-V40 (6 moteurs image key-gated : Claude Design, DALL-E, Gemini/Nano Banana, Flux/Replicate, Stability, Ideogram), V41-V47 (passe UX : tout dynamique/actionnable, Sources = hub unique, Analytics « ce qui fonctionne », inspirations câblées).
