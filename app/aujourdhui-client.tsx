@@ -9,7 +9,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 type Hero = { id: string; title: string; hook: string | null; why: string | null; pilier: string | null } | null;
-type Opp = { id: string; title: string; why: string | null; pilier: string | null; stars: number };
+type Opp = { id: string; title: string; hook?: string | null; why: string | null; pilier: string | null; stars: number };
 
 function typeLabel(pilier: string | null): string {
   if (!pilier) return 'IDÉE';
@@ -162,7 +162,8 @@ export default function AujourdhuiClient({
                     <Stars n={o.stars} />
                   </div>
                   <p className="mt-1 text-sm font-medium text-ink-900 leading-snug">{o.title}</p>
-                  {o.why && <p className="mt-0.5 text-xs text-ink-500 leading-relaxed line-clamp-1">{dedupSegments(o.why)}</p>}
+                  {o.hook && <p className="mt-1 text-xs text-ink-600 italic leading-snug line-clamp-1">« {o.hook} »</p>}
+                  {o.why && <p className="mt-1 text-xs text-ink-500 leading-relaxed line-clamp-1">{dedupSegments(o.why)}</p>}
                 </div>
                 <button onClick={() => writeBrief(o.title)} className="text-sm text-brand-700 hover:text-brand-900 font-medium transition shrink-0 px-2 py-2 -my-1">Créer →</button>
               </li>
