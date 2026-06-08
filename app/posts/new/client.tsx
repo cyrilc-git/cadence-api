@@ -341,31 +341,10 @@ export default function NewPostClient({
           />
         )}
 
-        {!hasText && !prefillBrief && (
-          <>
-            {proposal && (
-              <SuggestionBand
-                pilier={proposal.pilier}
-                brief={proposal.title} hook={proposal.hook}
-                why={proposal.why}
-                id={proposal.id} filterSource={null}
-                onAccept={() => { if (proposal.pilier) setPilier(proposal.pilier); handleGenerate(proposal.title); }}
-                generating={genLoading}
-              />
-            )}
-            <div className={proposal ? 'mt-8' : ''}>
-              <StartHint
-                pilier={pilier}
-                brief={brief}
-                onBrief={setBrief}
-                onGenerate={() => handleGenerate()}
-                generating={genLoading}
-                error={genError}
-                recyclables={recyclables}
-              />
-            </div>
-          </>
-        )}
+        {/* V52 — Plus de page blanche : « De quoi voulez-vous parler ? » + textarea
+            vide + « Rédiger avec Cadence » retirés. /posts/new arrive toujours avec
+            un contexte (brief/dictée/idée via ?brief=, recyclage via ?from=). Le cas
+            sans contexte est redirigé vers Aujourd'hui côté serveur (page.tsx). */}
 
         {(hasText || !prefillBrief) && (
           <div className={hasText ? 'mt-4' : 'mt-10'}>
