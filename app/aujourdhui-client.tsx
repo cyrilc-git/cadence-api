@@ -17,6 +17,13 @@ function typeLabel(pilier: string | null): string {
   return tail.toUpperCase();
 }
 
+// Déduplique les segments d'un « pourquoi » séparés par un point médian
+// (le moteur peut répéter une même raison). Évite « X · X · Y ».
+function dedupSegments(s: string | null): string {
+  if (!s) return '';
+  return Array.from(new Set(s.split(/\s*·\s*/).map(x => x.trim()).filter(Boolean))).join(' · ');
+}
+
 function Stars({ n }: { n: number }) {
   const full = Math.max(1, Math.min(5, n));
   return (
@@ -92,7 +99,7 @@ export default function AujourdhuiClient({
           {hero.why && (
             <p className="text-sm text-ink-500 leading-relaxed">
               <span className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Pourquoi maintenant</span><br />
-              {hero.why}
+              {dedupSegments(hero.why)}
             </p>
           )}
 
@@ -155,7 +162,7 @@ export default function AujourdhuiClient({
                     <Stars n={o.stars} />
                   </div>
                   <p className="mt-1 text-sm font-medium text-ink-900 leading-snug">{o.title}</p>
-                  {o.why && <p className="mt-0.5 text-xs text-ink-500 leading-relaxed line-clamp-1">{o.why}</p>}
+                  {o.why && <p className="mt-0.5 text-xs text-ink-500 leading-relaxed line-clamp-1">{dedupSegments(o.why)}</p>}
                 </div>
                 <button onClick={() => writeBrief(o.title)} className="text-sm text-brand-700 hover:text-brand-900 font-medium transition shrink-0">Créer →</button>
               </li>
