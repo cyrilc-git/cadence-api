@@ -97,15 +97,15 @@ export default function AujourdhuiClient({
           </div>
 
           {hero.why && (
-            <p className="text-sm text-ink-500 leading-relaxed">
-              <span className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Pourquoi maintenant</span><br />
-              {dedupSegments(hero.why)}
-            </p>
+            <div className="text-sm text-ink-500 leading-relaxed">
+              <span className="block text-2xs uppercase tracking-wider font-semibold text-ink-400 mb-0.5">Pourquoi maintenant</span>
+              <span className="block line-clamp-3">{dedupSegments(hero.why)}</span>
+            </div>
           )}
 
-          <div className="flex items-center gap-4 pt-1">
-            <button onClick={() => writeBrief(hero.title)} className="btn-primary text-sm">Écrire ce post →</button>
-            <a href={'/?skip=' + hero.id} className="text-sm text-ink-500 hover:text-ink-900 transition">Autre idée</a>
+          <div className="flex items-center gap-2 pt-1">
+            <button onClick={() => writeBrief(hero.title)} className="btn-primary text-sm py-2.5">Écrire ce post →</button>
+            <a href={'/?skip=' + hero.id} className="text-sm text-ink-500 hover:text-ink-900 transition px-3 py-2.5 rounded-lg">Autre idée</a>
           </div>
         </section>
       ) : (
@@ -164,7 +164,7 @@ export default function AujourdhuiClient({
                   <p className="mt-1 text-sm font-medium text-ink-900 leading-snug">{o.title}</p>
                   {o.why && <p className="mt-0.5 text-xs text-ink-500 leading-relaxed line-clamp-1">{dedupSegments(o.why)}</p>}
                 </div>
-                <button onClick={() => writeBrief(o.title)} className="text-sm text-brand-700 hover:text-brand-900 font-medium transition shrink-0">Créer →</button>
+                <button onClick={() => writeBrief(o.title)} className="text-sm text-brand-700 hover:text-brand-900 font-medium transition shrink-0 px-2 py-2 -my-1">Créer →</button>
               </li>
             ))}
           </ul>
