@@ -47,16 +47,16 @@ const THEMES: Theme[] = [
     hook: 'Votre compte affiche le passé. Votre trésorerie, ce sont les 90 prochains jours.' },
   { key: 'bfr', label: 'BFR', gapEligible: true,
     synonyms: ['bfr', 'besoin en fonds de roulement', 'fonds de roulement'],
-    title: 'Le BFR, ce trou invisible qui assèche les PME rentables',
-    hook: 'Rentable sur le papier, à sec en banque. Le coupable a un nom.' },
+    title: 'Combien de cash votre BFR immobilise-t-il, là, maintenant ?',
+    hook: 'Stocks plus créances moins dettes fournisseurs. Le calcul que peu de dirigeants posent.' },
   { key: 'cashflow', label: 'cash-flow', gapEligible: true,
     synonyms: ['cash-flow', 'cash flow', 'flux de trésorerie'],
     title: 'Le cash-flow, la seule courbe à regarder chaque semaine',
     hook: 'Pas le chiffre d’affaires. Pas le résultat. Le flux de trésorerie.' },
   { key: 'forecast', label: 'prévisionnel', gapEligible: true,
     synonyms: ['prévisionnel', 'prévision', 'forecast', 'rolling forecast'],
-    title: 'Le prévisionnel à 90 jours qui change la façon de décider',
-    hook: 'Passer de « combien j’ai » à « combien j’aurai, et quand ça se tend ».' },
+    title: 'Arrêter de subir sa trésorerie : le passage au prévisionnel',
+    hook: 'Voir le mur huit semaines avant de le percuter, pas la veille.' },
   { key: 'dso', label: 'recouvrement', gapEligible: true,
     synonyms: ['dso', 'recouvrement', 'délai de paiement', 'retard de paiement', 'impayé'],
     title: 'Votre DSO grimpe ? Votre trésorerie fond.',
@@ -71,16 +71,16 @@ const THEMES: Theme[] = [
     hook: 'Le financement n’est pas une fin. C’est un levier qui se choisit.' },
   { key: 'steering', label: 'pilotage', gapEligible: true,
     synonyms: ['pilotage', 'tableau de bord', 'indicateurs'],
-    title: 'Le tableau de bord d’un dirigeant tient sur 5 chiffres',
-    hook: 'Pas cinquante indicateurs. Cinq. Lesquels comptent vraiment ?' },
+    title: 'Les 5 chiffres qu’un dirigeant devrait connaître par cœur',
+    hook: 'Si on vous réveille à 3h du matin, lesquels savez-vous réciter ?' },
   { key: 'cfo', label: 'DAF externalisé', gapEligible: true,
     synonyms: ['daf', 'directeur financier', 'directrice financière', 'fractional'],
-    title: 'DAF externalisé ou outil de pilotage : que choisir à 2 M€ ?',
-    hook: 'Recruter un DAF à 90 k€, ou piloter autrement. L’arbitrage réel.' },
+    title: 'À partir de quel chiffre d’affaires faut-il un directeur financier ?',
+    hook: 'Avant ce seuil, un bon outil suffit. Après, ça se discute vraiment.' },
   { key: 'fpa', label: 'FP&A', gapEligible: true,
     synonyms: ['fp&a', 'fpa', 'financial planning'],
-    title: 'Le FP&A pour une PME, sans usine à gaz',
-    hook: 'Le FP&A n’est pas qu’un mot de licorne. La version PME, en trois étapes.' },
+    title: 'Le FP&A expliqué à un dirigeant pressé',
+    hook: 'Trois lettres qui intimident. Une idée simple : décider avec des chiffres à jour.' },
   { key: 'heelio', label: 'Heelio', gapEligible: false,
     synonyms: ['heelio'],
     title: 'Pourquoi je construis Heelio',
@@ -153,9 +153,22 @@ function themeByKey(key: string): Theme | undefined {
 // Opportunités issues de la mémoire, pour Aujourd'hui. Rotation déterministe
 // par jour pour varier sans Math.random. Renvoie [] si le corpus est trop
 // maigre (on ne fabrique jamais un insight sans matière).
-export async function editorialMemoryOpportunities(dayIndex: number): Promise<EditorialOpportunity[]> {
+export async function editorialMemoryOpportunities(
+  dayIndex: number,
+  opts?: { excludeText?: string },
+): Promise<EditorialOpportunity[]> {
   const mem = await readEditorialMemory();
   if (mem.analyzed < 8) return [];
+
+  // Un thème est « exclu » si ses mots-clés apparaissent dans excludeText
+  // (typiquement le héros du jour) : on évite de proposer deux fois le même
+  // sujet dans le même flux.
+  const ex = norm(opts?.excludeText || '');
+  const isExcluded = (key: string): boolean => {
+    if (!ex) return false;
+    const th = themeByKey(key);
+    return !!th && th.synonyms.map(norm).some(n => n.length > 1 && ex.includes(n));
+  };
 
   const out: EditorialOpportunity[] = [];
 
@@ -169,7 +182,7 @@ export async function editorialMemoryOpportunities(dayIndex: number): Promise<Ed
   // 1. ANGLE MANQUANT — un thème pédagogique jamais (ou quasi jamais) abordé,
   //    mis en regard du thème dominant. « Vous parlez souvent de X, jamais de Y. »
   const gaps = mem.themes
-    .filter(t => t.count === 0 && themeByKey(t.key)?.gapEligible)
+    .filter(t => t.count === 0 && themeByKey(t.key)?.gapEligible && !isExcluded(t.key))
     .map(t => themeByKey(t.key)!)
     .filter(Boolean);
   if (dominant && gaps.length > 0) {
