@@ -461,7 +461,7 @@ export default function LinkedInImportClient() {
                   </p>
                 )}
                 <p className="text-2xs text-ink-500 leading-relaxed">
-                  Cadence a marqué chaque post comme import LinkedIn vérifié, distinct de vos brouillons. Ils alimentent la mémoire stylistique.
+                  {importResult.created} publication{importResult.created > 1 ? 's' : ''} analysée{importResult.created > 1 ? 's' : ''} par Cadence. Vos recommandations dans Aujourd&apos;hui en tiennent compte dès maintenant.
                 </p>
               </div>
             );

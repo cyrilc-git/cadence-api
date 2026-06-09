@@ -1,6 +1,7 @@
 import AujourdhuiClient from './aujourdhui-client';
 import { nativeOpportunities, type EditorialOpportunity } from '@/lib/editorial-opportunities';
 import { marketOpportunities, inspirationOpportunities } from '@/lib/external-radar';
+import { editorialMemoryOpportunities } from '@/lib/editorial-memory';
 
 // V52 commit 7 — La racine EST « Aujourd'hui », le produit principal.
 // V52 Lot 2 — Opportunités internes natives (domaine Heelio).
@@ -19,6 +20,9 @@ export default async function HomePage({ searchParams }: { searchParams?: Record
   const internal = nativeOpportunities(dayIndex);
   const market = marketOpportunities(dayIndex);
   const inspiration = inspirationOpportunities(dayIndex);
+  // Mémoire éditoriale : Cadence apprend Cyril à partir de son historique réel.
+  // Lecture seule, sans OpenAI ; renvoie [] si le corpus est trop maigre.
+  const memory = await editorialMemoryOpportunities(dayIndex);
 
   // Héros : un angle interne fort (Heelio). « Autre idée » (?skip) le fait défiler.
   const heroPool = skip ? internal.filter(o => o.id !== skip) : internal;
@@ -26,8 +30,10 @@ export default async function HomePage({ searchParams }: { searchParams?: Record
     ? { id: heroPool[0].id, title: heroPool[0].title, hook: heroPool[0].hook, why: heroPool[0].why, pilier: heroPool[0].type }
     : null;
 
-  // Mélange : 1 marché + 1 inspiration + 1 interne (Heelio). Même format, même flux.
-  const mix = [market[0], inspiration[0], heroPool[1]]
+  // Mélange : 1 mémoire (ce que Cadence a appris de Cyril) + 1 marché + 1
+  // inspiration, complété par un 2e angle interne si la mémoire est muette.
+  // Même format, même flux : l'utilisateur ne sait pas d'où vient le sujet.
+  const mix = [memory[0], market[0], inspiration[0], heroPool[1]]
     .filter((o): o is EditorialOpportunity => Boolean(o));
   const opportunities = mix.slice(0, 3).map(o => ({
     id: o.id, title: o.title, hook: o.hook, why: o.why, pilier: o.type, stars: o.stars,
