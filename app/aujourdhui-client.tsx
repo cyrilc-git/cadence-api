@@ -159,7 +159,6 @@ export default function AujourdhuiClient({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-2xs uppercase tracking-wider font-semibold text-ink-500">{typeLabel(o.pilier)}</span>
-                    <Stars n={o.stars} />
                   </div>
                   <p className="mt-1 text-sm font-medium text-ink-900 leading-snug">{o.title}</p>
                   {o.hook && <p className="mt-1 text-xs text-ink-600 italic leading-snug line-clamp-1">« {o.hook} »</p>}
