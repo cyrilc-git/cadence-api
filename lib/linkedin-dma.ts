@@ -1,0 +1,176 @@
+// V54 — LinkedIn Member Data Portability (DMA) : synchro automatique.
+//
+// Permet a Cadence de rester a jour SANS scraping et SANS geste manuel : une
+// fois que Cyril a consenti (scope r_dma_portability_self_serve, self-serve,
+// reserve a l'EEE), LinkedIn archive ses publications et on les recupere :
+//   - Snapshot : tout l'historique (backfill complet, alternative a l'export ZIP)
+//   - Changelog : chaque nouveau post des le consentement (fenetre 28 jours)
+//
+// INERTE tant qu'aucun token DMA n'est stocke (design_system) : le cron no-op.
+// Reconciliation : on passe par ingestLinkedInPosts -> meme source_id que le
+// backfill disque, donc aucun doublon.
+//
+// CONFIRM (a valider contre la 1re reponse reelle, cf. guide de mise en place) :
+//   [1] nom exact du domaine Snapshot pour les posts (DEFAULT 'MEMBER_SHARE_INFO')
+//   [2] resourceName exact d'un post cree dans le Changelog (DEFAULT 'ugcPosts')
+//   [3] chemin du texte du post dans processedActivity (on tente plusieurs cles)
+
+import { supabase } from './supabase';
+import { ingestLinkedInPosts, type IncomingPost } from './content-ingest';
+
+const API = 'https://api.linkedin.com';
+const VERSION = process.env.LINKEDIN_DMA_VERSION || '202312';
+const SNAPSHOT_DOMAIN_POSTS = process.env.LINKEDIN_DMA_POSTS_DOMAIN || 'MEMBER_SHARE_INFO'; // CONFIRM [1]
+const POST_RESOURCES = (process.env.LINKEDIN_DMA_POST_RESOURCES || 'ugcPosts,posts,shares')
+  .split(',').map(s => s.trim().toLowerCase()); // CONFIRM [2]
+
+// ── Stockage token + curseur dans design_system (KV deja en place) ───────────
+async function kvGet(key: string): Promise<string | null> {
+  try {
+    const { data } = await supabase.from('design_system').select('value').eq('key', key).maybeSingle();
+    return data?.value ?? null;
+  } catch { return null; }
+}
+async function kvSet(key: string, value: string): Promise<void> {
+  await supabase.from('design_system').upsert({ key, value }, { onConflict: 'key' });
+}
+
+export type DmaToken = { access_token: string; refresh_token?: string; expires_at?: string };
+export async function getDmaToken(): Promise<DmaToken | null> {
+  const raw = await kvGet('linkedin.dma_token');
+  if (!raw) return null;
+  try { const t = JSON.parse(raw); return t?.access_token ? t : null; } catch { return null; }
+}
+export async function setDmaToken(t: DmaToken): Promise<void> {
+  await kvSet('linkedin.dma_token', JSON.stringify(t));
+}
+
+function authHeaders(token: string) {
+  return { Authorization: `Bearer ${token}`, 'Linkedin-Version': VERSION, 'Content-Type': 'application/json' };
+}
+
+// ── Active la generation des events changelog (idempotent) ───────────────────
+export async function enableChangelog(token: string): Promise<boolean> {
+  try {
+    const r = await fetch(`${API}/rest/memberAuthorizations`, { method: 'POST', headers: authHeaders(token), body: '{}' });
+    return r.ok;
+  } catch { return false; }
+}
+
+// ── Extraction defensive du texte d'un post (formats UGC / Posts varies) ──────
+function extractText(o: any): string | null {
+  if (!o || typeof o !== 'object') return null;
+  const paths = [
+    o.commentary,
+    o?.specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text,
+    o?.specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary,
+    o?.content?.content?.string,
+    o?.text?.text,
+    o?.text,
+    o?.shareCommentary?.text,
+  ];
+  for (const p of paths) {
+    if (typeof p === 'string' && p.trim().length > 0) return p;
+  }
+  return null;
+}
+function extractDate(o: any): string | null {
+  const cands = [o?.createdAt, o?.created?.time, o?.firstPublishedAt, o?.lastModifiedAt];
+  for (const c of cands) if (typeof c === 'number' && c > 0) return new Date(c).toISOString();
+  return null;
+}
+
+// ── Snapshot : historique complet des posts ──────────────────────────────────
+export async function fetchSnapshotPosts(token: string, maxPages = 40): Promise<IncomingPost[]> {
+  const out: IncomingPost[] = [];
+  let url: string | null = `${API}/rest/memberSnapshotData?q=criteria&domain=${SNAPSHOT_DOMAIN_POSTS}`;
+  let pages = 0;
+  while (url && pages < maxPages) {
+    pages++;
+    const r: Response = await fetch(url, { headers: authHeaders(token) });
+    if (!r.ok) {
+      if (r.status === 404 || r.status === 400) break; // plus de data / fin
+      throw new Error(`snapshot ${r.status}: ${(await r.text()).slice(0, 160)}`);
+    }
+    const j: any = await r.json();
+    const el = (j.elements || [])[0];
+    const data: any[] = (el && el.snapshotData) || [];
+    for (const row of data) {
+      // Les cles ressemblent aux colonnes du Shares.csv (ShareCommentary, Date, ShareLink).
+      const text = pick(row, ['ShareCommentary', 'commentary', 'Commentary', 'text']);
+      if (!text) continue;
+      out.push({
+        text,
+        date: pick(row, ['Date', 'date', 'ShareDate', 'createdAt']),
+        url: pick(row, ['ShareLink', 'shareLink', 'Link', 'url']),
+        media: pick(row, ['MediaUrl', 'media']),
+        visibility: pick(row, ['Visibility', 'visibility']),
+      });
+    }
+    const next = (j.paging?.links || []).find((l: any) => l.rel === 'next');
+    url = next ? `${API}/rest${next.href.replace(/^\/rest/, '')}` : null;
+  }
+  return out;
+}
+function pick(row: any, keys: string[]): string | null {
+  for (const k of keys) {
+    if (row[k] != null && String(row[k]).trim() !== '') return String(row[k]);
+    // tolerance casse
+    const found = Object.keys(row).find(rk => rk.toLowerCase() === k.toLowerCase());
+    if (found && row[found] != null && String(row[found]).trim() !== '') return String(row[found]);
+  }
+  return null;
+}
+
+// ── Changelog : nouveaux posts depuis le dernier curseur ─────────────────────
+export async function fetchChangelogPosts(token: string, startTime?: number): Promise<{ posts: IncomingPost[]; latest: number | null }> {
+  const posts: IncomingPost[] = [];
+  let latest: number | null = null;
+  const params = new URLSearchParams({ q: 'memberAndApplication', count: '50' });
+  if (startTime) params.set('startTime', String(startTime));
+  const r = await fetch(`${API}/rest/memberChangeLogs?${params.toString()}`, { headers: authHeaders(token) });
+  if (!r.ok) throw new Error(`changelog ${r.status}: ${(await r.text()).slice(0, 160)}`);
+  const j: any = await r.json();
+  for (const ev of (j.elements || [])) {
+    if (typeof ev.processedAt === 'number') latest = Math.max(latest || 0, ev.processedAt);
+    if ((ev.method || '').toUpperCase() !== 'CREATE') continue;
+    if (!POST_RESOURCES.includes(String(ev.resourceName || '').toLowerCase())) continue;
+    const body = ev.processedActivity || ev.activity || {};
+    const text = extractText(body);
+    if (!text) continue;
+    posts.push({
+      text,
+      date: extractDate(body) || (typeof ev.capturedAt === 'number' ? new Date(ev.capturedAt).toISOString() : null),
+      url: body.resourceUri || ev.resourceUri || null,
+    });
+  }
+  return { posts, latest };
+}
+
+// ── Orchestration : appelee par le cron ──────────────────────────────────────
+export async function syncDma(opts?: { snapshot?: boolean }): Promise<any> {
+  const tok = await getDmaToken();
+  if (!tok) return { skipped: 'no_dma_token' };
+  await enableChangelog(tok.access_token);
+
+  // 1er passage (ou ?snapshot=1) : backfill historique via Snapshot.
+  let snapshot: any = null;
+  const cursorRaw = await kvGet('linkedin.dma_cursor');
+  if (opts?.snapshot || !cursorRaw) {
+    try {
+      const hist = await fetchSnapshotPosts(tok.access_token);
+      snapshot = await ingestLinkedInPosts(hist, { sourceType: 'linkedin_import_zip' });
+    } catch (e: any) { snapshot = { error: e.message }; }
+  }
+
+  // Changelog : nouveaux posts depuis le curseur.
+  let changelog: any = null;
+  try {
+    const startTime = cursorRaw ? Number(cursorRaw) : Date.now() - 27 * 86_400_000;
+    const { posts, latest } = await fetchChangelogPosts(tok.access_token, startTime);
+    changelog = await ingestLinkedInPosts(posts, { sourceType: 'linkedin_published' });
+    if (latest) await kvSet('linkedin.dma_cursor', String(latest));
+  } catch (e: any) { changelog = { error: e.message }; }
+
+  return { ok: true, snapshot, changelog };
+}
