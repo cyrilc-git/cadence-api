@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import LinkedInImportClient from './client';
+import DmaConnect from './dma-connect';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,11 +14,18 @@ export default function ImportLinkedInPage() {
         <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400">
           <Link href="/sources" className="hover:text-ink-700 transition">Sources</Link> · LinkedIn
         </p>
-        <h1 className="mt-1 text-3xl font-semibold text-ink-900 tracking-tight">Importez votre historique</h1>
+        <h1 className="mt-1 text-3xl font-semibold text-ink-900 tracking-tight">Connectez LinkedIn</h1>
         <p className="mt-2 text-sm text-ink-500 max-w-xl leading-relaxed">
-          LinkedIn est la source de vérité de vos publications. L&apos;import ZIP officiel est aujourd&apos;hui la voie la plus fiable pour reconstruire votre mémoire éditoriale dans Cadence.
+          La synchronisation automatique garde votre mémoire à jour sans rien faire, même quand vous publiez en direct. L&apos;import ZIP reste disponible pour un rattrapage ponctuel.
         </p>
       </header>
+
+      <DmaConnect />
+
+      <section className="space-y-1 pt-2">
+        <h2 className="text-2xs uppercase tracking-wider font-semibold text-ink-400">Import manuel (ponctuel)</h2>
+        <p className="text-xs text-ink-500">Pour rattraper un historique d&apos;un coup depuis l&apos;archive ZIP officielle.</p>
+      </section>
 
       <LinkedInImportClient />
 

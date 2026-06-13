@@ -172,5 +172,74 @@ export async function syncDma(opts?: { snapshot?: boolean }): Promise<any> {
     if (latest) await kvSet('linkedin.dma_cursor', String(latest));
   } catch (e: any) { changelog = { error: e.message }; }
 
-  return { ok: true, snapshot, changelog };
+  // Detection d'expiration : si un 401 a ete renvoye, le token est a renouveler.
+  const tokenExpired = /\b401\b|invalid.?token|expired/i.test(JSON.stringify([snapshot, changelog]));
+  return { ok: true, token_expired: tokenExpired, snapshot, changelog };
+}
+
+// ── Sonde de diagnostic : montre la FORME REELLE des reponses sans rien
+// ingerer. Sert a confirmer les 3 CONFIRM (domaine Snapshot, resourceName
+// Changelog, chemin du texte) des que le token est branche. ───────────────────
+function redact(v: any, depth = 0): any {
+  if (v == null) return v;
+  if (typeof v === 'string') return v.length > 180 ? v.slice(0, 180) + `…[${v.length} car.]` : v;
+  if (typeof v !== 'object' || depth > 4) return v;
+  if (Array.isArray(v)) return v.slice(0, 3).map(x => redact(x, depth + 1));
+  const o: any = {};
+  for (const k of Object.keys(v).slice(0, 40)) o[k] = redact(v[k], depth + 1);
+  return o;
+}
+
+export async function probeDma(): Promise<any> {
+  const tok = await getDmaToken();
+  if (!tok) return { error: 'no_dma_token' };
+  const out: any = { version: VERSION, snapshot_domain_tried: SNAPSHOT_DOMAIN_POSTS, post_resources_tried: POST_RESOURCES };
+
+  // Autorisation active ?
+  try {
+    const r = await fetch(`${API}/rest/memberAuthorizations?q=memberAndApplication`, { headers: authHeaders(tok.access_token) });
+    out.authorized_status = r.status;
+    if (r.ok) { const j: any = await r.json(); out.authorized = (j.elements || []).length > 0; }
+    else out.authorized_body = (await r.text()).slice(0, 240);
+  } catch (e: any) { out.authorized_err = e.message; }
+
+  // Snapshot : cles reelles de la 1re ligne (pour CONFIRM [1]).
+  try {
+    const r = await fetch(`${API}/rest/memberSnapshotData?q=criteria&domain=${SNAPSHOT_DOMAIN_POSTS}`, { headers: authHeaders(tok.access_token) });
+    out.snapshot_status = r.status;
+    if (r.ok) {
+      const j: any = await r.json();
+      const el = (j.elements || [])[0];
+      out.snapshot_returned_domain = el?.snapshotDomain;
+      out.snapshot_total = j.paging?.total;
+      out.snapshot_rows = (el?.snapshotData || []).length;
+      out.snapshot_first_row_keys = el?.snapshotData?.[0] ? Object.keys(el.snapshotData[0]) : null;
+      out.snapshot_first_row = redact(el?.snapshotData?.[0] ?? null);
+    } else out.snapshot_body = (await r.text()).slice(0, 300);
+  } catch (e: any) { out.snapshot_err = e.message; }
+
+  // Changelog : resourceNames presents + 1er event CREATE (pour CONFIRM [2][3]).
+  try {
+    const r = await fetch(`${API}/rest/memberChangeLogs?q=memberAndApplication&count=20`, { headers: authHeaders(tok.access_token) });
+    out.changelog_status = r.status;
+    if (r.ok) {
+      const j: any = await r.json();
+      const evs: any[] = j.elements || [];
+      out.changelog_count = evs.length;
+      out.changelog_resourceNames = [...new Set(evs.map(e => `${e.method}:${e.resourceName}`))].slice(0, 20);
+      const created = evs.find(e => (e.method || '').toUpperCase() === 'CREATE');
+      out.changelog_first_create = created
+        ? { resourceName: created.resourceName, processedActivity: redact(created.processedActivity || created.activity) }
+        : null;
+    } else out.changelog_body = (await r.text()).slice(0, 300);
+  } catch (e: any) { out.changelog_err = e.message; }
+
+  return out;
+}
+
+// Statut riche pour l'UI (connecte ? curseur ? expiration ?).
+export async function getDmaStatus(): Promise<{ connected: boolean; cursor: string | null; expires_at: string | null }> {
+  const tok = await getDmaToken();
+  const cursor = await kvGet('linkedin.dma_cursor');
+  return { connected: !!tok, cursor, expires_at: tok?.expires_at ?? null };
 }
