@@ -412,10 +412,53 @@ export async function ensureFreshContentItems(maxAgeMinutes = 120): Promise<void
   } catch { /* silent */ }
 }
 
+// V54 — Déduplication d'affichage : un même post peut exister en double (version
+// Notion archivée + version LinkedIn importée par le backfill / la synchro DMA).
+// On garde une seule carte par titre, en privilégiant la provenance la plus
+// fiable (LinkedIn > Cadence > Notion). Non destructif : on ne supprime aucune
+// ligne, on filtre seulement l'affichage. Profite à la biblio, au calendrier et
+// à la mémoire éditoriale (pas de double comptage de thèmes).
+const SRC_PRIORITY: Record<SourceType, number> = {
+  linkedin_published: 6,
+  linkedin_import_zip: 5,
+  cadence_generated: 4,
+  notion_archive: 3,
+  notion_draft: 2,
+  unknown: 1,
+};
+function dedupTitleKey(it: ContentItem): string {
+  return (it.title || '')
+    .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 55);
+}
+function dedupeContentItems(items: ContentItem[]): ContentItem[] {
+  const best = new Map<string, ContentItem>();
+  for (const it of items) {
+    const k = dedupTitleKey(it);
+    if (k.length < 10) continue; // titre trop court : jamais dédupliqué (risque de collision)
+    const prev = best.get(k);
+    if (!prev) { best.set(k, it); continue; }
+    const pw = SRC_PRIORITY[prev.provenance.source_type] || 0;
+    const cw = SRC_PRIORITY[it.provenance.source_type] || 0;
+    if (cw > pw || (cw === pw && (it.excerpt || '').length > (prev.excerpt || '').length)) best.set(k, it);
+  }
+  const emitted = new Set<string>();
+  const out: ContentItem[] = [];
+  for (const it of items) {
+    const k = dedupTitleKey(it);
+    if (k.length < 10) { out.push(it); continue; }
+    if (emitted.has(k)) continue;
+    emitted.add(k);
+    out.push(best.get(k) || it);
+  }
+  return out;
+}
+
 // V11.1 — Lecture haut-niveau prête pour l'UI : retourne directement des
 // NotionPostSummary depuis content_items.
 export async function listPostSummaries(opts?: { limit?: number }): Promise<NotionPostSummary[]> {
-  const items = await listContentItems({ limit: opts?.limit ?? 200 });
+  const raw = await listContentItems({ limit: opts?.limit ?? 200 });
+  const items = dedupeContentItems(Array.isArray(raw) ? raw : (raw as ContentItem[]));
   const summaries = items.map(contentItemToPostSummary);
   // V50.3 — Attache la miniature du visuel généré par Cadence (tracé dans
   // visual_items via meta.notion_page_id) quand le post n'a pas déjà de
