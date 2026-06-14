@@ -6,6 +6,11 @@ import { getContentItemFull } from '@/lib/content-items';
 import { PROVENANCE_META } from '@/lib/provenance';
 
 export const dynamic = 'force-dynamic';
+// V54 — Lecture toujours fraiche : la couche canonique (content_items) peut etre
+// reecrite par la synchro DMA apres un 1er rendu ; sans ca, le Next Data Cache
+// resservait l'ancien contenu (ex : texte non nettoye).
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
 
 export default async function EditPage({ params }: { params: { id: string } }) {
   // 1. Brouillon Notion editable -> l'editeur.
