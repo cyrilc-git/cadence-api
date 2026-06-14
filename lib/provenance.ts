@@ -94,8 +94,10 @@ export function inferFromNotion(post: NotionPostInput): Provenance {
   const hasLinkedInLink = !!linkedinUrl && /linkedin\.com/i.test(linkedinUrl);
   const urn = extractLinkedinUrn(linkedinUrl);
 
-  // 1. Créé par Cadence
-  if (post.cadence_source === 'cadence') {
+  // 1. Créé par Cadence (V55 — markCadenceDraft écrit 'cadence_app' ; on
+  //    accepte les deux pour que les brouillons Cadence soient bien classés
+  //    cadence_generated et non confondus avec des notes Notion natives).
+  if (post.cadence_source === 'cadence' || post.cadence_source === 'cadence_app') {
     return withCanonical({
       source_type: 'cadence_generated',
       confidence: hasLinkedInLink ? 'confirmed' : 'inferred',
