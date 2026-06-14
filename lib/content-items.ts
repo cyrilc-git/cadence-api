@@ -492,3 +492,31 @@ export async function countByProvenance(opts?: { limit?: number }): Promise<Reco
   for (const it of items) counts[it.provenance.source_type]++;
   return counts;
 }
+
+// V54 — Lecture d'un post par son id content_items (avec le texte integral).
+// Sert au repli lecture seule de /posts/[id]/edit pour les posts LinkedIn
+// rapatries (Snapshot/Changelog/export) qui n'ont pas de page Notion.
+export type ContentItemFull = {
+  id: string;
+  title: string;
+  content: string | null;
+  excerpt: string | null;
+  published_at: string | null;
+  scheduled_at: string | null;
+  linkedin_url: string | null;
+  source_type: SourceType;
+  meta: any;
+};
+export async function getContentItemFull(id: string): Promise<ContentItemFull | null> {
+  try {
+    const { data, error } = await supabase
+      .from('content_items')
+      .select('id, title, content, excerpt, published_at, scheduled_at, linkedin_url, source_type, meta')
+      .eq('id', id)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data as ContentItemFull;
+  } catch {
+    return null;
+  }
+}
