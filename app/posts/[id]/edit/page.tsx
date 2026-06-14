@@ -17,10 +17,12 @@ export const revalidate = 0;
 // dependre de Notion. Seuls les brouillons editables passent encore par l'editeur
 // Notion (backing store temporaire). Si Notion disparait, les posts restent lisibles.
 function isReadonly(ci: ContentItemFull): boolean {
-  if (ci.source_type === 'linkedin_published' || ci.source_type === 'linkedin_import_zip' || ci.source_type === 'notion_archive') return true;
-  const d = ci.published_at || ci.scheduled_at;
-  if (d && new Date(d).getTime() < Date.now()) return true; // date passee = publie
-  return false;
+  // Seuls les posts publies / archives sont en lecture seule. Les brouillons
+  // Cadence (cadence_generated) et Notion restent editables, meme datent-ils
+  // dans le passe (un brouillon en retard reste un brouillon).
+  return ci.source_type === 'linkedin_published'
+    || ci.source_type === 'linkedin_import_zip'
+    || ci.source_type === 'notion_archive';
 }
 
 function ReadOnlyPost({ ci }: { ci: ContentItemFull }) {
