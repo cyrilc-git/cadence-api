@@ -29,7 +29,7 @@ function authed(req: NextRequest): boolean {
 export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get('probe') === '1') {
     if (!authed(req)) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-    return NextResponse.json(await probeDma());
+    return NextResponse.json(await probeDma(req.nextUrl.searchParams.get('domain') || undefined));
   }
   return NextResponse.json(await getDmaStatus());
 }

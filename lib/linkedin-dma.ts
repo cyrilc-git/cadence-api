@@ -190,10 +190,26 @@ function redact(v: any, depth = 0): any {
   return o;
 }
 
-export async function probeDma(): Promise<any> {
+export async function probeDma(domainOverride?: string): Promise<any> {
   const tok = await getDmaToken();
   if (!tok) return { error: 'no_dma_token' };
-  const out: any = { version: VERSION, snapshot_domain_tried: SNAPSHOT_DOMAIN_POSTS, post_resources_tried: POST_RESOURCES };
+  const dom = domainOverride || SNAPSHOT_DOMAIN_POSTS;
+  const out: any = { version: VERSION, snapshot_domain_tried: dom, post_resources_tried: POST_RESOURCES };
+
+  // Liste TOUS les domaines Snapshot disponibles (sans filtre) : revele le vrai
+  // nom du domaine des posts ET si l'historique est deja traite cote LinkedIn.
+  try {
+    const r = await fetch(`${API}/rest/memberSnapshotData?q=criteria`, { headers: authHeaders(tok.access_token) });
+    out.alldomains_status = r.status;
+    if (r.ok) {
+      const j: any = await r.json();
+      out.alldomains = (j.elements || []).map((e: any) => ({
+        domain: e.snapshotDomain,
+        rows: (e.snapshotData || []).length,
+        sample_keys: e.snapshotData?.[0] ? Object.keys(e.snapshotData[0]).slice(0, 14) : null,
+      }));
+    } else out.alldomains_body = (await r.text()).slice(0, 220);
+  } catch (e: any) { out.alldomains_err = e.message; }
 
   // Autorisation active ?
   try {
@@ -205,7 +221,7 @@ export async function probeDma(): Promise<any> {
 
   // Snapshot : cles reelles de la 1re ligne (pour CONFIRM [1]).
   try {
-    const r = await fetch(`${API}/rest/memberSnapshotData?q=criteria&domain=${SNAPSHOT_DOMAIN_POSTS}`, { headers: authHeaders(tok.access_token) });
+    const r = await fetch(`${API}/rest/memberSnapshotData?q=criteria&domain=${dom}`, { headers: authHeaders(tok.access_token) });
     out.snapshot_status = r.status;
     if (r.ok) {
       const j: any = await r.json();
