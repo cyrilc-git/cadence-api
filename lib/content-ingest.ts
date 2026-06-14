@@ -38,6 +38,32 @@ function clean(s: string | null | undefined): string {
 function norm(s: string): string {
   return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 }
+
+// LinkedIn renvoie parfois le commentaire avec un artefact de serialisation :
+// chaque paragraphe entoure de guillemets, les lignes vides en `""`. On le
+// detecte (beaucoup de lignes a guillemet de bord, ou des lignes `""`) et on
+// deballe. Les posts normaux (guillemets legitimes en milieu de phrase) ne
+// sont pas touches : la detection est gated et on n'enleve qu'un guillemet de bord.
+function normalizeCommentary(text: string | null | undefined): string {
+  const s = String(text ?? '');
+  if (!s) return s;
+  const lines = s.split('\n');
+  const nonEmpty = lines.filter(l => l.trim().length > 0);
+  if (nonEmpty.length < 2) return s.replace(/^"/, '').replace(/"$/, '');
+  const blankQuoted = lines.filter(l => { const t = l.trim(); return t === '""' || t === '"'; }).length;
+  const edgeQuoted = nonEmpty.filter(l => { const t = l.trim(); return t.startsWith('"') || t.endsWith('"'); }).length;
+  const looksArtifact = (edgeQuoted / nonEmpty.length) > 0.4 || blankQuoted > 0;
+  if (!looksArtifact) return s;
+  return lines
+    .map(l => {
+      const t = l.trim();
+      if (t === '""' || t === '"') return '';
+      return l.replace(/^(\s*)"/, '$1').replace(/"(\s*)$/, '$1');
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 export function postSourceId(date: string | null | undefined, text: string): string {
   const d = (date || '').slice(0, 10);
   const k = norm((text || '').split('\n')[0]).slice(0, 80);
@@ -80,7 +106,7 @@ export async function ingestLinkedInPosts(
   const rows: any[] = [];
 
   for (const p of posts) {
-    const text = clean(p.text);
+    const text = clean(normalizeCommentary(p.text));
     if (!text || text.trim().length === 0) continue;
     const sid = postSourceId(p.date, p.text);
     if (seen.has(sid)) continue;
