@@ -71,7 +71,7 @@ function normalizeCommentary(text) {
     .in('source_type', ['cadence_generated', 'notion_draft'])
     .not('notion_page_id', 'is', null);
   if (error) { console.error(error.message); process.exit(1); }
-  console.log(`${rows.length} brouillons Notion a verifier.`);
+  console.log(`${rows.length} brouillons Notion a traiter.`);
 
   let updated = 0, skipped = 0, empty = 0, errs = 0;
   const failures = [];
