@@ -81,16 +81,21 @@ function extractDate(o: any): string | null {
 }
 
 // ── Snapshot : historique complet des posts ──────────────────────────────────
-export async function fetchSnapshotPosts(token: string, maxPages = 40): Promise<IncomingPost[]> {
+export async function fetchSnapshotPosts(token: string, maxPages = 40): Promise<{ posts: IncomingPost[]; pending: boolean }> {
   const out: IncomingPost[] = [];
+  let pending = false;
   let url: string | null = `${API}/rest/memberSnapshotData?q=criteria&domain=${SNAPSHOT_DOMAIN_POSTS}`;
   let pages = 0;
   while (url && pages < maxPages) {
     pages++;
     const r: Response = await fetch(url, { headers: authHeaders(token) });
     if (!r.ok) {
-      if (r.status === 404 || r.status === 400) break; // plus de data / fin
-      throw new Error(`snapshot ${r.status}: ${(await r.text()).slice(0, 160)}`);
+      const body = await r.text();
+      // 404 « No data found » = domaine valide mais pas encore collate par
+      // LinkedIn (historique en cours de preparation) -> on signale "pending".
+      if (r.status === 404 && /no data found/i.test(body)) { pending = true; break; }
+      if (r.status === 404 || r.status === 400) break; // fin de pagination
+      throw new Error(`snapshot ${r.status}: ${body.slice(0, 160)}`);
     }
     const j: any = await r.json();
     const el = (j.elements || [])[0];
@@ -110,7 +115,7 @@ export async function fetchSnapshotPosts(token: string, maxPages = 40): Promise<
     const next = (j.paging?.links || []).find((l: any) => l.rel === 'next');
     url = next ? `${API}/rest${next.href.replace(/^\/rest/, '')}` : null;
   }
-  return out;
+  return { posts: out, pending: pending && out.length === 0 };
 }
 function pick(row: any, keys: string[]): string | null {
   for (const k of keys) {
@@ -153,14 +158,25 @@ export async function syncDma(opts?: { snapshot?: boolean }): Promise<any> {
   if (!tok) return { skipped: 'no_dma_token' };
   await enableChangelog(tok.access_token);
 
-  // 1er passage (ou ?snapshot=1) : backfill historique via Snapshot.
+  // Backfill historique via Snapshot. On (re)tente tant que l'historique n'a
+  // pas ete recupere AVEC SUCCES (flag dma_snapshot_done), independamment du
+  // curseur changelog — car LinkedIn peut mettre des heures a collater le
+  // domaine MEMBER_SHARE_INFO apres le consentement. ?snapshot=1 force un essai.
   let snapshot: any = null;
   const cursorRaw = await kvGet('linkedin.dma_cursor');
-  if (opts?.snapshot || !cursorRaw) {
+  const snapshotDone = (await kvGet('linkedin.dma_snapshot_done')) === 'true';
+  if (opts?.snapshot || !snapshotDone) {
     try {
-      const hist = await fetchSnapshotPosts(tok.access_token);
-      snapshot = await ingestLinkedInPosts(hist, { sourceType: 'linkedin_import_zip' });
+      const { posts, pending } = await fetchSnapshotPosts(tok.access_token);
+      if (pending) {
+        snapshot = { pending: true, note: 'LinkedIn prepare encore votre historique (domaine MEMBER_SHARE_INFO).' };
+      } else {
+        snapshot = await ingestLinkedInPosts(posts, { sourceType: 'linkedin_import_zip' });
+        if (posts.length > 0) await kvSet('linkedin.dma_snapshot_done', 'true');
+      }
     } catch (e: any) { snapshot = { error: e.message }; }
+  } else {
+    snapshot = { skipped: 'already_done' };
   }
 
   // Changelog : nouveaux posts depuis le curseur.
@@ -254,8 +270,9 @@ export async function probeDma(domainOverride?: string): Promise<any> {
 }
 
 // Statut riche pour l'UI (connecte ? curseur ? expiration ?).
-export async function getDmaStatus(): Promise<{ connected: boolean; cursor: string | null; expires_at: string | null }> {
+export async function getDmaStatus(): Promise<{ connected: boolean; cursor: string | null; expires_at: string | null; snapshot_done: boolean }> {
   const tok = await getDmaToken();
   const cursor = await kvGet('linkedin.dma_cursor');
-  return { connected: !!tok, cursor, expires_at: tok?.expires_at ?? null };
+  const snapshot_done = (await kvGet('linkedin.dma_snapshot_done')) === 'true';
+  return { connected: !!tok, cursor, expires_at: tok?.expires_at ?? null, snapshot_done };
 }

@@ -112,9 +112,11 @@ export default function DmaConnect() {
             <div className="text-xs text-ink-600 bg-white rounded-lg border border-ink-100 p-3 leading-relaxed">
               {snap.token_expired
                 ? <span className="text-danger-700">Le token semble expiré (401). Reconnectez avec un token frais.</span>
+                : snap?.snapshot?.pending
+                ? <span>LinkedIn prépare encore votre historique (la collecte peut prendre quelques heures après la connexion). <strong className="text-ink-800">Aucune action de votre part</strong> : Cadence le récupérera automatiquement dès que c&apos;est prêt. Vos nouveaux posts, eux, sont déjà captés en direct.</span>
                 : <span>
-                    Snapshot : {snap?.snapshot?.upserted ?? 0} post{(snap?.snapshot?.upserted ?? 0) > 1 ? 's' : ''} historique{(snap?.snapshot?.upserted ?? 0) > 1 ? 's' : ''} ·
-                    {' '}Changelog : {snap?.changelog?.upserted ?? 0} récent{(snap?.changelog?.upserted ?? 0) > 1 ? 's' : ''}.
+                    Historique : {snap?.snapshot?.upserted ?? 0} post{(snap?.snapshot?.upserted ?? 0) > 1 ? 's' : ''} récupéré{(snap?.snapshot?.upserted ?? 0) > 1 ? 's' : ''} ·
+                    {' '}Direct : {snap?.changelog?.upserted ?? 0} post{(snap?.changelog?.upserted ?? 0) > 1 ? 's' : ''} récent{(snap?.changelog?.upserted ?? 0) > 1 ? 's' : ''}.
                     {(snap?.snapshot?.error || snap?.changelog?.error) && <span className="text-amber-700"> (détail technique transmis à l&apos;équipe.)</span>}
                   </span>}
             </div>
