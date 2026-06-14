@@ -18,7 +18,7 @@
 // Sortie : des EditorialOpportunity au format IDENTIQUE aux opportunités
 // natives/radar, pour se fondre dans Aujourd'hui sans trahir leur origine.
 
-import { listPostSummaries } from './content-items';
+import { listPostSummaries, EDITORIAL_SOURCE_TYPES } from './content-items';
 import type { EditorialOpportunity } from './editorial-opportunities';
 
 // ─────────────────────────────────────────────────────────────────────
@@ -114,7 +114,9 @@ export type EditorialMemory = {
 // est vide ou indisponible, on renvoie une mémoire vide (jamais d'exception).
 export async function readEditorialMemory(opts?: { limit?: number }): Promise<EditorialMemory> {
   try {
-    const summaries = await listPostSummaries({ limit: opts?.limit ?? 500 });
+    // V55 — Cadence apprend l'éditorial certifié uniquement (LinkedIn + Cadence).
+    // Notion (notes / archives non éditoriales) ne pollue plus la mémoire.
+    const summaries = await listPostSummaries({ limit: opts?.limit ?? 500, sourceTypes: EDITORIAL_SOURCE_TYPES });
     const now = Date.now();
     // Corpus = tout ce qui a un minimum de texte (titre + extrait). On ne
     // filtre PAS sur la provenance (cf. note d'en-tête : tout est notion_*).

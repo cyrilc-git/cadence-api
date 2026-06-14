@@ -456,8 +456,12 @@ function dedupeContentItems(items: ContentItem[]): ContentItem[] {
 
 // V11.1 — Lecture haut-niveau prête pour l'UI : retourne directement des
 // NotionPostSummary depuis content_items.
-export async function listPostSummaries(opts?: { limit?: number }): Promise<NotionPostSummary[]> {
-  const raw = await listContentItems({ limit: opts?.limit ?? 200 });
+// V55 — Sources éditoriales canoniques. Notion (notion_draft / notion_archive)
+// est exclu du flux principal : c'est du legacy / des notes, plus une source.
+export const EDITORIAL_SOURCE_TYPES: SourceType[] = ['linkedin_published', 'linkedin_import_zip', 'cadence_generated'];
+
+export async function listPostSummaries(opts?: { limit?: number; sourceTypes?: SourceType[] }): Promise<NotionPostSummary[]> {
+  const raw = await listContentItems({ limit: opts?.limit ?? 200, sourceType: opts?.sourceTypes });
   const items = dedupeContentItems(Array.isArray(raw) ? raw : (raw as ContentItem[]));
   const summaries = items.map(contentItemToPostSummary);
   // V50.3 — Attache la miniature du visuel généré par Cadence (tracé dans
@@ -504,6 +508,7 @@ export type ContentItemFull = {
   published_at: string | null;
   scheduled_at: string | null;
   linkedin_url: string | null;
+  notion_page_id: string | null;
   source_type: SourceType;
   meta: any;
 };
@@ -511,7 +516,7 @@ export async function getContentItemFull(id: string): Promise<ContentItemFull | 
   try {
     const { data, error } = await supabase
       .from('content_items')
-      .select('id, title, content, excerpt, published_at, scheduled_at, linkedin_url, source_type, meta')
+      .select('id, title, content, excerpt, published_at, scheduled_at, linkedin_url, notion_page_id, source_type, meta')
       .eq('id', id)
       .maybeSingle();
     if (error || !data) return null;
