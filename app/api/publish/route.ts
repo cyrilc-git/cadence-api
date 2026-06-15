@@ -33,6 +33,17 @@ export async function POST(req: NextRequest) {
     });
     if (notion_page_id) {
       try { await markNotionPublished(notion_page_id, postUrn); } catch {}
+      // V55 Lot 5b — refléter l'état publié dans content_items (couche
+      // canonique) sans attendre la re-synchro DMA. Best-effort, jamais bloquant.
+      // La clé éditeur peut être un id content_items OU un notion_page_id.
+      if (/^[0-9a-f-]{32,40}$/i.test(notion_page_id)) {
+        try {
+          const nowIso = new Date().toISOString();
+          await supabase.from('content_items')
+            .update({ published_at: nowIso, linkedin_url: `https://www.linkedin.com/feed/update/${postUrn}`, updated_at: nowIso })
+            .or(`id.eq.${notion_page_id},notion_page_id.eq.${notion_page_id}`);
+        } catch {}
+      }
     }
     return NextResponse.json({ success: true, post_urn: postUrn });
   } catch (e: any) {

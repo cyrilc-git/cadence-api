@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getNotionPost } from '@/lib/notion';
 import { isValidated } from '@/lib/db';
 import { getContentItemFull, type ContentItemFull } from '@/lib/content-items';
+import { buildDraftSummary } from '@/lib/drafts';
 import { PROVENANCE_META } from '@/lib/provenance';
 
 export const dynamic = 'force-dynamic';
@@ -64,22 +65,36 @@ function ReadOnlyPost({ ci }: { ci: ContentItemFull }) {
 }
 
 export default async function EditPage({ params }: { params: { id: string } }) {
-  // 1. content_items d'abord (source canonique).
+  // 1. content_items d'abord (source canonique : id OU notion_page_id).
   const ci = await getContentItemFull(params.id);
 
   // 2. Post publie -> lecture seule depuis content_items (jamais Notion).
   if (ci && isReadonly(ci)) return <ReadOnlyPost ci={ci} />;
 
-  // 3. Brouillon editable -> editeur. On charge la page Notion (backing store
-  //    actuel des brouillons) ; via notion_page_id si on l'a, sinon via l'id.
-  const r = await getNotionPost(ci?.notion_page_id || params.id).catch(() => null);
+  // 3. Brouillon editable -> l'editeur lit le corps DEPUIS content_items.
+  //    Plus aucune dependance Notion pour ouvrir / editer un brouillon.
+  if (ci) {
+    const body = (ci.content || ci.excerpt || '').trim();
+    if (body) {
+      const summary = buildDraftSummary(ci);
+      const validated = await isValidated(summary.id).catch(() => false);
+      return <EditClient initial={{ summary, content: ci.content || body }} validated={validated} />;
+    }
+    // content_items sans corps (jamais rapatrie) -> dernier recours Notion.
+    const rN = await getNotionPost(ci.notion_page_id || params.id).catch(() => null);
+    if (rN) {
+      const validated = await isValidated(rN.summary.id).catch(() => false);
+      return <EditClient initial={rN} validated={validated} />;
+    }
+    return <ReadOnlyPost ci={ci} />;
+  }
+
+  // 4. Aucune ligne content_items (post tres ancien) -> compat Notion directe.
+  const r = await getNotionPost(params.id).catch(() => null);
   if (r) {
     const validated = await isValidated(r.summary.id).catch(() => false);
     return <EditClient initial={r} validated={validated} />;
   }
-
-  // 4. content_items sans page Notion editable -> lecture seule (ex : Notion KO).
-  if (ci) return <ReadOnlyPost ci={ci} />;
 
   // 5. Rien.
   return <div className="p-8 text-danger-700">Post introuvable.</div>;

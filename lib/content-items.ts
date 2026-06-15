@@ -510,17 +510,22 @@ export type ContentItemFull = {
   linkedin_url: string | null;
   notion_page_id: string | null;
   source_type: SourceType;
+  pilier: string | null;
   meta: any;
 };
+const FULL_COLS = 'id, title, content, excerpt, published_at, scheduled_at, linkedin_url, notion_page_id, source_type, pilier, meta';
+// V55 Lot 5b — On resout un post par son id content_items OU par son
+// notion_page_id : un brouillon ouvert depuis le calendrier passe son
+// notion_page_id, mais le corps canonique vit dans content_items. Matcher les
+// deux colonnes permet a l'editeur de lire/ecrire content_items sans Notion.
 export async function getContentItemFull(id: string): Promise<ContentItemFull | null> {
   try {
-    const { data, error } = await supabase
-      .from('content_items')
-      .select('id, title, content, excerpt, published_at, scheduled_at, linkedin_url, notion_page_id, source_type, meta')
-      .eq('id', id)
-      .maybeSingle();
-    if (error || !data) return null;
-    return data as ContentItemFull;
+    const isUuid = /^[0-9a-f-]{32,40}$/i.test(id);
+    let q = supabase.from('content_items').select(FULL_COLS);
+    q = isUuid ? q.or(`id.eq.${id},notion_page_id.eq.${id}`) : q.eq('id', id);
+    const { data, error } = await q.limit(1);
+    if (error || !data || !data[0]) return null;
+    return data[0] as ContentItemFull;
   } catch {
     return null;
   }
