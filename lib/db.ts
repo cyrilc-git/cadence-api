@@ -28,7 +28,12 @@ export async function brandDnaDelete(id: string) {
 export type Inspiration = {
   id: string; name: string; url?: string; avatar_url?: string; category?: string;
   score: number; style_notes?: string; do_not_copy?: string; active: boolean; created_at: string;
+  // V56 — Dimensions que ce profil transmet a la generation. Selectionnables
+  // par profil. 'tone'/'structure'/'topics' nourrissent le texte ; 'visual'
+  // nourrit le generateur de visuels (via visual_notes).
+  dimensions?: string[]; visual_notes?: string;
 };
+export const INSPIRATION_DIMENSIONS = ['tone', 'structure', 'topics', 'visual'] as const;
 function normalizeLinkedInUrl(raw: string | undefined | null): string | null {
   if (!raw) return null;
   const trimmed = String(raw).trim();
@@ -47,7 +52,13 @@ export async function inspirationsList(): Promise<Inspiration[]> {
   return (data || []) as Inspiration[];
 }
 export async function inspirationUpsert(item: Partial<Inspiration> & { name: string }) {
-  const sanitized = { ...item, url: normalizeLinkedInUrl(item.url) ?? null };
+  const sanitized: any = { ...item, url: normalizeLinkedInUrl(item.url) ?? null };
+  // V56 — Ne garder que les dimensions connues. Si fournie vide -> defaut sur.
+  if (Array.isArray(item.dimensions)) {
+    const dims = Array.from(new Set(item.dimensions.filter(d => (INSPIRATION_DIMENSIONS as readonly string[]).includes(d))));
+    sanitized.dimensions = dims.length ? dims : ['tone', 'structure'];
+  }
+  if (typeof item.visual_notes === 'string') sanitized.visual_notes = item.visual_notes.trim() || null;
   const { data, error } = await supabase.from('inspirations').upsert(sanitized).select().single();
   if (error) throw error;
   return data;

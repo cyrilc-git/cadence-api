@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateThreeProposals, type VoiceMode } from '@/lib/anthropic';
 import { readStyleMemory } from '@/lib/style-memory';
+import { inspirationsList } from '@/lib/db';
+
+// V56 — Libellé prompt par dimension d'écriture. 'visual' n'entre pas ici (il
+// nourrit /api/generate-visual). 'topics' est opt-in et signifie « thèmes, pas
+// formulations » côté prompt.
+const DIM_TEXT: Record<string, string> = { tone: 'Ton/voix', structure: 'Structure/rythme', topics: 'Angles/sujets' };
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -46,7 +52,27 @@ export async function POST(req: NextRequest) {
         styleSummary = parts.join('\n');
       }
     }
-    const r = await generateThreeProposals({ pilier, brief, inspirations, voiceMode, styleSummary });
+    // V56 — Inspirations scopées par dimension, chargées en base (autorité
+    // serveur, pas le client). Chaque profil n'injecte QUE ses dimensions
+    // d'écriture cochées ; le visuel est traité ailleurs. Repli sur ce que le
+    // client a transmis si la base est injoignable.
+    let inspoForGen: string[] = inspirations || [];
+    try {
+      const all = await inspirationsList();
+      const scoped = all
+        .filter(i => i.active && i.style_notes)
+        .map(i => {
+          const dims = (i.dimensions && i.dimensions.length ? i.dimensions : ['tone', 'structure']).filter(d => d !== 'visual');
+          if (!dims.length) return null;
+          const labels = dims.map(d => DIM_TEXT[d]).filter(Boolean).join(', ');
+          return `[${labels}] ${i.style_notes}`;
+        })
+        .filter((x): x is string => !!x)
+        .slice(0, 6);
+      if (scoped.length) inspoForGen = scoped;
+    } catch { /* repli client */ }
+
+    const r = await generateThreeProposals({ pilier, brief, inspirations: inspoForGen, voiceMode, styleSummary });
     return NextResponse.json({ proposals: r.proposals, model: r.model, source: 'claude', voiceMode: voiceMode || 'ma_voix' });
   } catch (e: any) {
     return NextResponse.json({ error: e.message || String(e) }, { status: 500 });

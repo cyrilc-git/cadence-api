@@ -191,7 +191,10 @@ export async function generateThreeProposals(input: { pilier?: string; brief: st
     ? `\n\n${PILIER_HINTS[input.pilier]}`
     : '';
   const inspoBlock = (input.inspirations && input.inspirations.length)
-    ? `\n\nNOTES D'INSPIRATION (style abstrait uniquement, jamais à recopier) :\n${input.inspirations.slice(0,5).map(i => `- ${i}`).join('\n')}`
+    ? `\n\nNOTES D'INSPIRATION (style abstrait uniquement, jamais à recopier).
+Chaque note est précédée de ses leviers entre crochets : applique UNIQUEMENT ces leviers-là de cette référence.
+[Ton/voix] = registre, niveau de langue, proximité · [Structure/rythme] = ossature, longueur, cadence · [Angles/sujets] = inspire-toi des thèmes abordés, jamais des formulations.
+${input.inspirations.slice(0,6).map(i => `- ${i}`).join('\n')}`
     : '';
   // V18.4 — Modulation de voix : injection de la consigne + style_summary
   // pour donner à Claude une référence concrète de "ma voix" si dispo.

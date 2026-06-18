@@ -7,5 +7,5 @@ import { redirect } from 'next/navigation';
 export const dynamic = 'force-static';
 
 export default function InspirationsRedirect() {
-  redirect('/cerveau');
+  redirect('/cerveau#inspirations');
 }

@@ -6,7 +6,8 @@ import { computeBrainState, formatDateFr } from '@/lib/brain';
 import StyleMemoryView from '@/components/StyleMemoryView';
 import { fetchEditorialRhythm, type RhythmInsight } from '@/lib/editorial-rhythm';
 import { notionStatus } from '@/lib/notion';
-import { connectorsStatus } from '@/lib/db';
+import { connectorsStatus, inspirationsList } from '@/lib/db';
+import InspirationsClient from '@/app/inspirations/client';
 import { getActiveToken } from '@/lib/supabase';
 import { validateToken } from '@/lib/linkedin';
 
@@ -104,9 +105,10 @@ function pilierTone(p: { count: number; daysSinceLast: number | null }) {
 
 export default async function BrainPage() {
   const unknownSources = await detectUnknownSources();
-  const [brain, rhythmInsights] = await Promise.all([
+  const [brain, rhythmInsights, inspos] = await Promise.all([
     computeBrainState(unknownSources),
     fetchEditorialRhythm().catch(() => [] as RhythmInsight[]),
+    inspirationsList().catch(() => [] as any[]),
   ]);
   const rhythm = rhythmInsights.filter(r => r.kind !== 'low_data');
 
@@ -280,6 +282,13 @@ export default async function BrainPage() {
           )}
         </section>
       )}
+
+      {/* === V56 — Inspirations : profils LinkedIn qui nourrissent le style ===
+          Ramenees ici (la nav a 4 onglets ne les montrait plus). Selection des
+          dimensions par profil : ton, structure, sujets, visuel. */}
+      <section id="inspirations" className="scroll-mt-20 pt-2">
+        <InspirationsClient initial={inspos} embedded />
+      </section>
 
       {/* === V37.6 — ANALYSE COMPLÈTE, masquée derrière un toggle === */}
       <details className="group/full">

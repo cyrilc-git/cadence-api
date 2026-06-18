@@ -3,6 +3,7 @@ import { generateClaudeDesignSvg, classifyVisualImage } from '@/lib/anthropic';
 import { getCredential } from '@/lib/credentials';
 import { supabase } from '@/lib/supabase';
 import { recordVisualItem, scoreSvgPremium, type VisualFormat } from '@/lib/visual-memory';
+import { inspirationsList } from '@/lib/db';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -89,6 +90,20 @@ export async function POST(req: NextRequest) {
     body as { prompt?: string; mode?: 'claude-design' | 'openai' | 'gemini' | 'replicate' | 'stability' | 'ideogram'; notion_page_id?: string; size?: string; quality?: 'standard' | 'hd'; template?: string; pilier?: string };
   if (!prompt || prompt.trim().length < 5) return NextResponse.json({ error: 'Prompt trop court (5 caractères minimum).' }, { status: 400 });
 
+  // V56 — Inspirations visuelles : les profils actifs marqués « Style visuel »
+  // ajoutent leur direction au prompt (inspiration, jamais une copie). Chargé en
+  // base, best-effort : si indisponible, on génère avec le prompt d'origine.
+  let genPrompt = prompt;
+  try {
+    const inspos = await inspirationsList();
+    const vis = inspos
+      .filter(i => i.active && (i.dimensions || []).includes('visual') && i.visual_notes)
+      .map(i => (i.visual_notes || '').trim())
+      .filter(Boolean)
+      .slice(0, 3);
+    if (vis.length) genPrompt = `${prompt}\n\nStyle visuel de référence (inspiration, ne pas copier littéralement) : ${vis.join(' ; ')}.`;
+  } catch { /* best-effort */ }
+
   try {
     // V38.2 — Gemini (Nano Banana = gemini-2.5-flash-image). Génère une vraie
     // image bitmap via l'API Google AI. Si pas de clé : erreur claire et
@@ -103,7 +118,7 @@ export async function POST(req: NextRequest) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: `${prompt}\n\nDirection artistique : sobre, éditorial, premium. Fond clair, une seule couleur d'accent. Pas d'emoji, pas de gradient agressif, beaucoup d'air.` }] }],
+          contents: [{ parts: [{ text: `${genPrompt}\n\nDirection artistique : sobre, éditorial, premium. Fond clair, une seule couleur d'accent. Pas d'emoji, pas de gradient agressif, beaucoup d'air.` }] }],
           generationConfig: { responseModalities: ['IMAGE'] },
         }),
       });
@@ -165,7 +180,7 @@ export async function POST(req: NextRequest) {
       const createRes = await fetch('https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions', {
         method: 'POST',
         headers: { Authorization: `Bearer ${rep.value}`, 'Content-Type': 'application/json', Prefer: 'wait' },
-        body: JSON.stringify({ input: { prompt: prompt.slice(0, 2000) + DA_SUFFIX, aspect_ratio: '1:1', output_format: 'png', num_outputs: 1 } }),
+        body: JSON.stringify({ input: { prompt: genPrompt.slice(0, 2000) + DA_SUFFIX, aspect_ratio: '1:1', output_format: 'png', num_outputs: 1 } }),
       });
       const createText = await createRes.text();
       let pred: any = null; try { pred = JSON.parse(createText); } catch {}
@@ -194,7 +209,7 @@ export async function POST(req: NextRequest) {
       const sta = await getCredential('stability');
       if (!sta.value) return NextResponse.json({ error: 'Clé Stability introuvable. Ajoutez-la dans Sources → Clés IA.' }, { status: 400 });
       const form = new FormData();
-      form.append('prompt', prompt.slice(0, 2000) + DA_SUFFIX);
+      form.append('prompt', genPrompt.slice(0, 2000) + DA_SUFFIX);
       form.append('output_format', 'png');
       form.append('aspect_ratio', '1:1');
       const sr = await fetch('https://api.stability.ai/v2beta/stable-image/generate/core', {
@@ -214,7 +229,7 @@ export async function POST(req: NextRequest) {
       const ideo = await getCredential('ideogram');
       if (!ideo.value) return NextResponse.json({ error: 'Clé Ideogram introuvable. Ajoutez-la dans Sources → Clés IA.' }, { status: 400 });
       const form = new FormData();
-      form.append('prompt', prompt.slice(0, 2000) + DA_SUFFIX);
+      form.append('prompt', genPrompt.slice(0, 2000) + DA_SUFFIX);
       form.append('aspect_ratio', '1x1');
       const ir = await fetch('https://api.ideogram.ai/v1/ideogram-v3/generate', {
         method: 'POST',
@@ -232,7 +247,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (mode === 'claude-design') {
-      const { svg, model } = await generateClaudeDesignSvg(prompt);
+      const { svg, model } = await generateClaudeDesignSvg(genPrompt);
       await ensureBucket();
       const path = `${Date.now()}-${Math.random().toString(36).slice(2,8)}.svg`;
       const { error: upErr } = await supabase.storage
@@ -283,7 +298,7 @@ export async function POST(req: NextRequest) {
     const realSize = DALL_E_SIZES.has(size) ? size : '1024x1024';
     const payload: any = {
       model: 'dall-e-3',
-      prompt: prompt.slice(0, 4000),
+      prompt: genPrompt.slice(0, 4000),
       n: 1,
       size: realSize,
       quality
