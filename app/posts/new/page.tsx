@@ -1,7 +1,7 @@
 import NewPostClient from './client';
+import ComposerClient from './composer';
 import { getNotionPost, listNotionPosts } from '@/lib/notion';
 import { sanitizeForBrandVoice } from '@/lib/brand-config';
-import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,12 +38,12 @@ export default async function NewPostPage({ searchParams }: { searchParams: Reco
     initial = { ...(initial || { title: '', content: '' }), date: searchParams.date };
   }
 
-  // V52 — Plus jamais de page blanche. Sans contexte (ni brief, ni post à
-  // recycler/éditer), Cadence ne montre pas d'éditeur vide : on renvoie vers
-  // Aujourd'hui, la surface de décision (reco du jour, dictée, opportunités).
-  // /posts/new est désormais l'atelier, atteint TOUJOURS avec un sujet.
+  // V57 — Sans contexte (ni brief, ni post à recycler/éditer), Écrire ouvre la
+  // CONVERSATION avec Cadence : on discute, on demande des idées / des posts /
+  // des infographies, puis on ouvre dans l'éditeur. Remplace l'ancien renvoi
+  // vers Aujourd'hui (qui forçait à arriver avec un sujet déjà fait).
   if (!initial && !suggestBrief) {
-    redirect('/');
+    return <ComposerClient />;
   }
 
   // Provide list of recyclable posts (>6mo published) for "Créer à partir d'un ancien post"

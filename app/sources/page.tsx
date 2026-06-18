@@ -29,9 +29,6 @@ const SOURCES: Source[] = [
   { kind: 'anthropic', label: 'Claude',       description: 'Rédaction + visuels (Sonnet 4.6, Vision).',              category: 'ai',      configRoute: '/sources/ai',       accent: '#C96342' },
   { kind: 'openai',    label: 'OpenAI',       description: 'Embeddings éditoriaux + DALL-E 3 optionnel.',           category: 'ai',      configRoute: '/sources/ai',       accent: '#000000' },
   { kind: 'gemini',    label: 'Gemini',       description: 'Illustrations bitmap riches (Nano Banana).',            category: 'ai',      configRoute: '/sources/ai',       accent: '#4285F4' },
-  { kind: 'replicate', label: 'Replicate',    description: 'Flux, SDXL, Recraft… alternative à Midjourney.',        category: 'ai',      configRoute: '/sources/ai',       accent: '#1F2937' },
-  { kind: 'stability', label: 'Stability AI', description: 'Stable Diffusion 3.5, illustrations bitmap.',           category: 'ai',      configRoute: '/sources/ai',       accent: '#7C3AED' },
-  { kind: 'ideogram',  label: 'Ideogram',     description: 'Texte net dans l\'image (titres, citations).',          category: 'ai',      configRoute: '/sources/ai',       accent: '#EF4444' },
 ];
 
 const CATEGORIES: { key: Source['category']; label: string }[] = [
@@ -56,7 +53,7 @@ async function fetchStatus(): Promise<Record<string, SourceState>> {
     if (!out[c.kind]) out[c.kind] = (c.status as SourceState) || 'needs_setup';
   }
   // V40 — État réel des moteurs IA : clé présente (stockée ou serveur) → connecté.
-  const aiProviders = ['anthropic', 'openai', 'gemini', 'replicate', 'stability', 'ideogram'];
+  const aiProviders = ['anthropic', 'openai', 'gemini'];
   await Promise.all(aiProviders.map(async (p) => {
     try {
       const cred = await getCredential(p);
