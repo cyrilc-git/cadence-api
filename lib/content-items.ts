@@ -355,7 +355,7 @@ export function contentItemToPostSummary(item: ContentItem): NotionPostSummary {
     validated: !!item.validated,
     late: isLate,
     cadence_source: cadenceSource,
-    cover_url: (item.meta && item.meta.cover_url) || null,
+    cover_url: (item.meta && (item.meta.cover_url || item.meta.media_url)) || null,
     impressions: item.meta?.impressions,
     likes: item.meta?.likes,
     comments: item.meta?.comments,

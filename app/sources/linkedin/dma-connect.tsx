@@ -97,12 +97,12 @@ export default function DmaConnect() {
         <div className="space-y-3">
           <div className="flex items-center gap-3 flex-wrap text-xs text-ink-500">
             {expires && <span>Token valable jusqu&apos;au {new Date(expires).toLocaleDateString('fr-FR', { timeZone: 'Europe/Paris' })}.</span>}
-            {cursor && <span>Dernier post capté : suivi actif.</span>}
-            {!cursor && <span>Lancez le rattrapage pour importer votre historique.</span>}
+            {cursor && <span>Suivi actif. « Actualiser » force la récupération immédiate de vos posts, même publiés en direct.</span>}
+            {!cursor && <span>« Actualiser » importe votre historique et vos posts récents.</span>}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button onClick={runSnapshot} disabled={busy} className="btn-primary text-sm disabled:opacity-40">
-              {busy ? 'Rattrapage…' : 'Lancer le rattrapage historique'}
+              {busy ? 'Actualisation…' : '↻ Actualiser mes posts LinkedIn'}
             </button>
             <button onClick={() => { setStatus('off'); setSnap(null); }} className="text-xs text-ink-500 hover:text-ink-900 transition">
               Reconnecter (nouveau token)
