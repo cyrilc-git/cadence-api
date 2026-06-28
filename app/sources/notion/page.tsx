@@ -1,10 +1,13 @@
 import NotionSettingsClient from '@/app/settings/notion/client';
 import { recentNotionActions } from '@/lib/db';
-import { notionStatus } from '@/lib/notion';
+import { notionStatus, isNotionDisconnected } from '@/lib/notion';
 
 export const dynamic = 'force-dynamic';
 
 async function fetchDbInfo() {
+  // V58 — Respecte l'interrupteur de déconnexion (sinon on lirait Notion en
+  // direct via le token env, alors que Cadence est déconnecté).
+  if (await isNotionDisconnected()) return null;
   const token = process.env.NOTION_API_TOKEN;
   const dsId = process.env.NOTION_LINKEDIN_DS_ID;
   if (!token || !dsId) return null;
