@@ -48,7 +48,8 @@ async function fetchStatus(): Promise<Record<string, SourceState>> {
     try { const v = await validateToken(tokenRow.access_token); out.linkedin = v.ok ? 'connected' : 'disconnected'; }
     catch { out.linkedin = 'disconnected'; }
   } else { out.linkedin = 'disconnected'; }
-  out.notion = notion.ok ? 'connected' : 'error';
+  // V58.2 — déconnexion volontaire = état neutre « Non connecté » (gris), pas « Erreur » (rouge).
+  out.notion = notion.ok ? 'connected' : ((notion as any).disconnected ? 'disconnected' : 'error');
   for (const c of connectors as any[]) {
     if (!out[c.kind]) out[c.kind] = (c.status as SourceState) || 'needs_setup';
   }

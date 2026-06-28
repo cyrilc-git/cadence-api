@@ -203,7 +203,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
     { id: 'preview', label: previewOpen ? 'Fermer l\'aperçu LinkedIn' : 'Ouvrir l\'aperçu LinkedIn', hint: 'Panneau coulissant à droite', group: 'Vue', shortcut: '⌘P', perform: () => setPreviewOpen(o => !o) },
     { id: 'save', label: 'Sauvegarder', hint: 'Forcer une sauvegarde immédiate', group: 'Vue', shortcut: '⌘S', perform: () => save(false) },
     { id: 'versions', label: `Historique versions (${versions.length})`, hint: 'Voir et restaurer une version précédente', group: 'Vue', perform: () => setVersionsOpen(true) },
-    { id: 'notion', label: 'Ouvrir dans Notion', group: 'Vue', perform: () => { window.open(summary.notion_url, '_blank'); } },
+    ...(summary.notion_url ? [{ id: 'notion', label: 'Ouvrir dans Notion', group: 'Vue', perform: () => { window.open(summary.notion_url, '_blank'); } }] : []),
     ...SLASH_COMMANDS.map<Command>(c => ({
       id: 'slash-' + c.id,
       label: c.label,
@@ -233,7 +233,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
     <div className={`min-h-screen min-h-[100dvh] flex flex-col editorial-canvas transition-[padding] duration-300 ease-out-expo ${previewOpen ? 'lg:pr-[480px]' : ''}`}>
       {/* === HEADER MINIMAL (sticky, 56px) === V14.1 atténué en deep writing === */}
       <header className={`sticky top-0 z-20 flex items-center gap-3 px-5 lg:px-8 h-14 border-b border-ink-100 bg-white/95 backdrop-blur pt-[env(safe-area-inset-top)] transition-opacity duration-300 ${deepWriting ? 'opacity-40 hover:opacity-100 focus-within:opacity-100' : 'opacity-100'}`}>
-        <Link href="/posts" className="btn-ghost text-sm" aria-label="Retour">←</Link>
+        <Link href="/calendar" className="btn-ghost text-sm" aria-label="Retour au calendrier" title="Retour au calendrier">←</Link>
         <span className={`chip ${sMeta.cls} text-2xs whitespace-nowrap`}>
           <span className={`dot ${sMeta.dot}`} /> {sMeta.label}
         </span>

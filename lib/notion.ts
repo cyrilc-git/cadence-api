@@ -89,7 +89,7 @@ function getDsId(): string {
 
 // === Status ping ===
 export async function notionStatus() {
-  if (await isNotionDisconnected()) return { ok: false, error: 'Notion déconnecté de Cadence.' };
+  if (await isNotionDisconnected()) return { ok: false, disconnected: true, error: 'Notion déconnecté de Cadence.' };
   const tok = await getCredential('notion');
   if (!tok.value) return { ok: false, error: 'NOTION_API_TOKEN introuvable (ni DB ni env).' };
   const ds = await getCredential('notion_ds_id');

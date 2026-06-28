@@ -39,9 +39,19 @@ export async function POST(req: NextRequest) {
       if (/^[0-9a-f-]{32,40}$/i.test(notion_page_id)) {
         try {
           const nowIso = new Date().toISOString();
-          await supabase.from('content_items')
-            .update({ published_at: nowIso, linkedin_url: `https://www.linkedin.com/feed/update/${postUrn}`, updated_at: nowIso })
-            .or(`id.eq.${notion_page_id},notion_page_id.eq.${notion_page_id}`);
+          // V58.2 — résoudre UNE seule ligne (priorité id), puis update par .eq('id') :
+          // sinon un .or() non borné pourrait estampiller « publié » plusieurs lignes.
+          const { data: rows } = await supabase.from('content_items')
+            .select('id')
+            .or(`id.eq.${notion_page_id},notion_page_id.eq.${notion_page_id}`)
+            .order('id', { ascending: true })
+            .limit(1);
+          const rid = rows?.[0]?.id;
+          if (rid) {
+            await supabase.from('content_items')
+              .update({ published_at: nowIso, linkedin_url: `https://www.linkedin.com/feed/update/${postUrn}`, updated_at: nowIso })
+              .eq('id', rid);
+          }
         } catch {}
       }
     }

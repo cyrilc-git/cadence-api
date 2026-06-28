@@ -35,7 +35,8 @@ async function detectUnknownSources(): Promise<SourceHint[]> {
     try { const v = await validateToken(linkedinToken.access_token); linkedinOk = !!v.ok; } catch { linkedinOk = false; }
   }
   if (!linkedinOk) unknown.push({ kind: 'linkedin', label: 'archive LinkedIn' });
-  if (!notion.ok) unknown.push({ kind: 'notion', label: 'Notion' });
+  // V58.2 — déconnexion volontaire : ne pas lister Notion comme source « à connecter ».
+  if (!notion.ok && !(notion as any).disconnected) unknown.push({ kind: 'notion', label: 'Notion' });
   const connKinds = new Set((connectors as any[]).filter(c => c.status === 'connected').map(c => c.kind));
   for (const s of SIGNAL_SOURCES) {
     if (!connKinds.has(s.kind)) unknown.push(s);

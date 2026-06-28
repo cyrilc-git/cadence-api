@@ -4,6 +4,9 @@
 // sujet : on parle a Cadence (idees, angles, infographies, redaction) au lieu
 // d'un formulaire. Tout post propose s'ouvre dans l'editeur en un clic (brouillon
 // content_items via saveDraft).
+// V58.2 — robustesse : preservation du partiel en cas de coupure, annulation
+// (bouton Arreter + cleanup au demontage), auto-resize de la saisie, reponse vide
+// geree, amorces desactivees pendant le streaming.
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
@@ -26,10 +29,19 @@ export default function ComposerClient() {
   const [opening, setOpening] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const acRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, streaming]);
+
+  // V58.2 — annule le stream en cours au démontage (navigation, « Ouvrir dans l'éditeur »).
+  useEffect(() => () => acRef.current?.abort(), []);
+
+  function autoGrow() {
+    const el = taRef.current;
+    if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 160) + 'px'; }
+  }
 
   const send = useCallback(async (text: string) => {
     const content = text.trim();
@@ -37,8 +49,12 @@ export default function ComposerClient() {
     const next: Msg[] = [...messages, { role: 'user', content }];
     setMessages([...next, { role: 'assistant', content: '' }]);
     setInput('');
+    requestAnimationFrame(() => { const el = taRef.current; if (el) el.style.height = 'auto'; });
     setStreaming(true);
+    acRef.current?.abort();
     const ac = new AbortController();
+    acRef.current = ac;
+    let acc = '';
     try {
       const r = await fetch('/api/composer', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -48,7 +64,6 @@ export default function ComposerClient() {
       const reader = r.body.getReader();
       const dec = new TextDecoder();
       let pending = '';
-      let acc = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -61,19 +76,30 @@ export default function ComposerClient() {
           const json = line.slice(5).trim();
           if (!json) continue;
           let ev: any; try { ev = JSON.parse(json); } catch { continue; }
-          if (ev.type === 'delta') { acc += ev.text; }
-          else if (ev.type === 'done') { acc = ev.full || acc; }
+          if (ev.type === 'delta') acc += ev.text;
+          else if (ev.type === 'done') acc = ev.full || acc;
           else if (ev.type === 'error') throw new Error(ev.message);
           setMessages(m => { const c = [...m]; c[c.length - 1] = { role: 'assistant', content: acc }; return c; });
         }
       }
+      // V58.2 — réponse vide : message clair plutôt qu'une bulle fantôme.
+      if (!acc.trim()) {
+        setMessages(m => { const c = [...m]; c[c.length - 1] = { role: 'assistant', content: 'Je n’ai pas réussi à formuler une réponse. Reformulez ou précisez votre demande ?' }; return c; });
+      }
     } catch (e: any) {
       if (e?.name !== 'AbortError') {
-        const msg = '(Cadence n’a pas pu répondre : ' + (e?.message || 'erreur') + ')';
-        setMessages(m => { const c = [...m]; if (c.length) c[c.length - 1] = { role: 'assistant', content: msg }; return c; });
+        const note = '(Cadence n’a pas pu répondre : ' + (e?.message || 'erreur') + ')';
+        // V58.2 — on préserve le texte déjà streamé au lieu de tout effacer.
+        const finalContent = acc.trim() ? acc + '\n\n' + note : note;
+        setMessages(m => { const c = [...m]; if (c.length) c[c.length - 1] = { role: 'assistant', content: finalContent }; return c; });
       }
-    } finally { setStreaming(false); }
+    } finally {
+      setStreaming(false);
+      if (acRef.current === ac) acRef.current = null;
+    }
   }, [messages, streaming]);
+
+  const stop = useCallback(() => { acRef.current?.abort(); setStreaming(false); }, []);
 
   const openInEditor = useCallback(async (content: string, idx: number) => {
     if (opening !== null) return;
@@ -109,7 +135,7 @@ export default function ComposerClient() {
             </div>
             <div className="mt-6 flex flex-wrap gap-2">
               {STARTERS.map(s => (
-                <button key={s} onClick={() => send(s)} className="text-sm text-left px-3.5 py-2 rounded-xl ring-1 ring-inset ring-ink-200 text-ink-700 hover:ring-brand-300 hover:bg-brand-50 transition">
+                <button key={s} onClick={() => send(s)} disabled={streaming} className="text-sm text-left px-3.5 py-2 rounded-xl ring-1 ring-inset ring-ink-200 text-ink-700 hover:ring-brand-300 hover:bg-brand-50 transition disabled:opacity-50">
                   {s}
                 </button>
               ))}
@@ -163,20 +189,31 @@ export default function ComposerClient() {
           <textarea
             ref={taRef}
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={e => { setInput(e.target.value); autoGrow(); }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); } }}
             rows={1}
             placeholder="Écrivez à Cadence. Entrée pour envoyer, Maj+Entrée pour un retour à la ligne."
             className="flex-1 resize-none bg-transparent text-sm text-ink-900 placeholder:text-ink-400 outline-none leading-relaxed max-h-40 py-1"
           />
-          <button
-            onClick={() => send(input)}
-            disabled={!input.trim() || streaming}
-            className="shrink-0 w-9 h-9 rounded-xl bg-brand-500 text-white flex items-center justify-center hover:bg-brand-600 transition disabled:opacity-40"
-            aria-label="Envoyer"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" /></svg>
-          </button>
+          {streaming ? (
+            <button
+              onClick={stop}
+              className="shrink-0 w-9 h-9 rounded-xl ring-1 ring-inset ring-ink-200 text-ink-600 flex items-center justify-center hover:bg-ink-50 transition"
+              aria-label="Arrêter"
+              title="Arrêter la génération"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+            </button>
+          ) : (
+            <button
+              onClick={() => send(input)}
+              disabled={!input.trim()}
+              className="shrink-0 w-9 h-9 rounded-xl bg-brand-500 text-white flex items-center justify-center hover:bg-brand-600 transition disabled:opacity-40"
+              aria-label="Envoyer"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" /></svg>
+            </button>
+          )}
         </div>
         <p className="mt-2 text-2xs text-ink-400 text-center">Cadence écrit dans votre voix. Rien n&apos;est publié sans votre validation.</p>
       </div>

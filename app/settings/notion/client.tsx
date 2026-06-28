@@ -24,6 +24,7 @@ const ACTION_LABELS: Record<string, { label: string; tone: 'brand'|'success'|'wa
 };
 
 export default function NotionSettingsClient({ status, dbInfo, actions }: { status: any; dbInfo: any; actions: any[] }) {
+  const disconnected = !!status?.disconnected;
   return (
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4 flex-wrap">
@@ -38,6 +39,15 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
       {/* V58 — Connexion / déconnexion Notion (interrupteur réversible) */}
       <NotionConnectionControl />
 
+      {/* V58.2 — Quand Notion est déconnecté, on masque toutes les sections
+          « connecté » (colonnes requises, FAIT/NE FAIT, toggles, mémoire,
+          activité) qui deviennent fausses. Reste la carte de reconnexion. */}
+      {disconnected ? (
+        <p className="text-sm text-ink-500 leading-relaxed max-w-2xl border-l-2 border-ink-200 pl-4 py-1">
+          Notion est déconnecté de Cadence. Reconnectez-le ci-dessus pour réactiver l&apos;export. Vos posts et brouillons vivent dans Cadence, indépendamment de Notion.
+        </p>
+      ) : (
+      <>
       {/* V11.4 §6 — Database : prose calme, plus de nested cards admin */}
       <section>
         <div className="flex items-center gap-2 mb-2">
@@ -160,6 +170,8 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
           </ul>
         )}
       </section>
+      </>
+      )}
     </div>
   );
 }

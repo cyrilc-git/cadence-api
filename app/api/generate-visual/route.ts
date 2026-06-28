@@ -29,6 +29,21 @@ async function ensureBucket(): Promise<void> {
   try { await supabase.storage.createBucket(BUCKET, { public: true, fileSizeLimit: 5 * 1024 * 1024 }); } catch {}
 }
 
+// V58.2 — Relie le visuel généré au post (content_items.meta.cover_url) pour qu'il
+// apparaisse dans le calendrier / la bibliothèque. Matche par id OU notion_page_id
+// (borné UUID). Best-effort : n'échoue jamais la génération.
+async function linkPostCover(key: string | null | undefined, url: string | null) {
+  if (!key || !url || !/^[0-9a-f-]{32,40}$/i.test(key)) return;
+  try {
+    const { data } = await supabase.from('content_items').select('id, meta').or(`id.eq.${key},notion_page_id.eq.${key}`).limit(1);
+    const row = data && data[0];
+    if (!row) return;
+    await supabase.from('content_items')
+      .update({ meta: { ...(row.meta || {}), cover_url: url }, updated_at: new Date().toISOString() })
+      .eq('id', row.id);
+  } catch { /* best-effort */ }
+}
+
 const DALL_E_SIZES = new Set(['1024x1024', '1024x1792', '1792x1024']);
 
 // V40 — Finalise une image bitmap (bytes OU url distante) : upload bucket,
@@ -57,6 +72,7 @@ async function finalizeBitmap(opts: {
     // On garde l'URL distante du fournisseur (déjà hébergée).
     publicUrl = opts.remoteUrl;
   }
+  await linkPostCover(opts.notion_page_id, publicUrl);
   const traced = recordVisualItem({
     source_type: 'cadence_dalle',
     format: templateToFormat(opts.template),
@@ -145,6 +161,7 @@ export async function POST(req: NextRequest) {
         .from(BUCKET)
         .upload(path, bytes, { contentType, upsert: true });
       const publicUrl = upErr ? null : supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+      await linkPostCover(notion_page_id, publicUrl);
       const tracedGem = recordVisualItem({
         source_type: 'cadence_dalle', // pas de kind gemini dédié ; tracé comme génération bitmap
         format: templateToFormat(template),
@@ -254,6 +271,7 @@ export async function POST(req: NextRequest) {
         .from(BUCKET)
         .upload(path, new Blob([svg], { type: 'image/svg+xml' }), { contentType: 'image/svg+xml', upsert: true });
       const publicUrl = upErr ? null : supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+      await linkPostCover(notion_page_id, publicUrl);
       // V12.1 §3 — Trace dans la mémoire visuelle
       const traced = recordVisualItem({
         source_type: 'cadence_claude',
@@ -327,6 +345,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'OpenAI a répondu sans image.', raw: raw.slice(0, 500) }, { status: 500 });
     }
     const dalleUrl = parsed.data[0].url;
+    await linkPostCover(notion_page_id, dalleUrl);
     // V12.1 §3 — Trace + V12.8 Vision pass DALL-E
     const tracedDalle = recordVisualItem({
       source_type: 'cadence_dalle',

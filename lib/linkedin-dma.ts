@@ -165,18 +165,27 @@ export async function syncDma(opts?: { snapshot?: boolean }): Promise<any> {
   let snapshot: any = null;
   const cursorRaw = await kvGet('linkedin.dma_cursor');
   const snapshotDone = (await kvGet('linkedin.dma_snapshot_done')) === 'true';
-  if (opts?.snapshot || !snapshotDone) {
+  // V58.2 — Le Snapshot (archive complete des posts) est reconstruit cote
+  // LinkedIn avec du retard : on le RE-joue periodiquement (>= 6 jours) pour
+  // rattraper les posts publies HORS Cadence que le Changelog (fenetre 28j)
+  // aurait manques. Idempotent (dedup par source_id), donc sans risque.
+  const snapshotAt = Number((await kvGet('linkedin.dma_snapshot_at')) || 0);
+  const snapshotStale = !snapshotAt || (Date.now() - snapshotAt) > 6 * 86_400_000;
+  if (opts?.snapshot || !snapshotDone || snapshotStale) {
     try {
       const { posts, pending } = await fetchSnapshotPosts(tok.access_token);
       if (pending) {
         snapshot = { pending: true, note: 'LinkedIn prepare encore votre historique (domaine MEMBER_SHARE_INFO).' };
       } else {
         snapshot = await ingestLinkedInPosts(posts, { sourceType: 'linkedin_import_zip' });
-        if (posts.length > 0) await kvSet('linkedin.dma_snapshot_done', 'true');
+        if (posts.length > 0) {
+          await kvSet('linkedin.dma_snapshot_done', 'true');
+          await kvSet('linkedin.dma_snapshot_at', String(Date.now()));
+        }
       }
     } catch (e: any) { snapshot = { error: e.message }; }
   } else {
-    snapshot = { skipped: 'already_done' };
+    snapshot = { skipped: 'fresh' };
   }
 
   // Changelog : nouveaux posts depuis le curseur.

@@ -36,6 +36,10 @@ function ReadOnlyPost({ ci }: { ci: ContentItemFull }) {
   const recycleBrief = `Recycler ce post : ${ci.title || ''}`.trim();
   return (
     <div className="max-w-2xl mx-auto px-5 lg:px-8 py-10 space-y-6">
+      {/* V58.2 — Retour calendrier visible en haut (on arrive le plus souvent du calendrier). */}
+      <Link href="/calendar" className="inline-flex items-center gap-1.5 text-sm text-ink-500 hover:text-ink-900 transition">
+        <span aria-hidden>←</span> Calendrier
+      </Link>
       <header className="space-y-2">
         <div className="flex items-center gap-2 text-2xs uppercase tracking-wider font-semibold">
           <span className={meta.textClass}>{meta.label}</span>

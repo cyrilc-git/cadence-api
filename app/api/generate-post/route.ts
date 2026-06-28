@@ -13,8 +13,8 @@ export const maxDuration = 60;
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
-  const { pilier, brief, inspirations, voiceMode } = body as {
-    pilier?: string; brief?: string; inspirations?: string[]; voiceMode?: VoiceMode;
+  const { pilier, brief, voiceMode } = body as {
+    pilier?: string; brief?: string; voiceMode?: VoiceMode;
   };
   if (!brief || brief.trim().length < 5) {
     return NextResponse.json({ error: 'Brief trop court (5 caractères minimum).' }, { status: 400 });
@@ -54,9 +54,10 @@ export async function POST(req: NextRequest) {
     }
     // V56 — Inspirations scopées par dimension, chargées en base (autorité
     // serveur, pas le client). Chaque profil n'injecte QUE ses dimensions
-    // d'écriture cochées ; le visuel est traité ailleurs. Repli sur ce que le
-    // client a transmis si la base est injoignable.
-    let inspoForGen: string[] = inspirations || [];
+    // d'écriture cochées ; le visuel est traité ailleurs. V58.2 — aucun repli
+    // sur le client (il pourrait renvoyer des profils « visuel seulement »,
+    // contournant le scoping). Si la base est injoignable : pas d'inspirations.
+    let inspoForGen: string[] = [];
     try {
       const all = await inspirationsList();
       const scoped = all
