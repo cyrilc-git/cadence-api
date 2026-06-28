@@ -9,6 +9,7 @@ import crypto from 'node:crypto';
 import { supabase } from './supabase';
 import { upsertDraft, replacePageContent, type NotionPostSummary } from './notion';
 import type { ContentItemFull } from './content-items';
+import { parisWallClockToUtcIso, parisHHMM } from './tz';
 
 const UUID = /^[0-9a-f-]{32,40}$/i;
 
@@ -16,8 +17,8 @@ function scheduledIso(date?: string | null, time?: string | null): string | null
   const d10 = (date || '').slice(0, 10); // tolère 'YYYY-MM-DD' ou un ISO complet
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d10)) return null;
   const t = (time && /^\d{1,2}:\d{2}$/.test(time)) ? time : '07:30';
-  const d = new Date(`${d10}T${t}:00`);
-  return isNaN(d.getTime()) ? null : d.toISOString();
+  // V58.3 — l'heure saisie est une heure de Paris ; on stocke l'instant UTC correct.
+  return parisWallClockToUtcIso(d10, t);
 }
 
 // Sauvegarde un brouillon dans content_items (primaire) + miroir Notion best-effort.
@@ -108,10 +109,7 @@ export async function saveDraft(input: {
 // l'éditeur existant fonctionne sans changement, alimenté par content_items.
 export function buildDraftSummary(ci: ContentItemFull): NotionPostSummary {
   const sched = ci.scheduled_at || null;
-  let scheduled_time: string | null = null;
-  if (sched) {
-    try { const d = new Date(sched); scheduled_time = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`; } catch {}
-  }
+  const scheduled_time = parisHHMM(sched); // V58.3 — heure affichée en Paris
   return {
     id: ci.notion_page_id || ci.id, // clé éditeur : notion_page_id si dispo (compat aux features), sinon content_items.id
     title: ci.title || 'Brouillon',

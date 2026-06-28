@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { inferFromNotion, type Provenance } from '@/lib/provenance';
 import { toast } from '@/components/Dialog';
+import { parisDay } from '@/lib/tz';
 
 // V51 §4 — Bibliothèque recentrée : 6 filtres simples, une recherche, un
 // aperçu de chaque post et une action claire. Fin de la double rangée de
@@ -225,7 +226,7 @@ export default function PostsLibraryClient({ initial }: { initial: any[] }) {
 
 function PostRow({ p }: { p: any }) {
   // V41 — État de programmation local (optimistic) + ouverture du picker.
-  const [schedDate, setSchedDate] = useState<string | null>(p.scheduled_at ? p.scheduled_at.slice(0, 10) : null);
+  const [schedDate, setSchedDate] = useState<string | null>(p.scheduled_at ? parisDay(p.scheduled_at) : null);
   const [picking, setPicking] = useState(false);
   const [saving, setSaving] = useState(false);
   const status: PostStatus = p._status;

@@ -11,6 +11,7 @@ import PublishModal from '@/components/PublishModal';
 import VisualGenerator from '@/components/VisualGenerator';
 import CadenceEditor, { useEditorMetrics } from '@/components/CadenceEditor';
 import { detectEditorialFormat, buildFormatBrief, formatToVisualTemplate, pilierFormatHint, type EditorialFormat } from '@/lib/format-intelligence';
+import { parisDay } from '@/lib/tz';
 import CommandPalette, { Command } from '@/components/CommandPalette';
 import PreviewDrawer from '@/components/PreviewDrawer';
 import { SLASH_COMMANDS } from '@/components/SlashMenu';
@@ -102,7 +103,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
     try {
       const r = await fetch('/api/notion/posts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: summary.id, title: summary.title, pilier: summary.pilier, date: summary.scheduled_at?.slice(0,10), time: summary.scheduled_time, content: text })
+        body: JSON.stringify({ id: summary.id, title: summary.title, pilier: summary.pilier, date: parisDay(summary.scheduled_at), time: summary.scheduled_time, content: text })
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error);

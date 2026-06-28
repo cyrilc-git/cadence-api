@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import MoveMenu from '@/components/MoveMenu';
+import { parisDay, parisWallClockToUtcIso } from '@/lib/tz';
 // V51 §7 — ProvenanceBadge retiré : la pastille « déduit/confirmé » faisait
 // doublon avec les icônes de statut ci-dessous (✓ publié, archive, programmé,
 // à valider). On garde la logique de provenance (statusOf, canonical_source),
@@ -145,11 +146,11 @@ export default function CalendarClient({
     const before = posts;
     const before_post = posts.find(p => p.id === postId);
     if (!before_post) return;
-    const oldKey = before_post.scheduled_at?.slice(0, 10);
+    const oldKey = parisDay(before_post.scheduled_at); // V58.3 — jour Paris
     if (oldKey === newDateKey) return;
     const time = before_post.scheduled_time?.slice(0,5) || '07:30';
-    // Optimistic + highlight target card briefly
-    setPosts(prev => prev.map(p => p.id === postId ? { ...p, scheduled_at: newDateKey + 'T' + time + ':00.000Z' } : p));
+    // Optimistic + highlight target card briefly. V58.3 — instant UTC correct depuis l'heure de Paris.
+    setPosts(prev => prev.map(p => p.id === postId ? { ...p, scheduled_at: parisWallClockToUtcIso(newDateKey, time) } : p));
     setJustMovedId(postId);
     setTimeout(() => setJustMovedId(prev => prev === postId ? null : prev), 1200);
     try {
@@ -216,7 +217,8 @@ export default function CalendarClient({
     const m = new Map<string, any[]>();
     for (const p of postsForView) {
       if (!p.scheduled_at) continue;
-      const k = p.scheduled_at.slice(0, 10);
+      const k = parisDay(p.scheduled_at); // V58.3 — bucket par jour Paris (= grille)
+      if (!k) continue;
       if (!m.has(k)) m.set(k, []);
       m.get(k)!.push(p);
     }
@@ -260,7 +262,7 @@ export default function CalendarClient({
           id: c.id || `optimistic-${Date.now()}-${i}`,
           title: c.title || c.label,
           pilier: c.pilier,
-          scheduled_at: c.date ? new Date(c.date + 'T07:30:00').toISOString() : null,
+          scheduled_at: c.date ? parisWallClockToUtcIso(c.date, '07:30') : null,
           scheduled_time: '07:30',
           status: 'scheduled',
           validated: false,
@@ -708,9 +710,9 @@ export default function CalendarClient({
                             </span>
                           </Link>
                           <div className="absolute top-0.5 right-0.5">
-                            <MoveMenu postId={p.id} currentDate={p.scheduled_at?.slice(0,10)} onMoved={(newIso) => {
-                              // Optimistic : update post in state
-                              setPosts(prev => prev.map(x => x.id === p.id ? { ...x, scheduled_at: newIso + 'T' + (x.scheduled_time?.slice(0,5) || '07:30') + ':00.000Z' } : x));
+                            <MoveMenu postId={p.id} currentDate={parisDay(p.scheduled_at) || undefined} onMoved={(newIso) => {
+                              // Optimistic : update post in state. V58.3 — instant UTC depuis l'heure de Paris.
+                              setPosts(prev => prev.map(x => x.id === p.id ? { ...x, scheduled_at: parisWallClockToUtcIso(newIso, x.scheduled_time?.slice(0,5) || '07:30') } : x));
                             }} compact />
                           </div>
                         </div>
@@ -804,13 +806,13 @@ export default function CalendarClient({
         const isPastDay = dayPicker.key < ymd(new Date());
         // Posts posés sur ce jour (cohérent avec la grille : postsForView).
         const onThisDay = postsForView
-          .filter(p => p.scheduled_at?.slice(0, 10) === dayPicker.key)
+          .filter(p => parisDay(p.scheduled_at) === dayPicker.key)
           .sort((a, b) => (a.scheduled_time || '').localeCompare(b.scheduled_time || ''));
         // Brouillons programmables : datés ailleurs ou non datés, statut draft / à valider.
         const schedulable = posts.filter(p => {
           const st = statusOf(p);
           if (st !== 'draft' && st !== 'needs_validation') return false;
-          return p.scheduled_at?.slice(0, 10) !== dayPicker.key;
+          return parisDay(p.scheduled_at) !== dayPicker.key;
         }).slice(0, 12);
         const statusLabel = (st: string) =>
           st === 'published' ? 'Publié sur LinkedIn'

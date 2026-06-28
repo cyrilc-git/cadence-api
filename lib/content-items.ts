@@ -7,6 +7,7 @@
 // Tant que la table est vide, fallback live garantit la même UX.
 
 import { supabase } from './supabase';
+import { parisHHMM } from './tz';
 import { listNotionPosts } from './notion';
 import { listIndexed } from './embeddings';
 import { inferFromNotion, inferFromEmbedding, type Provenance, type SourceType } from './provenance';
@@ -330,13 +331,7 @@ export function contentItemToPostSummary(item: ContentItem): NotionPostSummary {
   }
 
   const scheduledIso = item.scheduled_at || item.published_at || null;
-  let scheduledTime: string | null = null;
-  if (scheduledIso) {
-    try {
-      const d = new Date(scheduledIso);
-      scheduledTime = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`;
-    } catch {}
-  }
+  const scheduledTime = parisHHMM(scheduledIso); // V58.3 — heure affichée en Paris
 
   const cadenceSource: string | null =
     sourceType === 'cadence_generated' ? 'cadence' :
