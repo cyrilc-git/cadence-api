@@ -1,6 +1,7 @@
 import { getCredential } from './credentials';
 import { getValidations, logNotionAction, markCadenceDraft, getCadenceDraftSources } from './db';
 import { getPostCovers, type PostCover } from './visual-memory';
+import { supabase } from './supabase';
 const NOTION_API = 'https://api.notion.com/v1';
 const NOTION_VERSION = '2022-06-28';
 
@@ -19,6 +20,22 @@ const headers = () => ({
   'Notion-Version': NOTION_VERSION,
   'Content-Type': 'application/json'
 });
+
+// V58 — Interrupteur de déconnexion Notion. Quand `notion.disconnected` = true
+// dans design_system, Cadence ignore TOTALEMENT Notion (lecture, écriture,
+// export, statut), même si un token traîne encore en variable d'environnement.
+// Réversible : recoller un token via /sources/notion remet le flag à false.
+let _notionDiscCache: { v: boolean; t: number } | null = null;
+export async function isNotionDisconnected(): Promise<boolean> {
+  if (_notionDiscCache && Date.now() - _notionDiscCache.t < 5000) return _notionDiscCache.v;
+  try {
+    const { data } = await supabase.from('design_system').select('value').eq('key', 'notion.disconnected').maybeSingle();
+    const v = String(data?.value || '').toLowerCase().trim();
+    const disc = v === 'true' || v === '1' || v === 'on' || v === 'yes';
+    _notionDiscCache = { v: disc, t: Date.now() };
+    return disc;
+  } catch { return false; }
+}
 
 export type NotionDraft = {
   id: string;
@@ -72,6 +89,7 @@ function getDsId(): string {
 
 // === Status ping ===
 export async function notionStatus() {
+  if (await isNotionDisconnected()) return { ok: false, error: 'Notion déconnecté de Cadence.' };
   const tok = await getCredential('notion');
   if (!tok.value) return { ok: false, error: 'NOTION_API_TOKEN introuvable (ni DB ni env).' };
   const ds = await getCredential('notion_ds_id');
@@ -95,6 +113,7 @@ export async function notionStatus() {
 
 // === List posts (paginated) ===
 export async function listNotionPosts(limit = 50): Promise<NotionPostSummary[]> {
+  if (await isNotionDisconnected()) return [];
   const r = await fetch(`${NOTION_API}/databases/${getDsId()}/query`, {
     method: 'POST',
     headers: headers(),
@@ -171,6 +190,7 @@ export async function listNotionPosts(limit = 50): Promise<NotionPostSummary[]> 
 
 // === Get one post with body content ===
 export async function getNotionPost(id: string): Promise<{ summary: NotionPostSummary; content: string } | null> {
+  if (await isNotionDisconnected()) return null;
   const r = await fetch(`${NOTION_API}/pages/${id}`, { headers: headers() });
   if (!r.ok) return null;
   const page = await r.json();
@@ -245,6 +265,7 @@ export async function upsertDraft(input: {
   url?: string;
   cover?: string;
 }): Promise<{ id: string }> {
+  if (await isNotionDisconnected()) throw new Error('Notion déconnecté de Cadence.');
   const properties: any = {
     Name: { title: [{ text: { content: input.title } }] }
   };
@@ -290,6 +311,7 @@ export async function upsertDraft(input: {
 
 // === Replace page content body with given text ===
 export async function replacePageContent(pageId: string, text: string) {
+  if (await isNotionDisconnected()) return;
   // Delete existing children
   const blocksRes = await fetch(`${NOTION_API}/blocks/${pageId}/children?page_size=100`, { headers: headers() });
   const blocks = (await blocksRes.json()).results || [];
@@ -314,6 +336,7 @@ export async function replacePageContent(pageId: string, text: string) {
 
 // === Cron helpers (existing) ===
 export async function searchNotionDrafts(windowMinutes: number): Promise<NotionDraft[]> {
+  if (await isNotionDisconnected()) return [];
   const dsId = getDsId();
   const now = new Date();
   const todayIso = now.toISOString().split('T')[0];
@@ -362,6 +385,7 @@ export async function searchNotionDrafts(windowMinutes: number): Promise<NotionD
 }
 
 export async function markNotionPublished(pageId: string, postUrn: string): Promise<void> {
+  if (await isNotionDisconnected()) return;
   const linkedinUrl = `https://www.linkedin.com/feed/update/${postUrn}`;
   const r = await fetch(`${NOTION_API}/pages/${pageId}`, {
     method: 'PATCH',

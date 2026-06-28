@@ -35,6 +35,9 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
         <Link href="/sources" className="text-xs text-ink-500 hover:text-ink-900 transition">← Sources</Link>
       </header>
 
+      {/* V58 — Connexion / déconnexion Notion (interrupteur réversible) */}
+      <NotionConnectionControl />
+
       {/* V11.4 §6 — Database : prose calme, plus de nested cards admin */}
       <section>
         <div className="flex items-center gap-2 mb-2">
@@ -161,6 +164,84 @@ export default function NotionSettingsClient({ status, dbInfo, actions }: { stat
   );
 }
 
+
+// V58 — Interrupteur de connexion Notion. Déconnecter : Cadence cesse de lire,
+// écrire et exporter vers Notion (flag notion.disconnected). Reconnecter : on
+// peut recoller un token d'intégration (ou réutiliser celui déjà en place).
+function NotionConnectionControl() {
+  const [disconnected, setDisconnected] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [token, setToken] = useState('');
+
+  useEffect(() => {
+    fetch('/api/design-system?key=notion.disconnected', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => { const v = String(d?.value || '').toLowerCase().trim(); setDisconnected(v === 'true' || v === '1' || v === 'on'); })
+      .catch(() => setDisconnected(false));
+  }, []);
+
+  async function setFlag(val: boolean) {
+    const r = await fetch('/api/design-system', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: 'notion.disconnected', value: val ? 'true' : 'false', category: 'sync' }) });
+    if (!r.ok) throw new Error('Mise à jour du statut impossible');
+  }
+
+  async function disconnect() {
+    const ok = await confirmDialog({
+      title: 'Déconnecter Notion ?',
+      body: 'Cadence cessera de lire, écrire et exporter vers Notion. Vos posts et brouillons restent dans Cadence. Réversible : vous pourrez reconnecter en recollant un token.',
+      confirmLabel: 'Déconnecter',
+      destructive: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try { await setFlag(true); setDisconnected(true); toast.success('Notion déconnecté de Cadence'); }
+    catch (e: any) { toast.error('Erreur : ' + e.message); }
+    finally { setBusy(false); }
+  }
+
+  async function reconnect() {
+    setBusy(true);
+    try {
+      if (token.trim()) {
+        const r = await fetch('/api/credentials', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider: 'notion', secret: token.trim(), label: 'default' }) });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error || 'Token refusé');
+      }
+      await setFlag(false);
+      setDisconnected(false); setToken('');
+      toast.success('Notion reconnecté');
+    } catch (e: any) { toast.error('Erreur : ' + e.message); }
+    finally { setBusy(false); }
+  }
+
+  if (disconnected === null) return null;
+
+  return (
+    <section className="border-l-2 border-ink-200 pl-4 py-1">
+      <h2 className="text-sm font-semibold text-ink-900">Connexion Notion</h2>
+      {disconnected ? (
+        <>
+          <p className="mt-1 text-xs text-ink-500 leading-relaxed max-w-2xl">
+            Notion est <strong>déconnecté</strong>. Cadence ne lit ni n&apos;écrit plus rien dans Notion. Vos posts et brouillons vivent dans Cadence. Pour reconnecter, recollez un token d&apos;intégration Notion, ou laissez le champ vide pour réutiliser le token déjà en place.
+          </p>
+          <div className="mt-3 flex items-center gap-2 flex-wrap">
+            <input type="password" value={token} onChange={e => setToken(e.target.value)} placeholder="secret_… (optionnel)" className="px-3 py-2 rounded-lg ring-1 ring-ink-300 text-sm w-64" />
+            <button onClick={reconnect} disabled={busy} className="px-3 py-1.5 rounded-lg bg-brand-500 text-white text-xs font-medium hover:bg-brand-600 disabled:opacity-50">{busy ? '…' : 'Reconnecter'}</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="mt-1 text-xs text-ink-500 leading-relaxed max-w-2xl">
+            Notion est connecté en export best-effort. Cadence fonctionne sans lui : vos posts et brouillons vivent dans Cadence. Vous pouvez le déconnecter à tout moment.
+          </p>
+          <div className="mt-3">
+            <button onClick={disconnect} disabled={busy} className="px-3 py-1.5 rounded-lg ring-1 ring-danger-300 text-danger-700 text-xs font-medium hover:bg-danger-50 disabled:opacity-50">{busy ? '…' : 'Déconnecter Notion'}</button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
 
 // V17.6 — Toggle pour réactiver la lecture Notion -> Cadence. Par défaut
 // désactivé : Cadence ne lit plus les brouillons Notion automatiquement.
