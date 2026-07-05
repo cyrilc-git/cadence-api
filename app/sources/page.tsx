@@ -129,6 +129,17 @@ export default async function SourcesPage() {
         );
       })}
 
+      {/* V58.5 — Style visuel (brand kit Claude Design) */}
+      <section className="pt-4 border-t border-ink-100">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-ink-900">Style visuel des illustrations</h2>
+            <p className="mt-0.5 text-xs text-ink-500 leading-relaxed">Brand kit pour Claude Design : couleurs, style, format et images de référence, appliqués à chaque visuel.</p>
+          </div>
+          <Link href="/sources/style" className="text-xs text-brand-700 hover:text-brand-900 font-medium transition shrink-0">Régler →</Link>
+        </div>
+      </section>
+
       {/* Confiance — discret, prose, pas de card */}
       <section className="pt-4 border-t border-ink-100 text-xs text-ink-500 leading-relaxed">
         Vos clés et connexions sont chiffrées et stockées en sécurité. Cadence ne publie jamais à votre place sans validation.

@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { brandDnaList, designSystemPromptBlock } from './db';
+import { brandDnaList, designSystemPromptBlock, designSystemMoodboardUrls, designSystemDefaultFormat } from './db';
 import { getCredential } from './credentials';
 
 let _client: Anthropic | null = null;
@@ -377,24 +377,39 @@ RÈGLES OBLIGATOIRES :
 - Pas d'emojis. Pas de mots creux. Pas de jargon marketing.
 - Réponds avec UNIQUEMENT le bloc <svg ...>...</svg>, rien d'autre.`;
 
-export async function generateClaudeDesignSvg(prompt: string): Promise<{ svg: string; model: string }> {
+export async function generateClaudeDesignSvg(prompt: string, opts?: { format?: string; exampleImages?: string[] }): Promise<{ svg: string; model: string }> {
   const c = await client();
   const dsBlock = await designSystemPromptBlock().catch(() => '');
-  // V8.9 §7 — séparer le moodboard du reste pour le rendre saillant
-  const moodboardHint = dsBlock.includes('[MOODBOARD]')
-    ? '\nNOTE : Les URLs sous [MOODBOARD] sont des images de référence (palette/style/composition). Inspirez-vous-en pour la direction artistique sans les fetcher.\n'
+  // V58.5 — Brand kit : couleurs/style (dsBlock, texte) + images de référence en
+  // VISION réelle + format. Surcharge par génération (opts) prioritaire sur le kit.
+  const brandImages = await designSystemMoodboardUrls().catch(() => []);
+  const exampleImages = Array.from(new Set([...(opts?.exampleImages || []), ...brandImages])).filter(Boolean).slice(0, 4);
+  const fmt = opts?.format && ['landscape', 'square', 'portrait'].includes(opts.format)
+    ? opts.format
+    : (await designSystemDefaultFormat().catch(() => null));
+  const viewBox = fmt === 'square' ? '0 0 1080 1080' : fmt === 'portrait' ? '0 0 1080 1350' : fmt === 'landscape' ? '0 0 1200 630' : null;
+  const formatHint = viewBox ? `\n\nFORMAT IMPOSÉ : viewBox="${viewBox}", respecte strictement ce ratio.` : '';
+  const examplesHint = exampleImages.length
+    ? `\n\nIMAGES DE RÉFÉRENCE (ci-jointes) : inspire-toi de leur palette, composition et style. Ne les recopie pas, ne les intègre pas ; produis un SVG original dans cet esprit.`
     : '';
-  const userBlock = dsBlock
-    ? `DESIGN SYSTEM UTILISATEUR (PRIORITAIRE — surcharge les défauts)\n${dsBlock}${moodboardHint}\nDEMANDE\n${prompt}`
-    : `DEMANDE\n${prompt}`;
+  const textBlock = (dsBlock
+    ? `DESIGN SYSTEM UTILISATEUR (PRIORITAIRE — surcharge les défauts)\n${dsBlock}\n\n`
+    : '') + `DEMANDE\n${prompt}${formatHint}${examplesHint}`;
+
+  const content: any[] = [];
+  for (const url of exampleImages) content.push({ type: 'image', source: { type: 'url', url } });
+  content.push({ type: 'text', text: textBlock });
+
   const MODEL = 'claude-sonnet-4-6';
-  const msg = await c.messages.create({
-    model: MODEL,
-    max_tokens: 4000,
-    system: VISUAL_SYSTEM_PROMPT_BASE,
-    messages: [{ role: 'user', content: userBlock }]
-  });
-  const raw = msg.content.filter((x: any) => x.type === 'text').map((x: any) => x.text).join('\n');
+  let raw: string;
+  try {
+    const msg = await c.messages.create({ model: MODEL, max_tokens: 4000, system: VISUAL_SYSTEM_PROMPT_BASE, messages: [{ role: 'user', content }] });
+    raw = msg.content.filter((x: any) => x.type === 'text').map((x: any) => x.text).join('\n');
+  } catch {
+    // Repli sans images (ex : source url d'image refusée) — on garde format + design system.
+    const msg = await c.messages.create({ model: MODEL, max_tokens: 4000, system: VISUAL_SYSTEM_PROMPT_BASE, messages: [{ role: 'user', content: [{ type: 'text', text: textBlock }] }] });
+    raw = msg.content.filter((x: any) => x.type === 'text').map((x: any) => x.text).join('\n');
+  }
   const m = raw.match(/<svg[\s\S]*?<\/svg>/);
   if (!m) throw new Error('Claude n\'a pas renvoyé de SVG valide.');
   return { svg: m[0], model: MODEL };

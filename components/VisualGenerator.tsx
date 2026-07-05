@@ -68,6 +68,8 @@ export default function VisualGenerator({
   autoGenerateKey?: number;
 }) {
   const [template, setTemplate] = useState<keyof typeof TEMPLATES>('feature');
+  // V58.5 — Format de sortie (surcharge par génération le format par défaut du brand kit).
+  const [format, setFormat] = useState<'landscape' | 'square' | 'portrait'>('landscape');
 
   // V12.8 §2 — Quand l'éditeur signale un format suggéré, on bascule le template.
   useEffect(() => {
@@ -133,7 +135,7 @@ export default function VisualGenerator({
       const r = await fetch('/api/generate-visual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: usePrompt, mode, notion_page_id: notionPageId, template, pilier: pilierProp || null })
+        body: JSON.stringify({ prompt: usePrompt, mode, notion_page_id: notionPageId, template, pilier: pilierProp || null, format })
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || `Erreur ${r.status}`);
@@ -337,6 +339,15 @@ export default function VisualGenerator({
               </button>
             </div>
             <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={3} placeholder={`Laissez vide : Cadence dérive un brief de votre post.\nEx. ${TEMPLATES[template].example}`} className="input text-sm" />
+            {/* V58.5 — Format de sortie (surcharge le brand kit pour cette génération). */}
+            <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+              <span className="text-2xs text-ink-500">Format :</span>
+              {(['landscape', 'square', 'portrait'] as const).map(f => (
+                <button key={f} type="button" onClick={() => setFormat(f)} className={`text-2xs px-2 py-1 rounded-md transition ${format === f ? 'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-200' : 'text-ink-500 hover:bg-ink-50'}`}>
+                  {f === 'landscape' ? 'Paysage' : f === 'square' ? 'Carré' : 'Portrait'}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </details>

@@ -264,7 +264,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (mode === 'claude-design') {
-      const { svg, model } = await generateClaudeDesignSvg(genPrompt);
+      // V58.5 — Surcharge par génération : format + images exemples (vision).
+      const { svg, model } = await generateClaudeDesignSvg(genPrompt, {
+        format: (body as any).format,
+        exampleImages: Array.isArray((body as any).exampleImages) ? (body as any).exampleImages.slice(0, 4) : undefined,
+      });
       await ensureBucket();
       const path = `${Date.now()}-${Math.random().toString(36).slice(2,8)}.svg`;
       const { error: upErr } = await supabase.storage

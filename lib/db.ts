@@ -204,3 +204,18 @@ export async function designSystemPromptBlock(): Promise<string> {
   }
   return out;
 }
+// V58.5 — URLs des images de référence (moodboard) du brand kit, pour les passer
+// en VISION réelle à Claude Design (il les regarde, plus juste des mots-clés).
+export async function designSystemMoodboardUrls(): Promise<string[]> {
+  const tokens = await designSystemList().catch(() => []);
+  return tokens
+    .filter(t => (t.category || '') === 'moodboard' && t.meta && t.meta.url)
+    .map(t => String(t.meta.url))
+    .slice(0, 4);
+}
+// V58.5 — Format par défaut du brand kit (token key 'format_default').
+export async function designSystemDefaultFormat(): Promise<string | null> {
+  const tokens = await designSystemList().catch(() => []);
+  const f = tokens.find(t => t.key === 'format_default')?.value;
+  return f && ['landscape', 'square', 'portrait'].includes(f) ? f : null;
+}
