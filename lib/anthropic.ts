@@ -377,6 +377,15 @@ RÈGLES OBLIGATOIRES :
 - Pas d'emojis. Pas de mots creux. Pas de jargon marketing.
 - Réponds avec UNIQUEMENT le bloc <svg ...>...</svg>, rien d'autre.`;
 
+// V58.6 — Bloc image pour Claude : URL (brand kit) ou data URL base64 (image
+// déposée à la génération). Retourne null si la source n'est pas reconnue.
+function visualImageBlock(src: string): any | null {
+  const m = String(src).match(/^data:(image\/[a-z0-9.+-]+);base64,(.+)$/i);
+  if (m) return { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } };
+  if (/^https?:\/\//i.test(src)) return { type: 'image', source: { type: 'url', url: src } };
+  return null;
+}
+
 export async function generateClaudeDesignSvg(prompt: string, opts?: { format?: string; exampleImages?: string[] }): Promise<{ svg: string; model: string }> {
   const c = await client();
   const dsBlock = await designSystemPromptBlock().catch(() => '');
@@ -397,7 +406,7 @@ export async function generateClaudeDesignSvg(prompt: string, opts?: { format?: 
     : '') + `DEMANDE\n${prompt}${formatHint}${examplesHint}`;
 
   const content: any[] = [];
-  for (const url of exampleImages) content.push({ type: 'image', source: { type: 'url', url } });
+  for (const src of exampleImages) { const b = visualImageBlock(src); if (b) content.push(b); }
   content.push({ type: 'text', text: textBlock });
 
   const MODEL = 'claude-sonnet-4-6';

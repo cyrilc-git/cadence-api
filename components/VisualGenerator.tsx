@@ -70,6 +70,8 @@ export default function VisualGenerator({
   const [template, setTemplate] = useState<keyof typeof TEMPLATES>('feature');
   // V58.5 — Format de sortie (surcharge par génération le format par défaut du brand kit).
   const [format, setFormat] = useState<'landscape' | 'square' | 'portrait'>('landscape');
+  // V58.6 — Images de référence déposées pour CETTE génération (en plus du brand kit).
+  const [refImages, setRefImages] = useState<string[]>([]);
 
   // V12.8 §2 — Quand l'éditeur signale un format suggéré, on bascule le template.
   useEffect(() => {
@@ -135,7 +137,7 @@ export default function VisualGenerator({
       const r = await fetch('/api/generate-visual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: usePrompt, mode, notion_page_id: notionPageId, template, pilier: pilierProp || null, format })
+        body: JSON.stringify({ prompt: usePrompt, mode, notion_page_id: notionPageId, template, pilier: pilierProp || null, format, exampleImages: refImages })
       });
       const data = await r.json();
       if (!r.ok) throw new Error(data.error || `Erreur ${r.status}`);
@@ -347,6 +349,29 @@ export default function VisualGenerator({
                   {f === 'landscape' ? 'Paysage' : f === 'square' ? 'Carré' : 'Portrait'}
                 </button>
               ))}
+            </div>
+            {/* V58.6 — Images de référence pour CETTE génération (surcharge le brand kit) */}
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+              <span className="text-2xs text-ink-500">Images de référence :</span>
+              {refImages.map((src, i) => (
+                <span key={i} className="relative w-9 h-9 rounded overflow-hidden ring-1 ring-inset ring-ink-200 group">
+                  <img src={src} alt="référence" className="w-full h-full object-cover" />
+                  <button type="button" onClick={() => setRefImages(prev => prev.filter((_, j) => j !== i))} className="absolute inset-0 bg-ink-900/50 text-white text-sm opacity-0 group-hover:opacity-100 transition" aria-label="Retirer">×</button>
+                </span>
+              ))}
+              {refImages.length < 3 && (
+                <label className="w-9 h-9 rounded ring-1 ring-inset ring-dashed ring-ink-300 flex items-center justify-center text-ink-400 text-sm cursor-pointer hover:bg-ink-50" title="Ajouter une image de référence">
+                  +
+                  <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e => {
+                    const file = e.target.files?.[0]; e.target.value = '';
+                    if (!file) return;
+                    if (file.size > 3 * 1024 * 1024) { setError('Image de référence trop lourde (3 Mo max).'); return; }
+                    const fr = new FileReader();
+                    fr.onload = () => setRefImages(prev => [...prev, String(fr.result)].slice(0, 3));
+                    fr.readAsDataURL(file);
+                  }} />
+                </label>
+              )}
             </div>
           </div>
         </div>
