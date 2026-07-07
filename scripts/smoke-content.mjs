@@ -13,21 +13,19 @@ const base = process.argv[2] || process.env.SMOKE_BASE || 'https://cadence-api-r
 // Chaque marker doit être un fragment STABLE de la page (titre h1,
 // eyebrow, ou consigne caractéristique). Évite les éléments susceptibles
 // de bouger à chaque polish.
+// V58.7 — Markers alignés sur l'app réelle (5 onglets : Écrire, Calendrier,
+// Sources, Mémoire). Les routes qui ne font que rediriger (/posts, /suggestions,
+// /analytics, /brand-dna, /design-visuel, /inspirations, /settings) sont
+// retirées : on ne smoke que de vraies pages, pour ne pas casser à chaque refonte.
 const ROUTES = [
   { path: '/',                marker: 'Bonjour' },
   { path: '/calendar',        marker: 'Aucune publication sans validation' },
-  { path: '/posts',           marker: 'Bibliothèque' },
-  { path: '/posts/new',       marker: 'voulez-vous parler' },     // V15.15 h1 StartHint
-  { path: '/suggestions',     marker: 'Radar' },
+  { path: '/posts/new',       marker: 'Parlez à Cadence' },       // V57 composer conversationnel
   { path: '/sources',         marker: 'connexions' },
   { path: '/sources/notion',  marker: 'espace de travail' },
   { path: '/sources/linkedin',marker: 'historique', soft: true },
+  { path: '/sources/style',   marker: 'style', soft: true },      // V58.5 brand kit visuel
   { path: '/cerveau',         marker: 'Mémoire éditoriale' },
-  { path: '/analytics',       marker: 'patterns' },               // V13.2 §2 "Vos patterns"
-  { path: '/brand-dna',       marker: 'ligne', soft: true },
-  { path: '/design-visuel',   marker: 'univers', soft: true },    // V12.4 "Univers visuel"
-  { path: '/inspirations',    marker: 'inspir',    soft: true },
-  { path: '/settings',        marker: 'param',     soft: true },
   { path: '/api/insights',         marker: '"insights"', json: true },
   { path: '/api/content-items?limit=1', marker: '"count"', json: true },
 ];

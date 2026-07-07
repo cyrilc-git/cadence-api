@@ -32,10 +32,10 @@ jobs:
         run: |
           lhci collect \
             --url=https://cadence-api-ruddy.vercel.app/ \
-            --url=https://cadence-api-ruddy.vercel.app/posts \
+            --url=https://cadence-api-ruddy.vercel.app/posts/new \
             --url=https://cadence-api-ruddy.vercel.app/calendar \
             --url=https://cadence-api-ruddy.vercel.app/cerveau \
-            --url=https://cadence-api-ruddy.vercel.app/suggestions \
+            --url=https://cadence-api-ruddy.vercel.app/sources \
             --numberOfRuns=1
 
       - name: Upload Lighthouse reports
