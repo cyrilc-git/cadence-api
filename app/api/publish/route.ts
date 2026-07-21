@@ -3,13 +3,21 @@ import { getActiveToken, supabase } from '@/lib/supabase';
 import { publishUgcPost } from '@/lib/linkedin';
 import { markNotionPublished } from '@/lib/notion';
 
+// V58.9 — Comparaison de host EXACTE (avant : origin.includes(host), une
+// sous-chaîne, laissait passer https://<host>.evil.com). NB : Origin/Referer
+// restent forgeables par un client non-navigateur ; le vrai durcissement d'auth
+// sur cette action irréversible (session signée) est un chantier séparé.
+function hostFromUrl(u: string): string {
+  try { return new URL(u).host; } catch { return ''; }
+}
+
 export async function POST(req: NextRequest) {
   // Auth: either X-Cockpit-Secret (programmatic) or same-origin (UI)
   const secret = req.headers.get('x-cockpit-secret');
   const referer = req.headers.get('referer') || '';
   const origin  = req.headers.get('origin')  || '';
   const host    = req.headers.get('host')    || '';
-  const sameOrigin = (origin && origin.includes(host)) || (referer && referer.includes(host));
+  const sameOrigin = (!!origin && hostFromUrl(origin) === host) || (!!referer && hostFromUrl(referer) === host);
   if (!sameOrigin && (!secret || secret !== process.env.COCKPIT_SECRET)) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }

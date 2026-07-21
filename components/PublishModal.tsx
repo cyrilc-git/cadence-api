@@ -140,6 +140,15 @@ export default function PublishModal({ open, onClose, text, image, notionPageId,
                   : <img src={image} alt="" className="w-full h-auto" />}
               </div>
             )}
+            {/* V58.9 — Honnêteté : la publication LinkedIn ne joint PAS encore le
+                visuel (publishUgcPost envoie le texte seul). On le dit au lieu de
+                laisser croire que le visuel affiché part avec le post. */}
+            {image && mode === 'now' && (
+              <div className="mt-2 flex items-start gap-2 text-2xs text-warn-700 bg-warn-50 border border-warn-100 rounded-lg px-3 py-2 leading-relaxed">
+                <svg className="w-3.5 h-3.5 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+                <span>Le visuel ci-dessus ne sera <strong>pas</strong> joint au post : LinkedIn ne recevra que le texte. Ajoutez l&apos;image à la main sur LinkedIn après publication.</span>
+              </div>
+            )}
             <div className="mt-3 max-h-56 overflow-y-auto p-4 rounded-xl bg-ink-50 border border-ink-100 text-sm text-ink-900 whitespace-pre-wrap">
               {text}
             </div>

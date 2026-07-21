@@ -4,6 +4,7 @@ import { getCredential } from './credentials';
 // V58.8 — Voix + interdits centralisés dans lib/voice-rules pour que TOUTES les
 // surfaces (génération, composer conversationnel, améliorer) partagent les mêmes.
 import { STATIC_VOICE, STATIC_BANNED } from './voice-rules';
+import { sanitizePostText } from './brand-config';
 
 let _client: Anthropic | null = null;
 async function client(): Promise<Anthropic> {
@@ -139,7 +140,11 @@ Produis 3 propositions distinctes, chacune respectant strictement les règles ci
       console.warn(`[generate-post] markup hallucination détecté (tentative ${attempt + 1}/2). Retry.`);
       continue;
     }
-    proposals = raw.split(/^===PROP===\s*$/m).map(s => s.trim()).filter(Boolean).slice(0, 3);
+    // V58.9 — Passe déterministe anti-slop lexicale sur chaque proposition
+    // (tiret long, guillemets courbes). Le prompt les interdit déjà mais Sonnet
+    // en laisse passer ; ce nettoyage garantit que generate-post ET generate-week
+    // (qui écrit proposals[0] sans repasser par la lint éditeur) sortent propres.
+    proposals = raw.split(/^===PROP===\s*$/m).map(s => sanitizePostText(s.trim())).filter(Boolean).slice(0, 3);
     if (proposals.length > 0) break;
   }
   if (containsMarkupHallucination(raw)) {

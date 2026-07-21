@@ -157,6 +157,18 @@ export function sanitizeForBrandVoice(text: string): string {
     .trim();
 }
 
+// V58.9 — Variante sûre pour un POST complet : neutralise les tirets longs et
+// guillemets typographiques que Sonnet émet parfois malgré le prompt, SANS
+// écraser les sauts de ligne (donc les paragraphes). sanitizeForBrandVoice, lui,
+// collapse `\s{2,}` — newlines compris — et aplatirait le post en un bloc.
+export function sanitizePostText(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/[ \t]*[—–][ \t]*/g, ' · ')    // tiret long -> " · " (espaces/tabs seulement)
+    .replace(/[“”]/g, '"')                   // guillemets courbes doubles
+    .replace(/[ \t]{2,}/g, ' ');             // espaces multiples, jamais les \n
+}
+
 // V25.6 — autoFixAntiPatterns : "Calmer le texte" en un clic.
 // Corrige UNIQUEMENT les patterns lexicaux automatisables sans risque :
 // em-dashes, smart quotes, doubles espaces, ellipses unicode, espaces

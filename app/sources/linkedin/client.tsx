@@ -443,16 +443,11 @@ export default function LinkedInImportClient() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2.5 flex-wrap pt-1">
-                  {targetDate && (
-                    <Link
-                      href={`/calendar?d=${targetDate}&source=linkedin`}
-                      className="btn-primary text-sm"
-                    >
-                      Voir dans le calendrier →
-                    </Link>
-                  )}
-                  <Link href="/posts?status=published" className="btn-secondary text-sm">
-                    Voir dans la bibliothèque →
+                  <Link
+                    href={targetDate ? `/calendar?d=${targetDate}&source=linkedin` : '/calendar?source=linkedin'}
+                    className="btn-primary text-sm"
+                  >
+                    Voir dans le calendrier →
                   </Link>
                 </div>
                 {targetDate && monthLabel && (

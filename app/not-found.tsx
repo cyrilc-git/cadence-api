@@ -45,11 +45,11 @@ export default function NotFound() {
           </Link>
         </li>
         <li>
-          <Link href="/posts" className="group flex items-baseline gap-3">
+          <Link href="/" className="group flex items-baseline gap-3">
             <span className="w-1.5 h-1.5 rounded-full bg-ink-300 mt-2 shrink-0" aria-hidden />
             <div>
-              <div className="text-sm font-medium text-ink-900 group-hover:text-brand-700 transition">Bibliothèque</div>
-              <div className="text-xs text-ink-500">Tous vos posts</div>
+              <div className="text-sm font-medium text-ink-900 group-hover:text-brand-700 transition">Aujourd&apos;hui</div>
+              <div className="text-xs text-ink-500">Vos recommandations du jour</div>
             </div>
           </Link>
         </li>

@@ -6,7 +6,7 @@ import { computeBrainState, formatDateFr } from '@/lib/brain';
 import StyleMemoryView from '@/components/StyleMemoryView';
 import { fetchEditorialRhythm, type RhythmInsight } from '@/lib/editorial-rhythm';
 import { notionStatus } from '@/lib/notion';
-import { connectorsStatus, inspirationsList } from '@/lib/db';
+import { inspirationsList } from '@/lib/db';
 import InspirationsClient from '@/app/inspirations/client';
 import { getActiveToken } from '@/lib/supabase';
 import { validateToken } from '@/lib/linkedin';
@@ -16,18 +16,14 @@ export const revalidate = 0;
 
 type SourceHint = { kind: string; label: string };
 
-const SIGNAL_SOURCES: SourceHint[] = [
-  { kind: 'github', label: 'GitHub' },
-  { kind: 'gmail', label: 'Gmail' },
-  { kind: 'gdrive', label: 'Google Drive' },
-  { kind: 'onedrive', label: 'OneDrive' },
-];
-
+// V58.9 — On ne liste plus GitHub/Gmail/Drive/OneDrive comme sources « à
+// connecter » : elles ont été retirées de /sources en V51 §6. Les proposer ici
+// renvoyait vers un hub qui ne peut pas les brancher (boucle sans issue). Seules
+// LinkedIn et Notion sont réellement (re)connectables depuis /sources.
 async function detectUnknownSources(): Promise<SourceHint[]> {
-  const [linkedinToken, notion, connectors] = await Promise.all([
+  const [linkedinToken, notion] = await Promise.all([
     getActiveToken().catch(() => null),
     notionStatus().catch(() => ({ ok: false })),
-    connectorsStatus().catch(() => [] as any[]),
   ]);
   const unknown: SourceHint[] = [];
   let linkedinOk = false;
@@ -37,10 +33,6 @@ async function detectUnknownSources(): Promise<SourceHint[]> {
   if (!linkedinOk) unknown.push({ kind: 'linkedin', label: 'archive LinkedIn' });
   // V58.2 — déconnexion volontaire : ne pas lister Notion comme source « à connecter ».
   if (!notion.ok && !(notion as any).disconnected) unknown.push({ kind: 'notion', label: 'Notion' });
-  const connKinds = new Set((connectors as any[]).filter(c => c.status === 'connected').map(c => c.kind));
-  for (const s of SIGNAL_SOURCES) {
-    if (!connKinds.has(s.kind)) unknown.push(s);
-  }
   return unknown;
 }
 

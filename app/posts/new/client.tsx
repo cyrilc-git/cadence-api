@@ -267,7 +267,6 @@ export default function NewPostClient({
     { id: 'gen', label: 'Rédiger avec Cadence', hint: 'Trois versions à partir du brief', group: 'Écrire', perform: () => handleGenerate() },
     { id: 'improve', label: 'Améliorer le texte', hint: 'Resserre, garde la voix', group: 'Écrire', perform: improveText },
     { id: 'visual', label: 'Générer un visuel', hint: 'Visuel ou carrousel via Claude Design', group: 'Écrire', perform: generateVisual },
-    { id: 'visual', label: 'Générer un visuel', hint: 'Claude Design', group: 'Écrire', perform: generateVisual },
     { id: 'save', label: 'Enregistrer le brouillon', group: 'Sauvegarder', shortcut: '⌘S', perform: () => handleSave(false) },
     { id: 'sched', label: `Programmer pour le ${new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`, group: 'Sauvegarder', perform: () => { setPublishMode('schedule'); setPublishOpen(true); } },
     ...SLASH_COMMANDS.map<Command>(c => ({
@@ -293,7 +292,7 @@ export default function NewPostClient({
   return (
     <div className={`group/page min-h-screen min-h-[100dvh] flex flex-col editorial-canvas transition-[padding] duration-300 ease-out-expo ${previewOpen ? 'lg:pr-[480px]' : ''}`}>
       <header className={`flex items-center gap-2 px-5 lg:px-8 h-14 sm:h-12 relative pt-[env(safe-area-inset-top)] transition-opacity duration-300 ${deepWriting ? 'opacity-30 hover:opacity-100 focus-within:opacity-100' : 'opacity-100'}`}>
-        <Link href="/posts" className="text-ink-500 hover:text-ink-900 transition w-10 h-10 sm:w-8 sm:h-8 inline-flex items-center justify-center -ml-2 sm:-ml-1" aria-label="Retour à la bibliothèque" title="Retour">←</Link>
+        <Link href="/calendar" className="text-ink-500 hover:text-ink-900 transition w-10 h-10 sm:w-8 sm:h-8 inline-flex items-center justify-center -ml-2 sm:-ml-1" aria-label="Retour au calendrier" title="Retour">←</Link>
 
         <div className="relative mx-auto">
           <button

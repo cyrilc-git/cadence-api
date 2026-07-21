@@ -307,7 +307,7 @@ export default function EditClient({ initial, validated: initialValidated }: { i
               <input type="checkbox" checked={validated} onChange={e => setValidated(e.target.checked)} className="w-3.5 h-3.5 rounded border-ink-300 text-brand-500" />
               <span className="hidden sm:inline">Publication auto</span>
             </label>
-            <button onClick={() => setPublishOpen(true)} disabled={!text.trim() || isDirty} className="btn-primary text-xs" title={isDirty ? 'Sauvegardez avant' : undefined}>
+            <button onClick={async () => { if (isDirty) await save(); setPublishOpen(true); }} disabled={!text.trim() || saving} className="btn-primary text-xs" title={saving ? 'Sauvegarde…' : undefined}>
               Publier…
             </button>
           </span>

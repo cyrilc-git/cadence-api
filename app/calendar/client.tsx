@@ -600,7 +600,7 @@ export default function CalendarClient({
             <div className="font-semibold text-success-700">{genResult.created} brouillon{genResult.created > 1 ? 's' : ''} créé{genResult.created > 1 ? 's' : ''}</div>
             <div className="text-xs text-ink-500">Tous en non validé. Ouvrez chacun pour relire, ajuster et valider pour publication automatique.</div>
           </div>
-          <Link href="/posts?status=needs_validation" className="btn-primary text-xs">Voir les drafts →</Link>
+          <Link href="/calendar" className="btn-primary text-xs">Voir dans le calendrier →</Link>
           <button onClick={() => setGenResult(null)} className="btn-ghost">×</button>
         </div>
       )}

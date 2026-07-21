@@ -22,8 +22,11 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   const focus = isFocusRoute(pathname || '');
   const [cmdOpen, setCmdOpen] = useState(false);
 
-  // ⌘K / Ctrl+K -> palette globale. ⌘1-4 navigation rapide. ⌘N nouveau post.
+  // ⌘K / Ctrl+K -> palette globale. ⌘1-5 = ordre exact de la sidebar. ⌘N nouveau post.
   // Tous skip si on est en focus d'écriture (l'éditeur gère ses propres).
+  // V58.9 — ⌘3 pointait vers /posts (Bibliothèque supprimée en V52, redirigée
+  // vers /calendar au edge) : lien mort. On aligne ⌘1-5 sur la nav réelle
+  // (Aujourd'hui, Écrire, Calendrier, Sources, Mémoire).
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (!(e.metaKey || e.ctrlKey)) return;
@@ -33,9 +36,9 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
       // raccourcis natifs (⌘⇧K, etc.)
       if (e.shiftKey || e.altKey) return;
       if (k === 'k') { e.preventDefault(); setCmdOpen(o => !o); }
-      else if (k === '1') { e.preventDefault(); router.push('/posts/new'); }
-      else if (k === '2') { e.preventDefault(); router.push('/calendar'); }
-      else if (k === '3') { e.preventDefault(); router.push('/posts'); }
+      else if (k === '1') { e.preventDefault(); router.push('/'); }
+      else if (k === '2') { e.preventDefault(); router.push('/posts/new'); }
+      else if (k === '3') { e.preventDefault(); router.push('/calendar'); }
       else if (k === '4') { e.preventDefault(); router.push('/sources'); }
       else if (k === '5') { e.preventDefault(); router.push('/cerveau'); }
     }
@@ -44,10 +47,9 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   }, [focus, router]);
 
   const commands: Command[] = [
-    { id: 'go-today',    label: "Aujourd'hui (recos du jour)", hint: 'Accueil', group: 'Naviguer', perform: () => router.push('/') },
-    { id: 'go-write',    label: 'Écrire un post',         shortcut: '⌘1', group: 'Naviguer', perform: () => router.push('/posts/new') },
-    { id: 'go-calendar', label: 'Voir le calendrier',     shortcut: '⌘2', group: 'Naviguer', perform: () => router.push('/calendar') },
-    { id: 'go-library',  label: 'Ouvrir la bibliothèque', shortcut: '⌘3', group: 'Naviguer', perform: () => router.push('/posts') },
+    { id: 'go-today',    label: "Aujourd'hui",            shortcut: '⌘1', hint: 'Recos du jour', group: 'Naviguer', perform: () => router.push('/') },
+    { id: 'go-write',    label: 'Écrire un post',         shortcut: '⌘2', group: 'Naviguer', perform: () => router.push('/posts/new') },
+    { id: 'go-calendar', label: 'Voir le calendrier',     shortcut: '⌘3', group: 'Naviguer', perform: () => router.push('/calendar') },
     { id: 'go-sources',  label: 'Gérer les sources',      shortcut: '⌘4', group: 'Naviguer', perform: () => router.push('/sources') },
     { id: 'go-memory',   label: 'Ouvrir la mémoire',      shortcut: '⌘5', group: 'Naviguer', perform: () => router.push('/cerveau') },
   ];
