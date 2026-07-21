@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { chatAppend } from '@/lib/db';
 import { getCredential } from '@/lib/credentials';
-import { readStyleMemory } from '@/lib/style-memory';
+import { readStyleMemory, buildStyleBlock } from '@/lib/style-memory';
 import { BANNED_LIST } from '@/lib/voice-rules';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -72,9 +72,10 @@ export async function POST(req: NextRequest) {
         // d'await long : on tente, sinon on tombe sur SYSTEM_BASE seul.
         let styleAddendum = '';
         try {
-          const mem = await readStyleMemory();
-          if (mem && mem.posts_analyzed >= 5 && mem.voice_summary) {
-            styleAddendum = `\n\nSIGNATURE STYLISTIQUE OBSERVÉE (mémoire de voix) :\n${mem.voice_summary}\n\nRespectez cette signature dans la réécriture (longueur, densité, registre).`;
+          // V58.9 — Bloc de voix riche partagé (hooks réels + openings + vocabulaire).
+          const block = buildStyleBlock(await readStyleMemory());
+          if (block) {
+            styleAddendum = `\n\nSIGNATURE STYLISTIQUE OBSERVÉE (mémoire de voix) :\n${block}\n\nRespectez cette signature dans la réécriture (longueur, densité, registre).`;
           }
         } catch { /* silent */ }
 

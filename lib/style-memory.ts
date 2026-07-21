@@ -836,3 +836,27 @@ export async function recomputeStyleMemory(): Promise<{ ok: boolean; analyzed: n
     return { ok: false, analyzed: 0, error: e.message };
   }
 }
+
+// V58.9 — Bloc de voix riche partagé (source unique). Avant, seul generate-post
+// injectait voice_summary + hooks réels + openings à varier + vocabulaire
+// favori ; le composer et /api/chat (Améliorer) n'injectaient que voice_summary,
+// donc réécrivaient les posts de Cyril sans jamais voir ses vrais hooks ni son
+// vocabulaire. On centralise ici avec un gate unique (confidence_score >= 0.2).
+// Retourne null si la mémoire est trop maigre.
+export function buildStyleBlock(mem: StyleMemory | null | undefined): string | null {
+  if (!mem || mem.confidence_score < 0.2 || !mem.voice_summary) return null;
+  const parts: string[] = [mem.voice_summary];
+  if (mem.top_hooks && mem.top_hooks.length > 0) {
+    parts.push('\nRÉFÉRENCES RYTHMIQUES (hooks que vous avez utilisés ; ne PAS recopier, mais reproduire le registre concret-imagé) :');
+    for (const h of mem.top_hooks.slice(0, 3)) parts.push(`- « ${h.replace(/[—–]/g, ',')} »`);
+  }
+  if (mem.top_openings && mem.top_openings.length > 0) {
+    parts.push('\nOPENINGS DOMINANTS (à VARIER consciemment, ne pas refaire la même attaque) :');
+    for (const o of mem.top_openings.slice(0, 3)) parts.push(`- « ${o}… »`);
+  }
+  if (mem.favorite_words && mem.favorite_words.length > 0) {
+    const words = mem.favorite_words.slice(0, 8).map((w) => w.word).join(', ');
+    parts.push(`\nVOCABULAIRE NATUREL (mots récurrents dans vos posts, à privilégier quand c'est juste) : ${words}.`);
+  }
+  return parts.join('\n');
+}

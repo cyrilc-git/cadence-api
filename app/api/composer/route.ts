@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { getCredential } from '@/lib/credentials';
-import { readStyleMemory } from '@/lib/style-memory';
+import { readStyleMemory, buildStyleBlock } from '@/lib/style-memory';
 import { inspirationsList } from '@/lib/db';
 import { STATIC_VOICE, BANNED_LIST } from '@/lib/voice-rules';
 import Anthropic from '@anthropic-ai/sdk';
@@ -42,10 +42,11 @@ const DIM_TEXT: Record<string, string> = { tone: 'Ton et voix', structure: 'Stru
 async function buildContextAddendum(): Promise<string> {
   let add = '';
   try {
-    const mem = await readStyleMemory();
-    if (mem && mem.posts_analyzed >= 5 && mem.voice_summary) {
-      add += `\n\nSA VOIX (observée sur ses vrais posts, à respecter quand tu rédiges) :\n${mem.voice_summary}`;
-    }
+    // V58.9 — Bloc de voix riche (hooks réels + openings + vocabulaire), pas
+    // seulement le résumé : le composer rédige des posts complets, il mérite la
+    // même signature que la génération classique.
+    const block = buildStyleBlock(await readStyleMemory());
+    if (block) add += `\n\nSA VOIX (observée sur ses vrais posts, à respecter quand tu rédiges) :\n${block}`;
   } catch { /* silencieux */ }
   try {
     const all = await inspirationsList();

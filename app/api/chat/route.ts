@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { chatList, chatAppend } from '@/lib/db';
 import { getCredential } from '@/lib/credentials';
-import { readStyleMemory } from '@/lib/style-memory';
+import { readStyleMemory, buildStyleBlock } from '@/lib/style-memory';
 import { BANNED_LIST } from '@/lib/voice-rules';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -52,9 +52,11 @@ export async function POST(req: NextRequest) {
     // V25.7 — Style memory injection si dispo.
     let styleAddendum = '';
     try {
-      const mem = await readStyleMemory();
-      if (mem && mem.posts_analyzed >= 5 && mem.voice_summary) {
-        styleAddendum = `\n\nSIGNATURE STYLISTIQUE OBSERVÉE :\n${mem.voice_summary}\n\nRespectez cette signature dans la réécriture.`;
+      // V58.9 — Bloc de voix riche (hooks réels + openings + vocabulaire) au
+      // lieu du seul résumé : la réécriture voit enfin la vraie signature.
+      const block = buildStyleBlock(await readStyleMemory());
+      if (block) {
+        styleAddendum = `\n\nSIGNATURE STYLISTIQUE OBSERVÉE :\n${block}\n\nRespectez cette signature dans la réécriture.`;
       }
     } catch { /* silent */ }
 

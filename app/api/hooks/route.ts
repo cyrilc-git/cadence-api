@@ -9,7 +9,7 @@
 
 import { NextResponse } from 'next/server';
 import { generateHooks } from '@/lib/anthropic';
-import { readStyleMemory } from '@/lib/style-memory';
+import { readStyleMemory, buildStyleBlock } from '@/lib/style-memory';
 
 export const runtime = 'nodejs';
 export const maxDuration = 20;
@@ -26,11 +26,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Sujet trop long (max 400 caractères).' }, { status: 400 });
     }
 
-    // Injecte la signature stylistique si on a un corpus suffisant.
+    // Injecte la signature stylistique riche (hooks réels + vocabulaire) si le
+    // corpus est suffisant. V58.9 — buildStyleBlock partagé.
     let styleSummary: string | null = null;
     try {
-      const mem = await readStyleMemory();
-      if (mem && mem.posts_analyzed >= 5) styleSummary = mem.voice_summary || null;
+      styleSummary = buildStyleBlock(await readStyleMemory());
     } catch { /* silent — style_memory peut ne pas exister */ }
 
     const { hooks } = await generateHooks({

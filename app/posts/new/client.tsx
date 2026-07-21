@@ -32,6 +32,12 @@ const PILIERS = [
 
 type Initial = null | { id?: string; title: string; pilier?: string; content: string; date?: string };
 type Recyclable = { id: string; title: string; pilier?: string; impressions?: number; published_at: string };
+
+// V58.9 — Libellés FR des 6 angles de hook renvoyés par /api/hooks.
+const ANGLE_LABELS: Record<string, string> = {
+  number_led: 'Chiffre', contrarian: 'Contre-courant', transformation: 'Bascule',
+  authority: 'Référence', admission: 'Aveu', future_shock: 'Présent vs futur',
+};
 type Proposal = { id: string; title: string; hook?: string | null; why?: string | null; pilier?: string | null };
 
 export default function NewPostClient({
@@ -81,6 +87,12 @@ export default function NewPostClient({
   const [carouselMode, setCarouselMode] = useState(false);
   const [pilierOpen, setPilierOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  // V58.9 — Labo d'accroches (6 angles de scroll-stop). Le back /api/hooks
+  // existait mais n'était branché à aucune UI.
+  const [hooksOpen, setHooksOpen] = useState(false);
+  const [hooks, setHooks] = useState<{ angle: string; line1: string; line2?: string }[]>([]);
+  const [hooksLoading, setHooksLoading] = useState(false);
+  const [hooksError, setHooksError] = useState<string | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   // V38.1 — Suivi de versions. Chaque génération / réécriture / amélioration
@@ -195,6 +207,33 @@ export default function NewPostClient({
     finally { setImproving(false); }
   }, [text, improving, postId, pushVersion]);
 
+  // V58.9 — Labo d'accroches : 6 angles de scroll-stop depuis le brief ou la
+  // 1ère ligne du post. Le hook décide de l'essentiel de la portée. Le back
+  // renvoie déjà des accroches purgées anti-slop + signature stylistique.
+  const findHooks = useCallback(async () => {
+    const topic = (brief.trim() || text.split('\n').map(s => s.trim()).find(Boolean) || pilier).slice(0, 400);
+    setHooksOpen(true);
+    if (topic.length < 4) { setHooksError('Écrivez un sujet ou un brief d\'abord.'); setHooks([]); return; }
+    setHooksLoading(true); setHooksError(null); setHooks([]);
+    try {
+      const r = await fetch('/api/hooks', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic, pilier }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      setHooks(d.hooks || []);
+    } catch (e: any) { setHooksError(e.message); }
+    finally { setHooksLoading(false); }
+  }, [brief, text, pilier]);
+
+  const applyHook = useCallback((h: { line1: string; line2?: string }) => {
+    const opener = h.line2 ? `${h.line1}\n${h.line2}` : h.line1;
+    pushVersion(text, 'Avant accroche');
+    setText(prev => prev.trim() ? `${opener}\n\n${prev}` : opener);
+    setHooksOpen(false);
+  }, [text, pushVersion]);
+
   // V51 §2 — « Générer un visuel » : Cadence détecte le format du post, dérive
   // un brief Claude Design et ouvre le studio en générant immédiatement. Texte
   // long et structuré -> studio carrousel.
@@ -266,6 +305,7 @@ export default function NewPostClient({
     { id: 'pilier', label: 'Changer de pilier', group: 'Vue', perform: () => setPilierOpen(true) },
     { id: 'gen', label: 'Rédiger avec Cadence', hint: 'Trois versions à partir du brief', group: 'Écrire', perform: () => handleGenerate() },
     { id: 'improve', label: 'Améliorer le texte', hint: 'Resserre, garde la voix', group: 'Écrire', perform: improveText },
+    { id: 'hooks', label: "Trouver l'accroche", hint: '6 angles de scroll-stop', group: 'Écrire', perform: findHooks },
     { id: 'visual', label: 'Générer un visuel', hint: 'Visuel ou carrousel via Claude Design', group: 'Écrire', perform: generateVisual },
     { id: 'save', label: 'Enregistrer le brouillon', group: 'Sauvegarder', shortcut: '⌘S', perform: () => handleSave(false) },
     { id: 'sched', label: `Programmer pour le ${new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`, group: 'Sauvegarder', perform: () => { setPublishMode('schedule'); setPublishOpen(true); } },
@@ -425,6 +465,9 @@ export default function NewPostClient({
             )}
 
             <div className="ml-auto flex items-center gap-1.5 flex-wrap">
+              <button onClick={findHooks} className="btn-ghost text-xs hidden sm:inline-flex" title="6 angles d'accroche pour la première ligne">
+                Accroche
+              </button>
               <button onClick={improveText} disabled={improving || !text.trim()} className="btn-ghost text-xs hidden sm:inline-flex" title="Resserre le texte en gardant votre voix">
                 {improving ? 'Cadence relit…' : 'Améliorer'}
               </button>
@@ -568,6 +611,39 @@ export default function NewPostClient({
           } finally { setSaveLoading(false); }
         }}
       />
+
+      {/* V58.9 — Labo d'accroches : 6 angles de scroll-stop, clic = insertion en tête. */}
+      {hooksOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] px-4 bg-ink-900/40 backdrop-blur-sm" onClick={() => setHooksOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-pop w-full max-w-lg max-h-[80vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-ink-900">Trouver l&apos;accroche</h3>
+              <button onClick={() => setHooksOpen(false)} className="text-ink-400 hover:text-ink-900 text-lg leading-none" aria-label="Fermer">✕</button>
+            </div>
+            <p className="mt-1 text-sm text-ink-500">Six angles pour la première ligne. Cliquez pour l&apos;insérer en tête du post.</p>
+            {hooksLoading && <div className="mt-6 text-sm text-ink-500">Cadence cherche six angles…</div>}
+            {hooksError && <div className="mt-4 text-sm text-danger-700 bg-danger-50 px-3 py-2 rounded-lg">{hooksError}</div>}
+            {!hooksLoading && !hooksError && hooks.length > 0 && (
+              <ul className="mt-4 space-y-2">
+                {hooks.map((h, i) => (
+                  <li key={i}>
+                    <button onClick={() => applyHook(h)} className="w-full text-left p-3 rounded-xl border border-ink-100 hover:border-brand-300 hover:bg-brand-50 transition">
+                      <div className="text-2xs uppercase tracking-wider font-semibold text-brand-700">{ANGLE_LABELS[h.angle] || h.angle}</div>
+                      <div className="mt-1 text-sm text-ink-900 font-medium">{h.line1}</div>
+                      {h.line2 && <div className="text-sm text-ink-600">{h.line2}</div>}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!hooksLoading && (
+              <div className="mt-5 flex justify-end">
+                <button onClick={findHooks} className="btn-secondary text-xs">Relancer</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
