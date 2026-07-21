@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { chatAppend } from '@/lib/db';
 import { getCredential } from '@/lib/credentials';
 import { readStyleMemory } from '@/lib/style-memory';
+import { BANNED_LIST } from '@/lib/voice-rules';
 import Anthropic from '@anthropic-ai/sdk';
 
 export const runtime = 'nodejs';
@@ -24,21 +25,8 @@ VOIX NON NÉGOCIABLE
 - Hook concret-imagé en 1ère ligne. Leçon implicite (jamais assénée).
 - Orthographe française complète : accents é è ê à â î ô û ç systématiques.
 
-INTERDICTIONS (en plus des règles de voix)
-- Aucun tiret long (— ou –). Virgule ou phrase courte.
-- Aucun "Ce n'est pas X, c'est Y" et variantes.
-- Aucune formule "Voici les N leçons / raisons / choses".
-- Aucune morale assénée ("J'ai compris que…", "Ma plus grande leçon…", "En conclusion :").
-- Aucun CTA générique fin de post ("Et vous ?", "Qu'en pensez-vous ?").
-- Aucun mot creux IA : impactant, insight, game-changer, seamless, robust, delve, unlock, libérer le potentiel, révolutionner, disruption, "dans un monde où".
-- Aucun intensifier creux : extrêmement, considérablement, incroyablement, significativement.
-- Aucune transition AI empilée : "De plus", "En outre", "Par conséquent", "Cela étant dit".
-- Aucun weasel : "pourrait éventuellement", "peut potentiellement", "il semble que".
-- Aucune tournure académique : "mettre en lumière", "ouvrir la voie à", "primordial".
-- Aucun symbolisme creux : "tournant majeur", "empreinte durable", "profondément ancré".
-- Aucun emoji, aucun hashtag générique.
-- Aucun staccato (3+ phrases ≤ 5 mots à la suite).
-- Aucune phrase motivationnelle creuse.
+INTERDICTIONS (source unique lib/voice-rules)
+${BANNED_LIST}
 
 LONGUEUR
 - Conserver la cible 200-1300 caractères (optimal 600-900).

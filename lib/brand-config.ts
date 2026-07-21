@@ -27,11 +27,14 @@ export const VOIX = {
 
 export const ANTI_PATTERNS = [
   { id: 'em_dash',      label: 'Tiret long (— ou –)', pattern: /[—–]/g, severity: 'critical' },
-  { id: 'not_x_y',      label: '"Ce n\'est pas X, c\'est Y" et variantes', pattern: /\b(c['e]?st|n['e]?st)\s+pas\s+\w+[\s,]+c['e]?st\s+\w+/gi, severity: 'critical' },
+  // V58.8 — Fix : la classe `['e]?st` ne matchait JAMAIS « c'est »/« n'est » (elle
+  // consomme un seul caractere). Corrige en `['’e]?est` (+ apostrophe typo) et
+  // elargi a un groupe nominal multi-mots, a la coupure par point, et a « mais ».
+  { id: 'not_x_y',      label: '"Ce n\'est pas X, c\'est Y" et variantes', pattern: /\b(?:ce\s+)?(?:c['’e]?est|n['’e]?est)\s+pas\s+[\wàâäéèêëîïôûùç'’ -]{1,40}?[\s,.;]+(?:c['’e]?est|mais)\b/gi, severity: 'critical' },
   // V9.1.1 — mots creux étendus : impactant, insight, game-changer (déjà présent), etc.
   { id: 'mots_creux',   label: 'Mots creux IA (impactant, insight, game-changer, seamless…)', pattern: /\b(impactant|impactante|insight|insights|game[- ]?changer|seamless|robust|delve|leverage|unlock|unleash|deep[- ]dive|dans un monde où|révolutionnaire|disrupter|disruption)\b/gi, severity: 'high' },
   // V9.1.1 — formules signature : "Résultat :", "Et c'est là que…", "La vérité c'est que…"
-  { id: 'resultat_formule', label: 'Formule signature ("Résultat :", "Et c\'est là…", "La vérité c\'est…")', pattern: /(?:^|\n|\.\s+)\s*(?:R[ée]sultat\s*:|Et\s+c['e]?st\s+l[àa]\s+que|La\s+v[ée]rit[ée]\s+c['e]?st\s+que|Voici\s+pourquoi\s*:|Le\s+vrai\s+probl[èe]me\s*c['e]?st)/gi, severity: 'high' },
+  { id: 'resultat_formule', label: 'Formule signature ("Résultat :", "Et c\'est là…", "La vérité c\'est…")', pattern: /(?:^|\n|\.\s+)\s*(?:R[ée]sultat\s*:|Et\s+c['’e]?est\s+l[àa]\s+que|La\s+v[ée]rit[ée]\s+c['’e]?est\s+que|Voici\s+pourquoi\s*:|Le\s+vrai\s+probl[èe]me\s*c['’e]?est)/gi, severity: 'high' },
   // V9.1.1 — "Pas parce que..." en début de phrase (cliché IA "not because... but because...")
   { id: 'pas_parce_que', label: '"Pas parce que…" en début de phrase (cliché IA)', pattern: /(?:^|\n|\.\s+|\?\s+|!\s+)\s*Pas\s+parce\s+qu[e']/gi, severity: 'high' },
   // V9.1.1 — emoji burst plus strict (>1 emoji = soupçon, >3 = clair)
@@ -55,7 +58,7 @@ export const ANTI_PATTERNS = [
   { id: 'voici_n_lecons', label: '"Voici les N leçons / N raisons / N choses" (cliché LinkedIn)', pattern: /(?:^|\n|\.\s+)\s*Voici\s+(?:les|mes|\d+|trois|cinq|sept)\s+(?:le[çc]ons?|raisons?|choses?|cl[ée]s?|conseils?|astuces?|erreurs?|principes?)/gi, severity: 'high' },
   { id: 'morale_assenee', label: 'Morale assénée ("J\'ai compris que…", "Ma plus grande leçon…")', pattern: /(?:^|\n|\.\s+)\s*(?:J['e]ai compris que|Ma plus grande le[çc]on|Le[çc]on apprise\s*:|Ce que j['e]ai retenu\s*:|En conclusion\s*:|Pour conclure\s*:)/gi, severity: 'high' },
   { id: 'cta_generique', label: 'CTA générique fin de post ("Et vous ?", "Qu\'en pensez-vous ?")', pattern: /(?:^|\n|\.\s+)\s*(?:Et\s+vous\s*\?|Qu['e]en pensez-vous\s*\?|Vos\s+retours\s*\?|Partagez\s+en\s+commentaires|Dites-moi\s+(?:en\s+)?(?:commentaires?|ce\s+que))/gi, severity: 'high' },
-  { id: 'changement_dramatique', label: 'Bascule dramatique surjouée ("Et c\'est là que tout a changé")', pattern: /(?:^|\n|\.\s+)\s*(?:Et\s+c['e]?st\s+l[àa]\s+que\s+(?:tout\s+)?a\s+chang[ée]|Tout\s+a\s+chang[ée]\s+(?:le\s+jour\s+où|quand|en\s+un\s+instant)|Et\s+puis\s+un\s+jour)/gi, severity: 'high' },
+  { id: 'changement_dramatique', label: 'Bascule dramatique surjouée ("Et c\'est là que tout a changé")', pattern: /(?:^|\n|\.\s+)\s*(?:Et\s+c['’e]?est\s+l[àa]\s+que\s+(?:tout\s+)?a\s+chang[ée]|Tout\s+a\s+chang[ée]\s+(?:le\s+jour\s+où|quand|en\s+un\s+instant)|Et\s+puis\s+un\s+jour)/gi, severity: 'high' },
   { id: 'vision_abstraite', label: 'Vocabulaire vision abstraite (visionnaire, stratégique, tournant majeur, optimiser…)', pattern: /\b(visionnaire|tournant\s+majeur|optimiser\s+la\s+valeur|impacter\s+durablement|cl[ée]\s+de\s+la\s+r[ée]ussite|cr[ée]er\s+de\s+la\s+valeur|aligner\s+les\s+[ée]quipes|excellence\s+op[ée]rationnelle)\b/gi, severity: 'medium' },
   { id: 'motivation_creuse', label: 'Phrase motivationnelle (la peur, le doute, les rêves, l\'audace…)', pattern: /\b(?:n['e]?ayez plus peur|osez (?:vraiment|enfin)|croyez en (?:vous|vos r[êe]ves)|sortez de (?:votre )?zone de confort|libérez votre potentiel|d[ée]passez vos limites)\b/gi, severity: 'high' },
   // V25.1 — Anti-slop FR enrichi inspiré du corpus Rossmann (24 règles)

@@ -1,6 +1,7 @@
 import NewPostClient from './client';
 import ComposerClient from './composer';
-import { getNotionPost, listNotionPosts } from '@/lib/notion';
+import { getNotionPost } from '@/lib/notion';
+import { listPostSummaries, EDITORIAL_SOURCE_TYPES } from '@/lib/content-items';
 import { sanitizeForBrandVoice } from '@/lib/brand-config';
 
 export const dynamic = 'force-dynamic';
@@ -49,7 +50,10 @@ export default async function NewPostPage({ searchParams }: { searchParams: Reco
   // Provide list of recyclable posts (>6mo published) for "Créer à partir d'un ancien post"
   let recyclables: Array<{ id: string; title: string; pilier?: string; impressions?: number; published_at: string }> = [];
   try {
-    const all = await listNotionPosts(80);
+    // V58.8 — Recyclables lus depuis content_items (couche canonique) au lieu de
+    // Notion deconnecte : la liste « recycler un ancien post » etait toujours vide
+    // alors que 170+ posts LinkedIn reels y sont.
+    const all = await listPostSummaries({ limit: 300, sourceTypes: EDITORIAL_SOURCE_TYPES });
     const sixMo = Date.now() - 1000 * 60 * 60 * 24 * 180;
     recyclables = all
       .filter(p => p.status === 'published' && p.scheduled_at && new Date(p.scheduled_at).getTime() < sixMo)

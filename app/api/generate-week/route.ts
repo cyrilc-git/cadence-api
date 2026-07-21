@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { upsertDraft, replacePageContent, getNotionPost } from '@/lib/notion';
+import { saveDraft } from '@/lib/drafts';
 import { generateThreeProposals } from '@/lib/anthropic';
 import { planNextWeek, summarizePlan, DayPlan } from '@/lib/weekly-intelligent';
 
@@ -41,9 +41,11 @@ export async function POST(req: NextRequest) {
         const first = r.proposals[0] || '';
         if (!first) { results.push({ date: d.date, weekday: d.weekday, label: d.label, pilier: d.pilier, reason: d.reason, status: 'no_proposal' }); continue; }
         const title = (first.split('\n')[0].slice(0, 80) || `${d.label} - ${d.pilier}`);
-        const created = await upsertDraft({ title, pilier: d.pilier, date: d.date, time: '07:30', anonymisation_ok: false });
-        await replacePageContent(created.id, first);
-        const fetched = await getNotionPost(created.id).catch(() => null);
+        // V58.8 — Ecrit dans content_items (couche canonique) via saveDraft :
+        // marche Notion connecte OU deconnecte. Avant : upsertDraft/Notion ->
+        // rien n'etait sauve depuis la deconnexion, tokens Claude brules pour rien.
+        const created = await saveDraft({ title, content: first, pilier: d.pilier, date: d.date, time: '07:30' });
+        const key = created.notion_page_id || created.id;
         results.push({
           date: d.date,
           weekday: d.weekday,
@@ -53,11 +55,10 @@ export async function POST(req: NextRequest) {
           reason: d.reason,
           source: d.source,
           format: d.format,
-          id: created.id,
+          id: key,
           title,
           excerpt: first.slice(0, 200),
-          notion_url: fetched?.summary?.notion_url || null,
-          edit_url: `/posts/${created.id}/edit`,
+          edit_url: `/posts/${key}/edit`,
           status: 'created',
           validated: false
         });

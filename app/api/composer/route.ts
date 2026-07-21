@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getCredential } from '@/lib/credentials';
 import { readStyleMemory } from '@/lib/style-memory';
 import { inspirationsList } from '@/lib/db';
+import { STATIC_VOICE, BANNED_LIST } from '@/lib/voice-rules';
 import Anthropic from '@anthropic-ai/sdk';
 
 export const runtime = 'nodejs';
@@ -26,12 +27,13 @@ COMMENT TU RÉPONDS EN CONVERSATION
 - Quand il demande une infographie : propose des concepts visuels concrets (avant/après chiffré, timeline d'un closing, schéma d'un flux de trésorerie, comparaison DSO) en décrivant ce que montre le visuel.
 - Quand il demande de rédiger un post : écris le post COMPLET, prêt à publier, en respectant la VOIX ci-dessous, et rien d'autre autour (pas de « voici votre post »).
 
-VOIX QUAND TU RÉDIGES UN POST LINKEDIN (uniquement pour le post, pas pour la conversation)
-- Vouvoiement. Voix de fondateur (Cyril), expert simple et proche, concret, fiable.
-- Hook concret et imagé en première ligne. Leçon implicite, jamais assénée.
-- Français accentué complet.
-- INTERDITS : tiret long, « Ce n'est pas X c'est Y », « Voici les N leçons ou raisons », morale assénée, CTA générique (« Et vous ? »), mots creux d'IA (impactant, insight, game-changer, disruption, révolutionner), emoji, hashtag générique.
-- Cible 200 à 1300 caractères, paragraphes aérés, exemples chiffrés anonymisés.
+VOIX QUAND TU RÉDIGES UN POST LINKEDIN (applique STRICTEMENT, uniquement pour le post rédigé, jamais pour la conversation autour)
+${STATIC_VOICE}
+
+INTERDICTIONS ABSOLUES DANS LE POST
+${BANNED_LIST}
+
+Cible 200 à 1300 caractères, paragraphes aérés, exemples chiffrés anonymisés.
 
 Tu réponds toujours en français, avec les accents.`;
 

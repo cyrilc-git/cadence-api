@@ -51,6 +51,9 @@ export default function NewPostClient({
   proposal?: Proposal | null;
 }) {
   const [pilier, setPilier] = useState(initial?.pilier || PILIERS[2]);
+  // V58.8 — id du brouillon courant : capté au 1er enregistrement pour que les
+  // sauvegardes suivantes fassent un UPDATE au lieu de recréer un doublon.
+  const [postId, setPostId] = useState<string | undefined>(initial?.id);
   const [brief, setBrief] = useState(prefillBrief || '');
   const [text, setText] = useState(initial?.content || '');
   const [title, setTitle] = useState(initial?.title || '');
@@ -178,7 +181,7 @@ export default function NewPostClient({
       const r = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          notion_page_id: initial?.id || 'new-post',
+          notion_page_id: postId || 'new-post',
           draft: text,
           instruction: "Améliore ce post LinkedIn : un hook plus net, des phrases plus directes, des paragraphes aérés. Retire tout ce qui sonne « écrit par une IA » (formules creuses, transitions scolaires, conclusions « en résumé »). Garde EXACTEMENT ma voix, mes idées, mes exemples et mes chiffres. Ne rallonge pas : resserre.",
         }),
@@ -190,7 +193,7 @@ export default function NewPostClient({
       }
     } catch {/* silent */}
     finally { setImproving(false); }
-  }, [text, improving, initial?.id, pushVersion]);
+  }, [text, improving, postId, pushVersion]);
 
   // V51 §2 — « Générer un visuel » : Cadence détecte le format du post, dérive
   // un brief Claude Design et ouvre le studio en générant immédiatement. Texte
@@ -228,18 +231,21 @@ export default function NewPostClient({
         body.scheduled_time = time;
         body.status = 'scheduled';
       }
-      const r = await fetch(initial?.id ? `/api/notion/post/${initial.id}` : '/api/notion/posts', {
-        method: initial?.id ? 'PATCH' : 'POST',
+      const r = await fetch(postId ? `/api/notion/post/${postId}` : '/api/notion/posts', {
+        method: postId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
+      // V58.8 — capte l'id du brouillon créé pour que le prochain Save fasse un
+      // UPDATE (sinon chaque sauvegarde recrée une ligne → doublons en calendrier).
+      if (!postId && d.id) setPostId(d.id);
       setSaveMsg(programmer ? `Programmé ${new Date(date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}` : 'Sauvegardé');
       setTimeout(() => setSaveMsg(null), 2400);
     } catch (e: any) { setSaveMsg('Erreur : ' + e.message); }
     finally { setSaveLoading(false); }
-  }, [initial?.id, title, text, pilier, date, time]);
+  }, [postId, title, text, pilier, date, time]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -267,7 +273,7 @@ export default function NewPostClient({
     ...SLASH_COMMANDS.map<Command>(c => ({
       id: 'slash-' + c.id, label: c.label, hint: c.hint, group: c.group || 'Améliorer',
       perform: async () => {
-        const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notion_page_id: initial?.id || 'new-post', draft: text, instruction: c.prompt }) });
+        const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notion_page_id: postId || 'new-post', draft: text, instruction: c.prompt }) });
         const d = await r.json(); if (r.ok && d.rewrite) setText(d.rewrite);
       }
     })),
@@ -353,7 +359,7 @@ export default function NewPostClient({
               textareaRef={taRef}
               value={text}
               onChange={setText}
-              draftId={initial?.id || 'new-post'}
+              draftId={postId || 'new-post'}
               rows={hasText ? 22 : 8}
               placeholder={hasText ? '' : (prefillBrief ? 'Commencez à écrire ici. Tapez / pour les commandes.' : '')}
               bare
@@ -468,7 +474,7 @@ export default function NewPostClient({
               <span className="w-px h-5 bg-ink-200 mx-0.5 hidden sm:inline-block" aria-hidden />
 
               <button onClick={() => handleSave(false)} disabled={saveLoading || !text.trim()} className="btn-secondary text-xs">
-                {saveLoading ? '…' : (initial?.id ? 'Sauvegarder' : 'Enregistrer')}
+                {saveLoading ? '…' : (postId ? 'Sauvegarder' : 'Enregistrer')}
               </button>
               <button onClick={() => { setPublishMode('schedule'); setPublishOpen(true); }} disabled={!text.trim()} className="btn-secondary text-xs" title="Choisir une date et programmer">
                 Programmer
@@ -498,7 +504,7 @@ export default function NewPostClient({
           <>
             <VisualGenerator
               defaultPrompt=""
-              notionPageId={initial?.id}
+              notionPageId={postId}
               pilier={pilier}
               text={text}
               suggestedFormat={suggestedVisualFormat}
@@ -518,7 +524,7 @@ export default function NewPostClient({
               <p className="text-2xs uppercase tracking-wider font-semibold text-ink-400 mb-3">Visuel d&apos;accompagnement</p>
               <VisualGenerator
                 defaultPrompt=""
-                notionPageId={initial?.id}
+                notionPageId={postId}
                 pilier={pilier}
                 text={text}
                 onPick={setImageUrl}
@@ -534,7 +540,7 @@ export default function NewPostClient({
         onClose={() => setPublishOpen(false)}
         text={text}
         image={imageUrl}
-        notionPageId={initial?.id}
+        notionPageId={postId}
         initialMode={publishMode}
         defaultDate={date}
         defaultTime={time}
@@ -548,13 +554,14 @@ export default function NewPostClient({
               content: text, pilier, validated: false,
               scheduled_date: d, scheduled_time: t, status: 'scheduled',
             };
-            const r = await fetch(initial?.id ? `/api/notion/post/${initial.id}` : '/api/notion/posts', {
-              method: initial?.id ? 'PATCH' : 'POST',
+            const r = await fetch(postId ? `/api/notion/post/${postId}` : '/api/notion/posts', {
+              method: postId ? 'PATCH' : 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(body),
             });
             const dd = await r.json();
             if (!r.ok) throw new Error(dd.error || `HTTP ${r.status}`);
+            if (!postId && dd.id) setPostId(dd.id);
             return true;
           } catch (e: any) {
             setSaveMsg('Erreur : ' + e.message);

@@ -44,6 +44,7 @@ export default function LayoutShell({ children }: { children: React.ReactNode })
   }, [focus, router]);
 
   const commands: Command[] = [
+    { id: 'go-today',    label: "Aujourd'hui (recos du jour)", hint: 'Accueil', group: 'Naviguer', perform: () => router.push('/') },
     { id: 'go-write',    label: 'Écrire un post',         shortcut: '⌘1', group: 'Naviguer', perform: () => router.push('/posts/new') },
     { id: 'go-calendar', label: 'Voir le calendrier',     shortcut: '⌘2', group: 'Naviguer', perform: () => router.push('/calendar') },
     { id: 'go-library',  label: 'Ouvrir la bibliothèque', shortcut: '⌘3', group: 'Naviguer', perform: () => router.push('/posts') },

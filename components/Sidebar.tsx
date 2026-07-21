@@ -4,13 +4,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
-type IconName = 'pen' | 'cal' | 'doc' | 'plug' | 'brain';
+type IconName = 'today' | 'pen' | 'cal' | 'doc' | 'plug' | 'brain';
 type NavItem = { href: string; label: string; icon: IconName };
 
-// V52 — Navigation réduite à 4 destinations. La Bibliothèque disparaît : le
-// calendrier est l'unique source de vérité des posts. Cadence fait 3 choses :
-// écrire, programmer/publier, générer un visuel. Tout le reste sert ces flux.
+// V52 — Navigation réduite. Le calendrier est l'unique source de vérité des posts.
+// V58.8 — Ajout « Aujourd'hui » (racine /) en tête : c'est le produit principal
+// (recos du jour) mais il était injoignable depuis la navigation. Le logo pointe
+// aussi vers la racine.
 const NAV: NavItem[] = [
+  { href: '/',          label: "Aujourd'hui", icon: 'today' },
   { href: '/posts/new', label: 'Écrire',       icon: 'pen' },
   { href: '/calendar',  label: 'Calendrier',   icon: 'cal' },
   { href: '/sources',   label: 'Sources',      icon: 'plug' },
@@ -20,6 +22,7 @@ const NAV: NavItem[] = [
 function Icon({ name }: { name: IconName }) {
   const cls = 'w-[18px] h-[18px] stroke-[1.6]';
   switch (name) {
+    case 'today': return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"/><path strokeLinecap="round" d="M12 2v2 M12 20v2 M2 12h2 M20 12h2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M19.1 4.9l-1.4 1.4 M6.3 17.7l-1.4 1.4"/></svg>;
     case 'pen':   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 20h9 M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4z"/></svg>;
     case 'cal':   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="5" width="18" height="16" rx="2"/><path strokeLinecap="round" d="M3 9h18 M8 3v4 M16 3v4"/></svg>;
     case 'doc':   return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z M14 3v6h6 M9 14h6 M9 17h4"/></svg>;
@@ -94,11 +97,12 @@ export default function Sidebar({ compact = false }: { compact?: boolean } = {})
 }
 
 function Logo() {
+  // V58.8 — Le logo renvoie à « Aujourd'hui » (racine), convention attendue.
   return (
-    <div className="w-9 h-9 rounded-xl bg-ink-900 flex items-center justify-center">
+    <Link href="/" aria-label="Aujourd'hui" className="w-9 h-9 rounded-xl bg-ink-900 flex items-center justify-center shrink-0">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
         <path d="M9 12 Q9 7 12 7 Q15 7 16 9 M9 12 Q9 17 12 17 Q15 17 16 15" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
       </svg>
-    </div>
+    </Link>
   );
 }
