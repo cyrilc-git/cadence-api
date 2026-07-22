@@ -118,7 +118,7 @@ export default function PublishModal({ open, onClose, text, image, notionPageId,
               </div>
               <h3 className="text-lg font-semibold text-center text-ink-900">Programmé</h3>
               <p className="mt-1 text-sm text-center text-ink-500">
-                Le {new Date(done.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} à {time}. En brouillon non validé : rien ne partira sans votre validation finale.
+                Le {new Date(done.date + 'T12:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })} à {time}. Il partira automatiquement à cette date uniquement si vous cochez « Publication auto » dans l&apos;éditeur. Sinon il attend votre feu vert.
               </p>
               <div className="mt-5 flex gap-2 justify-center flex-wrap">
                 <Link href={`/calendar?d=${done.date}`} className="px-4 py-2 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600">Voir dans le calendrier →</Link>
@@ -176,7 +176,7 @@ export default function PublishModal({ open, onClose, text, image, notionPageId,
                   <input type="date" value={date} onChange={e => setDate(e.target.value)} className="input text-sm" />
                   <input type="time" value={time} onChange={e => setTime(e.target.value)} className="input text-sm" />
                 </div>
-                <p className="mt-2 text-2xs text-ink-400 leading-relaxed">Programmé en brouillon non validé. Aucune publication automatique : vous validez chaque post avant qu&apos;il parte.</p>
+                <p className="mt-2 text-2xs text-ink-400 leading-relaxed">Programmé en brouillon. Il ne partira <strong>que si vous cochez « Publication auto »</strong> dans l&apos;éditeur (votre validation). Sinon il attend votre feu vert.</p>
               </div>
             )}
 

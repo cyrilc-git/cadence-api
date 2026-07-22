@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getActiveToken, supabase } from '@/lib/supabase';
 import { publishUgcPost } from '@/lib/linkedin';
-import { searchNotionDrafts, markNotionPublished } from '@/lib/notion';
+import { markNotionPublished } from '@/lib/notion';
 import { isValidated } from '@/lib/db';
 
-// Cron : tourne 1×/jour (Hobby plan). Publie UNIQUEMENT les drafts validés.
-const WINDOW_MINUTES = 60 * 24;
+// Cron : tourne 1×/jour (Hobby plan, 30 5 * * *). Publie sur LinkedIn les
+// brouillons programmés DONT LA DATE EST ÉCHUE ET QUE CYRIL A EXPLICITEMENT
+// VALIDÉS. Aucun post ne part sans validation (post_validations).
+//
+// V58.11 — Lit content_items (couche canonique) au lieu de searchNotionDrafts
+// (Notion déconnecté => renvoyait [] => plus rien ne partait depuis juin). La
+// garde de validation est conservée telle quelle : « Publication auto » cochée
+// dans l'éditeur = validation explicite, sinon le post attend.
 
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization');
@@ -15,31 +21,52 @@ export async function GET(req: NextRequest) {
   const token = await getActiveToken();
   if (!token) return NextResponse.json({ error: 'no_linkedin_token' }, { status: 400 });
 
-  try {
-    const drafts = await searchNotionDrafts(WINDOW_MINUTES);
-    const results = [];
-    for (const draft of drafts) {
-      if (draft.pilier?.includes('Cas client') && !draft.anonymisation_ok) {
-        results.push({ id: draft.id, status: 'skipped_anonymisation_required' });
-        continue;
-      }
-      if (!(await isValidated(draft.id))) {
-        results.push({ id: draft.id, status: 'skipped_not_validated', reason: 'Le draft n est pas marqué comme validé. Le cron ne publie que les drafts explicitement validés.' });
-        continue;
-      }
-      const authorUrn = `urn:li:person:${token.linkedin_user_id}`;
-      try {
-        const { postUrn } = await publishUgcPost(token.access_token, authorUrn, draft.content);
-        await markNotionPublished(draft.id, postUrn);
-        await supabase.from('publish_log').insert({ notion_page_id: draft.id, linkedin_post_urn: postUrn, status: 'success', meta: { source: 'cron_validated' } });
-        results.push({ id: draft.id, status: 'published', urn: postUrn });
-      } catch (e: any) {
-        await supabase.from('publish_log').insert({ notion_page_id: draft.id, status: 'failed', error: e.message, meta: { source: 'cron_validated' } });
-        results.push({ id: draft.id, status: 'failed', error: e.message });
-      }
+  const nowIso = new Date().toISOString();
+  const { data: due, error } = await supabase
+    .from('content_items')
+    .select('id, notion_page_id, content, pilier, scheduled_at')
+    .eq('source_type', 'cadence_generated')
+    .not('scheduled_at', 'is', null)
+    .lte('scheduled_at', nowIso)
+    .is('published_at', null)
+    .order('scheduled_at', { ascending: true })
+    .limit(25);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  const authorUrn = `urn:li:person:${token.linkedin_user_id}`;
+  const results: any[] = [];
+
+  for (const row of due || []) {
+    // Clé de validation = clé éditeur (notion_page_id si présent, sinon l'id
+    // content_items) : exactement ce que l'éditeur écrit dans post_validations.
+    const editorKey = row.notion_page_id || row.id;
+
+    // GARDE-FOU ABSOLU : rien ne part sans validation explicite de Cyril.
+    if (!(await isValidated(editorKey))) {
+      results.push({ id: row.id, status: 'skipped_not_validated' });
+      continue;
     }
-    return NextResponse.json({ checked_at: new Date().toISOString(), drafts_found: drafts.length, results });
-  } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    if (!row.content || !row.content.trim()) {
+      results.push({ id: row.id, status: 'skipped_empty' });
+      continue;
+    }
+
+    try {
+      const { postUrn } = await publishUgcPost(token.access_token, authorUrn, row.content);
+      const doneIso = new Date().toISOString();
+      await supabase.from('content_items')
+        .update({ published_at: doneIso, linkedin_url: `https://www.linkedin.com/feed/update/${postUrn}`, updated_at: doneIso })
+        .eq('id', row.id);
+      // Miroir Notion best-effort si un jour reconnecté (no-op si déconnecté).
+      if (row.notion_page_id) { try { await markNotionPublished(row.notion_page_id, postUrn); } catch { /* optionnel */ } }
+      await supabase.from('publish_log').insert({ notion_page_id: editorKey, linkedin_post_urn: postUrn, status: 'success', meta: { source: 'cron_content_items' } });
+      results.push({ id: row.id, status: 'published', urn: postUrn });
+    } catch (e: any) {
+      await supabase.from('publish_log').insert({ notion_page_id: editorKey, status: 'failed', error: e.message, meta: { source: 'cron_content_items' } });
+      results.push({ id: row.id, status: 'failed', error: e.message });
+    }
   }
+
+  return NextResponse.json({ checked_at: nowIso, due_found: (due || []).length, published: results.filter(r => r.status === 'published').length, results });
 }
