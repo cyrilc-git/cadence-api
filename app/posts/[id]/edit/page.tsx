@@ -5,6 +5,7 @@ import { isValidated } from '@/lib/db';
 import { getContentItemFull, type ContentItemFull } from '@/lib/content-items';
 import { buildDraftSummary } from '@/lib/drafts';
 import { PROVENANCE_META } from '@/lib/provenance';
+import PostMetricsCapture from '@/components/PostMetricsCapture';
 
 export const dynamic = 'force-dynamic';
 // V54 — Lecture toujours fraiche : content_items peut etre reecrit par la
@@ -64,6 +65,9 @@ function ReadOnlyPost({ ci }: { ci: ContentItemFull }) {
       <p className="text-2xs text-ink-400 leading-relaxed">
         Publié — lecture seule. « Réutiliser » crée un nouveau brouillon à partir de ce post, sans toucher à l&apos;original.
       </p>
+      {/* V58.12 — Saisie manuelle des résultats : seule voie pour rallumer le
+          moteur d'analyse (LinkedIn n'expose pas ces chiffres par API). */}
+      <PostMetricsCapture ciId={ci.id} initial={{ impressions: ci.meta?.impressions, likes: ci.meta?.likes, comments: ci.meta?.comments }} />
     </div>
   );
 }
